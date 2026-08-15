@@ -1,0 +1,86 @@
+schema_version: 1
+snapshot_id: "DATA-2026-0004"
+created_at_utc: "2026-08-15T00:00:00Z"
+
+source:
+  provider: "Binance Public Data"
+  exchange: "Binance Global"
+  dataset_name: "Spot monthly BTCUSDT 1h klines"
+  parent_snapshot_id: "DATA-2026-0003"
+  retrieval_uri: "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/"
+  retrieved_at_utc: "2026-08-15T00:00:00Z"
+  monthly_archive_count: 79
+  checksum_validation: "各ZIPの公式.CHECKSUMとSHA-256を照合した。"
+  download_summary_sha256: "sha256:6511701659f58f52f2a455c0d1ac4403366fbf50959394ec2c37e630a193cafd"
+
+venue:
+  role: "research_proxy"
+  market_type: "spot"
+  symbol: "BTCUSDT"
+  base_asset: "BTC"
+  quote_asset: "USDT"
+  proxy_for_exchange: "Binance Japan"
+  proxy_for_symbol: "未確定。Japan側target pairをshadow開始前に登録する。"
+  pair_mapping_method: "Global BTCUSDTとJapan側pairを同一価格とは扱わない。"
+  venue_constraints_snapshot: "exchange-info-BTCUSDT.jsonの取得時点スナップショット"
+  exchange_info_sha256: "sha256:a3735ffb768a6dd0baadbbc20ba7d0514d943452b8c76c3743111b802f96a76c"
+
+coverage:
+  symbols:
+    - "BTCUSDT"
+  start_utc: "2020-01-01T00:00:00Z"
+  end_utc: "2026-07-31T23:00:00Z"
+  raw_hourly_rows: 57665
+  interpolated_hourly_rows: 57696
+  daily_rows: 2404
+  timezone: "UTC"
+  event_time_definition: "Kline open timeをUTCへ正規化し、日足はUTC calendar dayへ集約する。"
+  forward_window:
+    start_utc: "2026-01-01T00:00:00Z"
+    end_utc: "2026-07-31T23:59:59Z"
+
+integrity:
+  transform_commit: "998d9c8"
+  build_metadata_sha256: "sha256:7a2dbae49568487733e39e5fa5b0616ed662991029a9bb7c2d2c869003940754"
+  output_hourly_hash: "sha256:b746a76282826b18b2f3926c93dbc064d1d46924680ddd8fcd4692d42d95ee45"
+  output_daily_hash: "sha256:328276925483dd40ffa95fda42a122798b8db5f113b705c8bdc446b621ec2003"
+  raw_duplicate_count: 0
+  raw_missing_segments: 15
+  raw_missing_intervals: 31
+  interpolated_rows: 31
+  interpolated_ratio_hourly: 0.0005372989462007764
+  synthetic_daily_rows: 15
+  synthetic_daily_ratio: 0.006239600665557404
+  post_transform_duplicate_count: 0
+  post_transform_missing_intervals: 0
+
+transform:
+  method: "time_linear_interpolation_internal_gaps_only"
+  interpolated_columns:
+    - "open"
+    - "high"
+    - "low"
+    - "close"
+    - "volume"
+    - "quote_asset_volume"
+    - "number_of_trades"
+    - "taker_buy_base_asset_volume"
+    - "taker_buy_quote_asset_volume"
+  ohlc_constraint: "合成highはopen/close以上、合成lowはopen/close以下"
+  daily_aggregation: "open=first, high=max, low=min, close=last, volume=sum"
+  observed_values_policy: "観測行は変更せず、合成行にis_interpolated=trueを付与する。"
+  synthetic_rows_are_venue_observations: false
+
+cost_assumptions:
+  fee_schedule_uri: "https://www.binance.com/en/fee/schedule"
+  fee_schedule_retrieved_at_utc: "2026-08-15T00:00:00Z (initial assumption; account fee not verified)"
+  maker_rate: "0.001"
+  taker_rate: "0.001"
+  spread_model: "往復0.0005"
+  slippage_model: "片道0.0005"
+
+limitations:
+  - "補間した31時間と、それを含む15日の日足は取引所の実測値ではない。"
+  - "Global proxyの結果はBinance Japanの利益、流動性、約定率、手数料の証拠ではない。"
+  - "2026年forwardは単一銘柄・単一proxy・7か月の短い期間であり、統計的な十分性を保証しない。"
+  - "raw ZIPと生成CSVはサイズのためリポジトリへコミットせず、取得メタデータとハッシュを追跡する。"

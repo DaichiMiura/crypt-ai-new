@@ -212,11 +212,12 @@ def _classify(
         status = "REJECTED"
     else:
         status = "INCONCLUSIVE"
+    promotion_status = "NOT_ELIGIBLE" if status == "REJECTED" else "NEEDS_FORWARD_EVIDENCE"
     return {
         "candidate_criteria": candidate,
         "rejection_criteria": rejection,
         "research_status": status,
-        "promotion_status": "NEEDS_FORWARD_EVIDENCE",
+        "promotion_status": promotion_status,
         "promotion_note": "Global proxyのforward結果だけではBinance Japanのpaper・shadow・liveを承認しない。",
     }
 
