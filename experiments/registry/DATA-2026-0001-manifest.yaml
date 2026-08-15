@@ -8,7 +8,7 @@ source:
   dataset_name: "Spot monthly klines"
   license: "取得時点の提供条件を確認し、再配布条件を記録する。"
   retrieval_uri: "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/"
-  retrieved_at_utc: ""
+  retrieved_at_utc: "2026-08-15T05:58:12Z"
 
 venue:
   role: "research_proxy"
@@ -19,7 +19,7 @@ venue:
   proxy_for_exchange: "Binance Japan"
   proxy_for_symbol: "未確定。Japan側target pairをshadow開始前に登録する。"
   pair_mapping_method: "未確定。異なるquote assetを同一価格とは扱わず、必要な変換系列とbasis riskを記録する。"
-  venue_constraints_snapshot: "取得前。exchangeInfo相当のtick size、最小数量、注文種別を保存する。"
+  venue_constraints_snapshot: "data/metadata/DATA-2026-0001/exchange-info-BTCUSDT.json"
 
 coverage:
   symbols:
@@ -32,20 +32,37 @@ coverage:
   ingest_time_definition: "ローカル取り込み完了時刻をUTCで記録する。"
 
 integrity:
-  raw_hash: "取得後にSHA-256を記録する。"
-  transform_commit: "取得後に記録する。"
+  raw_hash: "sha256:ce0942908ad3406cccb1a5669a1cbf33a197da4ae237feba25e73b9b95dc46dc"
+  transform_commit: "8efae22"
   transform_parameters:
-    timestamp_unit: "検査後にmillisecondsまたはmicrosecondsを確定する。"
+    timestamp_unit: "milliseconds (入力値を検査して確定)"
     timezone_conversion: "UTC"
     duplicate_policy: "重複を自動削除せず、件数と理由を記録する。"
-  output_hash: "変換後に記録する。"
-  missing_intervals: []
+    correction_source: "公式daily klinesを同一event_timeの補正候補として保存し、欠損時間を補間しない。"
+  output_hash: "sha256:dd83d3c85136fd116e187c7ee9bc29de0be0c28e376ed28b38987c7cf5dc996d"
+  missing_intervals:
+    - "2020-02-09: 2020-02-09T02:00:00Z"
+    - "2020-02-19: 2020-02-19T12:00:00Z/2020-02-19T16:00:00Z"
+    - "2020-03-04: 2020-03-04T10:00:00Z"
+    - "2020-04-25: 2020-04-25T02:00:00Z/2020-04-25T03:00:00Z"
+    - "2020-06-28: 2020-06-28T02:00:00Z/2020-06-28T04:00:00Z"
+    - "2020-11-30: 2020-11-30T06:00:00Z"
+    - "2020-12-21: 2020-12-21T15:00:00Z/2020-12-21T17:00:00Z"
+    - "2020-12-25: 2020-12-25T02:00:00Z"
+    - "2021-02-11: 2021-02-11T04:00:00Z"
+    - "2021-03-06: 2021-03-06T02:00:00Z"
+    - "2021-04-20: 2021-04-20T02:00:00Z/2021-04-20T03:00:00Z"
+    - "2021-04-25: 2021-04-25T05:00:00Z/2021-04-25T07:00:00Z"
+    - "2021-08-13: 2021-08-13T02:00:00Z/2021-08-13T05:00:00Z"
+    - "2021-09-29: 2021-09-29T07:00:00Z/2021-09-29T08:00:00Z"
+    - "2023-03-24: 2023-03-24T13:00:00Z"
   duplicate_count: 0
-  corrections: []
+  corrections:
+    - "公式daily archiveを15日取得したが、31時間の欠損は残った。値の補間は行わない。"
 
 cost_assumptions:
   fee_schedule_uri: "https://www.binance.com/en/fee/schedule"
-  fee_schedule_retrieved_at_utc: ""
+  fee_schedule_retrieved_at_utc: "2026-08-15T05:45:14Z (assumption registration; account fee not verified)"
   maker_rate: "0.001"
   taker_rate: "0.001"
   fee_asset: "未確定"
@@ -56,4 +73,5 @@ cost_assumptions:
 limitations:
   - "Binance Globalの履歴データであり、Binance Japanの板、spread、約定、手数料の正本ではない。"
   - "Japan側のtarget pairとquote assetは未確定である。"
-  - "raw_hash、取得時刻、変換commit、output_hashはダウンロード後に追記する。"
+  - "月次と日次の公式archive、API取得を比較しても31時間の欠損が残り、EXP-2026-0001のバックテストはデータ品質ゲートで拒否した。"
+  - "欠損時間を補間、前値埋め、ゼロvolume bar生成していない。"

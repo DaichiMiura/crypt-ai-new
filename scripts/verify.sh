@@ -9,6 +9,7 @@ required_files=(
   AGENTS.md
   ARCHITECTURE.md
   README.md
+  pyproject.toml
   config/risk-limits.yaml
   config/paper-risk-limits.yaml
   config/strategies/exp-0001-risk.yaml
@@ -23,6 +24,11 @@ required_files=(
   docs/validation-policy.md
   experiments/registry/EXP-2026-0001-hypothesis.yaml
   experiments/registry/DATA-2026-0001-manifest.yaml
+  experiments/registry/EXP-2026-0001-validation.md
+  scripts/download_binance_global_data.py
+  scripts/build_exp_2026_0001_dataset.py
+  scripts/run_exp_2026_0001.py
+  src/crypt_ai/exp_2026_0001.py
   templates/hypothesis.yaml
   templates/data-manifest.yaml
   templates/validation-report.md
