@@ -33,7 +33,10 @@ methodology:
     short_sleeve: "0.25"
     short_max_gross_notional_ratio_of_portfolio: "0.20 at entry sizing; mark-price notional can exceed this during adverse price movement"
     rebalancing: false
-    compounding: false
+    compounding:
+      long_sleeve: true
+      short_sleeve: false
+      cross_sleeve_reallocation: false
   accounting: "ロングはZOOMEX費用モデルのtaker売買・Funding、ショートは既存のmaker指値・taker決済・Funding会計を使い、各スリーブの評価額を同一2時間足で合算する。"
   maximum_variants: 3
   no_parameter_sweep: true
@@ -81,4 +84,4 @@ provenance:
     - "EXP-2026-0012"
     - "EXP-2026-0015"
     - "EXP-2026-0017"
-  preregistration_commit: "このファイルを追加するコミットで、2時間足換算ロング、75/25固定スリーブ、1.0 ATR control、1.5 ATR balanced variantを結果確認前に固定する。"
+  preregistration_commit: "このファイルを追加するコミットで、2時間足換算ロング、75/25固定スリーブ、ロング側のスリーブ内再投資、ショート側の固定ロット（利益複利なし）、1.0 ATR control、1.5 ATR balanced variantを結果確認前に固定する。"

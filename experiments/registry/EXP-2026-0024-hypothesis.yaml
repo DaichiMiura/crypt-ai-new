@@ -1,0 +1,86 @@
+schema_version: 1
+experiment_id: "EXP-2026-0024"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0023のbalanced_shortポートフォリオでショートスリーブの利益を次のエントリーのロットへ再投資すると、固定ロットのショートより最終資産を増やせる可能性がある。ただし、損失時のロット縮小が最大ドローダウンを悪化させないことを同時に確認する。"
+  economic_rationale: "ショートで得た利益を同じショートスリーブへ再投資すれば、優位性が続く局面でエクスポージャーを段階的に増やせる。一方、損失時はロットを縮小するため、固定ロットより損失の連鎖を抑えられる可能性がある。"
+  parent_experiment_ids:
+    - "EXP-2026-0023"
+    - "EXP-2026-0017"
+    - "EXP-2026-0020"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0023と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  portfolio: "ロング750 USDT相当とショート250 USDT相当を合算する。銘柄間・スリーブ間の再配分は行わない。"
+  long_sleeve: "EXP-2026-0023と同一のEXP-0012時間換算ロングを使い、現在のロングスリーブ評価額を次回エントリーへ再投資する。"
+  short_sleeve: "EXP-2026-0017と同一の通常損切り1.5 ATR、1/1/1/1ロット段階、最大4ロット。controlはcompound_profits=false、variantはcompound_profits=trueとする。"
+  compounding_definition: "ショートのcompound_profits=trueでは、各新規セットアップの1ロット基準額を初期ショート資産ではなく現在のショートスリーブ評価額から計算する。利益後はロットが増え、損失後はロットが減る。既存ポジションの保有中に外部から資金を追加しない。"
+  arms:
+    long_only: "EXP-2026-0023と同じ比較用ロング単独。"
+    balanced_short_fixed: "ロング750 + ショート250、ショート利益複利なし。"
+    balanced_short_compounded: "ロング750 + ショート250、ショート利益複利あり。"
+  capital_allocation:
+    initial_equity: "1000"
+    long_sleeve: "0.75"
+    short_sleeve: "0.25"
+    cross_sleeve_reallocation: false
+    short_profit_compounding_control: false
+    short_profit_compounding_variant: true
+  accounting: "EXP-2026-0023と同じ約定・手数料・Funding会計を使い、固定75/25スリーブを同一2時間足で合算する。"
+  maximum_variants: 2
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "3 armで入力データ、銘柄、期間、時間足、費用モデル、初期総資産が一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "PREREGISTERED"
+  primary_metric: "balanced_short_compoundedとbalanced_short_fixedの費用・Funding控除後最終資産差。"
+  secondary_metrics:
+    - "6銘柄の中央値・合算の最終資産差、最大DD差、年率換算リターン"
+    - "ショートのentry、exit、Funding、手数料、最大想定元本、最終ロット基準額"
+    - "ロング単独に対する補完性と、インデックス4年複利+46.41%基準"
+  diagnostic_rule: "複利variantが固定controlより最終資産を改善し、最大DD・最大想定元本・清算件数を許容範囲に保てるかを報告する。"
+  benchmark_rule: "インデックス基準未達でも複利と固定ロットの差分は報告するが、基準未達を収益候補合格とは扱わない。"
+  promotion_rule: "共通データ上の診断だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0024/summary.json"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  execution_model: "EXP-2026-0023と同一。ショートは2時間足高値接触による指値全量約定、決済はtaker、バー内のイベント順序は判定不能。"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: false
+  backtest_started: false
+  backtest_result_artifact: "artifacts/EXP-2026-0024/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0023"
+    - "EXP-2026-0017"
+    - "EXP-2026-0020"
+  preregistration_commit: "このファイルを追加するコミットで、balanced_shortの固定ロットcontrolとショート利益複利variant、事前評価指標を結果確認前に固定する。"
