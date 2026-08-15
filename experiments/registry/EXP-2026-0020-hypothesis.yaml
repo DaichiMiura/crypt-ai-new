@@ -32,7 +32,7 @@ methodology:
   execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
 
 evaluation:
-  status: "PENDING"
+  status: "COMPLETED_DIAGNOSTIC"
   primary_metric: "variantとcontrolの銘柄別・中央値・合算の費用控除後最終資産差。"
   secondary_metrics:
     - "最大DD差、最大建玉数量、最大建玉想定元本の差"
@@ -42,6 +42,7 @@ evaluation:
   benchmark_rule: "インデックス基準未達でも、利益時のロット複利による差分診断は報告する。"
   promotion_rule: "この比較結果だけではpaper・shadow・liveへ昇格しない。清算発生または最大DDの重大な悪化がある場合は不採用とする。"
   result_artifact: "artifacts/EXP-2026-0020/summary.json"
+  result_summary: "利益時複利variantは6銘柄中3銘柄で最終資産が改善し、中央値は-3.72 USDT、合算は+4.04 USDTだった。最大DDは6銘柄すべてで悪化し、最大建玉想定元本は約63〜232 USDT増加した。清算は発生せず、インデックス基準を満たした銘柄もなかった。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -58,7 +59,7 @@ data:
 execution_status:
   preregistered: true
   runner_exists: true
-  backtest_started: false
+  backtest_started: true
   backtest_result_artifact: "artifacts/EXP-2026-0020/summary.json"
   paper_started: false
   shadow_started: false
