@@ -1,0 +1,68 @@
+schema_version: 1
+experiment_id: "EXP-2026-0016"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0015の通常1 ATR損切りを無効化し、2.618緊急停止と14日時間切れを残すと、同じエントリー・利確・費用条件で費用控除後損益が改善する可能性がある。"
+  economic_rationale: "今回の予備結果では通常損切りが粗損益を大きく押し下げ、時間切れ決済は利益に寄与したため、1 ATR押し戻しの早期決済がノイズ退出を生んでいる可能性を検証する。"
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  control: "EXP-2026-0015の通常1 ATR損切りを有効化した固定実装。"
+  variant: "通常1 ATR損切りだけを無効化し、2.618緊急停止、清算代理式、14日時間切れ、利確、エントリー、固定ロット、費用を変更しない。"
+  maximum_variants: 1
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "controlとvariantで入力データ、銘柄、期間、費用モデルが一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED_DIAGNOSTIC"
+  primary_metric: "variantとcontrolの銘柄別・中央値・合算の費用控除後最終資産差。"
+  secondary_metrics:
+    - "粗損益、手数料、Funding、通常損切り、緊急停止、時間切れ、利確の寄与差"
+    - "最大DD、取引数、平均保有期間、未決済残高"
+    - "NISAインデックス4年複利+46.41%基準への到達可否"
+  diagnostic_rule: "variantがcontrolを上回るかを事前登録6銘柄で確認し、結果を見て銘柄を選別しない。"
+  benchmark_rule: "インデックス基準未達でも、損切り無効化による差分診断自体は報告する。"
+  promotion_rule: "この比較結果だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0016/summary.json"
+  result_summary: "通常損切り無効variantは6銘柄中5銘柄で最終資産が改善し、最終資産差の中央値は+68.28 USDTだった。一方、5銘柄で最大DDが悪化し、緊急停止も増え、インデックス基準は未達。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0016/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+  provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+  preregistration_commit: "このファイルを追加するコミットで、通常損切り無効化という単一variantと比較指標を結果確認前に固定する。"

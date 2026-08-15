@@ -48,7 +48,7 @@ class VoidShortInstrument:
 
 @dataclass(frozen=True)
 class VoidShortBacktestConfig:
-    """EXP-2026-0015のバックテスト実行設定。"""
+    """VOID式ショートのバックテスト実行設定。"""
 
     initial_equity: Decimal = Decimal("1000")
     evaluation_start: pd.Timestamp = pd.Timestamp("2022-02-01T00:00:00Z")
@@ -57,6 +57,7 @@ class VoidShortBacktestConfig:
     maintenance_margin_rate: Decimal = (
         VOID_SHORT_DEFAULT_MAINTENANCE_MARGIN_RATE
     )
+    normal_stop_enabled: bool = True
 
     def __post_init__(self) -> None:
         """実行設定の資産、期間、清算余裕率を検査する。
@@ -199,7 +200,10 @@ def run_void_short_backtest(
                     active_anchors = None
                     pending_normal_stop = False
                     completed_targets.clear()
-                elif decision == VoidShortStopDecision.NORMAL_STOP_NEXT_BAR:
+                elif (
+                    decision == VoidShortStopDecision.NORMAL_STOP_NEXT_BAR
+                    and config.normal_stop_enabled
+                ):
                     pending_normal_stop = True
                     pending.clear()
 
