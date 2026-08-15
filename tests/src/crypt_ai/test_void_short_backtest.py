@@ -31,6 +31,13 @@ def test_backtest_config_rejects_non_positive_initial_equity():
         VoidShortBacktestConfig(initial_equity=Decimal("0"))
 
 
+def test_backtest_config_accepts_wider_normal_stop_pullback():
+    """runnerが1.5 ATR通常損切り設定を受け付けることをテストする。"""
+    config = VoidShortBacktestConfig(normal_stop_pullback_atr=Decimal("1.5"))
+
+    assert config.normal_stop_pullback_atr == Decimal("1.5")
+
+
 def test_instrument_requires_positive_tick_size():
     """銘柄仕様のtick sizeが正であることを検査することをテストする。"""
     instrument = VoidShortInstrument(

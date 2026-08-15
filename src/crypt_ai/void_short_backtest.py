@@ -11,6 +11,7 @@ import pandas as pd
 
 from crypt_ai.void_short import (
     VOID_SHORT_CORE_POLICY,
+    VOID_SHORT_STOP_PULLBACK_ATR,
     VoidShortAdverseState,
     VoidShortSizedLimit,
     VoidShortStopDecision,
@@ -58,6 +59,7 @@ class VoidShortBacktestConfig:
         VOID_SHORT_DEFAULT_MAINTENANCE_MARGIN_RATE
     )
     normal_stop_enabled: bool = True
+    normal_stop_pullback_atr: Decimal = VOID_SHORT_STOP_PULLBACK_ATR
 
     def __post_init__(self) -> None:
         """実行設定の資産、期間、清算余裕率を検査する。
@@ -76,6 +78,11 @@ class VoidShortBacktestConfig:
             or self.maintenance_margin_rate >= 1
         ):
             raise ValueError("maintenance_margin_rate must be in [0, 1)")
+        if (
+            not self.normal_stop_pullback_atr.is_finite()
+            or self.normal_stop_pullback_atr <= 0
+        ):
+            raise ValueError("normal_stop_pullback_atr must be positive and finite")
 
 
 @dataclass(frozen=True)
@@ -444,6 +451,7 @@ def _evaluate_stop(
         mark_close=_decimal(row["mark_close"]),
         atr=_decimal(row["atr14"]),
         liquidation_price=liquidation_price,
+        normal_stop_pullback_atr=config.normal_stop_pullback_atr,
     )
     return result.state, result.decision
 

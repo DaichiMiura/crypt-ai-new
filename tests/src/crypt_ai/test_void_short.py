@@ -592,6 +592,29 @@ def test_stop_exits_after_one_atr_pullback_on_later_bar():
     assert result.state.peak_mark_price == Decimal("147")
 
 
+def test_stop_uses_configured_pullback_atr_multiple():
+    """通常損切りが指定したATR倍率で反落を判定することをテストする。"""
+    plan = build_void_short_stop_plan(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        tick_size=Decimal("0.1"),
+    )
+    state = VoidShortAdverseState(armed=True, peak_mark_price=Decimal("145"))
+
+    result = evaluate_void_short_stop_bar(
+        plan=plan,
+        state=state,
+        mark_high=Decimal("145"),
+        mark_close=Decimal("142"),
+        atr=Decimal("2"),
+        liquidation_price=Decimal("190"),
+        normal_stop_pullback_atr=Decimal("1.5"),
+    )
+
+    assert result.decision == VoidShortStopDecision.NORMAL_STOP_NEXT_BAR
+
+
 def test_stop_emergency_exit_does_not_wait_for_pullback():
     """2.618到達時は押し戻しを待たず緊急停止することをテストする。"""
     plan = build_void_short_stop_plan(

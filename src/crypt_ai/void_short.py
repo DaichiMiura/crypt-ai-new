@@ -17,6 +17,7 @@ VOID_SHORT_ATR_BARS = 14
 VOID_SHORT_RALLY_ATR = 2.0
 VOID_SHORT_PULLBACK_ATR = 1.0
 VOID_SHORT_REBOUND_ATR = 0.5
+VOID_SHORT_STOP_PULLBACK_ATR = Decimal("1")
 VOID_SHORT_FIBONACCI_RATIOS = (
     Decimal("0.236"),
     Decimal("0.382"),
@@ -853,6 +854,7 @@ def evaluate_void_short_stop_bar(
     mark_close: Decimal,
     atr: Decimal,
     liquidation_price: Decimal,
+    normal_stop_pullback_atr: Decimal = VOID_SHORT_STOP_PULLBACK_ATR,
 ) -> VoidShortStopEvaluation:
     """確定したmark price足で通常・緊急損切りを評価する。
 
@@ -867,13 +869,14 @@ def evaluate_void_short_stop_bar(
         mark_close: 現在の確定2時間足mark price終値。
         atr: trade価格から計算した現在のATR14。
         liquidation_price: 現在のショート建玉清算価格。
+        normal_stop_pullback_atr: 通常損切りに必要な最高値からのATR倍率。
 
     Returns:
         次バーへ引き継ぐ状態と決済要求。
 
     Raises:
         ValueError: 価格・ATRが非正・非有限、mark終値が高値を上回る、または
-            損切り計画の価格順序が不正な場合。
+            損切り計画の価格順序または反落幅が不正な場合。
     """
 
     values = {
@@ -883,12 +886,15 @@ def evaluate_void_short_stop_bar(
         "mark_close": mark_close,
         "atr": atr,
         "liquidation_price": liquidation_price,
+        "normal_stop_pullback_atr": normal_stop_pullback_atr,
     }
     for name, value in values.items():
         if not value.is_finite() or value <= 0:
             raise ValueError(f"{name} must be positive and finite")
     if plan.emergency_price <= plan.arm_price:
         raise ValueError("emergency_price must be above arm_price")
+    if normal_stop_pullback_atr <= 0:
+        raise ValueError("normal_stop_pullback_atr must be positive")
     if mark_close > mark_high:
         raise ValueError("mark_close must not exceed mark_high")
 
@@ -921,7 +927,7 @@ def evaluate_void_short_stop_bar(
         armed=True,
         peak_mark_price=peak_mark_price,
     )
-    if mark_close <= peak_mark_price - atr:
+    if mark_close <= peak_mark_price - atr * normal_stop_pullback_atr:
         return VoidShortStopEvaluation(
             state=next_state,
             decision=VoidShortStopDecision.NORMAL_STOP_NEXT_BAR,
