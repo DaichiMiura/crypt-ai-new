@@ -72,6 +72,12 @@ def _evaluate(
         raise ValueError("reserved OOS period is empty")
     oos_equity, oos_trades = run_backtest(oos, cost_model, initial_cash)
     oos_baseline = run_buy_and_hold(oos, cost_model, initial_cash)
+    signal_changes = frame["signal_position"].ne(
+        frame["signal_position"].shift(1).fillna(0)
+    )
+    synthetic_signal_changes = int(
+        (signal_changes & frame[INTERPOLATED_COLUMN].astype(bool)).sum()
+    )
     synthetic_trades = int(
         trades.get(INTERPOLATED_COLUMN, pd.Series(dtype=bool)).astype(bool).sum()
     )
@@ -89,6 +95,7 @@ def _evaluate(
         "oos_trade_count": int(len(oos_trades)),
         "trades_on_interpolated_days": synthetic_trades,
         "oos_trades_on_interpolated_days": oos_synthetic_trades,
+        "signal_changes_on_interpolated_days": synthetic_signal_changes,
         "artifacts": {
             "equity": equity,
             "trades": trades,
