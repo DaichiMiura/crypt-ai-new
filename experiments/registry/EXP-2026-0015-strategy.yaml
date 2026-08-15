@@ -41,6 +41,10 @@ implementation_steps:
     name: "execution_accounting"
     status: "implemented"
     scope: "maker・taker手数料、不利なtakerスリッページ、Funding受払、全量約定仮定を建玉台帳へ反映する。"
+  - number: 10
+    name: "backtest_runner"
+    status: "implemented"
+    scope: "登録済みZOOMEXデータを時系列に処理し、6銘柄を個別評価して監査イベントと評価額を保存する。"
 
 basic_policy:
   timeframe_minutes: 120
@@ -195,8 +199,9 @@ execution_accounting:
     liquidation: "https://support-testnet.zoomex.com/en-as/articles/34843945642777"
 
 execution_status:
-  strategy_runner_exists: false
-  backtest_started: false
+  strategy_runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0015/summary.json"
   paper_started: false
   shadow_started: false
   live_started: false

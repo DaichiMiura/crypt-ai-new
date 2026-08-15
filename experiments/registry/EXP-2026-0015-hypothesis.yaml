@@ -26,8 +26,8 @@ hypothesis:
     - "6銘柄の同期間比較が市場全体の特定局面に依存する。"
 
 methodology:
-  scope: "本コミットは銘柄・商品・データ期間の登録とデータ取得だけを行う。売買ロジックの実験runnerは作成・実行しない。"
-  execution_gate: "strategy formalization、会計仕様、リスク上限、独立検証手順を別途コミットして人間承認するまで、バックテスト・paper・shadow・liveを禁止する。"
+  scope: "登録済み6銘柄を同一ルール・同一期間で個別バックテストし、採否やpaper昇格は別途判断する。"
+  execution_gate: "予備バックテストの実行は許可するが、研究statusの確定、paper・shadow・liveへの昇格は、strategy formalization、会計仕様、リスク上限、独立検証手順の人間承認後に限る。"
   planned_strategy_components:
     - "2時間足SMA200がSMA400を下回る下落トレンド判定。"
     - "急落への飛び乗りではなく反発後に入る、VOID式の考え方を決定論的な条件へ分解する。"
@@ -39,7 +39,7 @@ methodology:
     - "補間した価格行は作らず、欠損は拒否する。"
   maximum_variants: 1
   strategy_specification: "experiments/registry/EXP-2026-0015-strategy.yaml"
-  implementation_status: "基本方針から損切り、約定・手数料・Funding会計まで実装済み。実験runnerと清算価格計算は未実装・未実行。"
+  implementation_status: "基本方針から損切り、約定・手数料・Funding会計、個別銘柄runnerまで実装済み。清算価格は0.5% maintenance marginの代理式。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -78,9 +78,12 @@ data:
     - "日本居住者のZOOMEX利用可否・法令・税務の確認は本研究登録では完了しておらず、実取引を承認しない。"
 
 evaluation:
-  status: "not_started"
-  primary_metric: "未登録。strategy formalizationコミットで、下落局面の損失、最大DD、清算余裕、費用控除後損益を固定する。"
-  promotion_rule: "データ取得完了は研究開始・paper・shadow・liveの承認を意味しない。"
+  status: "PRELIMINARY_BACKTEST_COMPLETED_NEEDS_REVIEW"
+  research_status: "INCONCLUSIVE"
+  promotion_status: "NOT_ELIGIBLE"
+  primary_metric: "銘柄別の費用控除後最終資産、最大DD、損切り・清算件数、Funding受払をartifacts/EXP-2026-0015/summary.jsonへ保存する。"
+  result_artifact: "artifacts/EXP-2026-0015/summary.json"
+  promotion_rule: "予備バックテスト結果だけではpaper・shadow・liveを承認しない。代理清算式・固定スリッページの感度分析と独立レビューが必要。"
 
 provenance:
   parent_experiment_ids:
@@ -111,3 +114,9 @@ provenance:
     - amended_at_utc: "2026-08-15T00:00:00Z"
       reason: "バックテスト前にZOOMEX USDT無期限の約定費用を再現可能に固定するため。"
       change: "maker 0.02%、taker 0.06%、taker 5bpスリッページ、実Funding履歴、価格接触時全量約定、不明な同一足は不利側優先とした。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "登録済み仕様をrunnerへ接続し、初回の予備バックテストを再現可能にするため。"
+      change: "2022-02-01から2025-12-31までの6銘柄を個別評価し、約定・Funding・mark評価額・監査イベントを成果物へ保存した。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "予備バックテストの実装確認と、独立検証・昇格判定を分離するため。"
+      change: "runnerの実行自体は許可するが、今回の結果はINCONCLUSIVE・NOT_ELIGIBLEとして扱う。"
