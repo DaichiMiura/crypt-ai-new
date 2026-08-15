@@ -2,13 +2,14 @@
 
 ## Decision
 
-- Status: `NEEDS_EVIDENCE`
+- Research status: `INCONCLUSIVE`
+- Promotion status: `NOT_ELIGIBLE`
 - Validator: `research` quality gate（自動計算。paper/live承認ではない）
 - Reviewed at (UTC): 2026-08-15
 - Scope of approval: none
 - Expiry or review date: 次の時系列検証とvenue差分検証が完了するまで
 
-2025年の予約OOSでは買い持ちを上回ったが、全期間では大幅に下回った。OOSは1年・9往復取引に限られ、Global proxyからBinance Japanへの移転可能性、注文制約、安全運用の証拠も不足しているため、paper・shadow・liveのいずれにも昇格させない。`NEEDS_EVIDENCE`は承認ではない。
+2025年の予約OOSでは買い持ちを上回ったが、全期間では大幅に下回った。OOSは1年・9往復取引に限られ、Global proxyからBinance Japanへの移転可能性、注文制約、安全運用の証拠も不足しているため、単独戦略としては`INCONCLUSIVE`とし、paper・shadow・liveのいずれにも昇格させない。
 
 ## Frozen artifacts
 
@@ -79,7 +80,7 @@ Base fee（片道0.1%、往復spread 0.05%、片道slippage 0.05%）の結果は
 
 ## Rejection or hold rationale
 
-OOSの結果だけなら仮説と整合するが、全期間CAGRは1.16%にとどまり買い持ち51.68%を下回る。さらにOOSは2025年の1期間・9往復取引で、Global proxyとBinance Japanの差、実注文制約、再起動・照合・kill switchの安全試験も未完了である。このため、研究上の候補として記録するにとどめ、`NEEDS_EVIDENCE`とする。
+OOSの結果だけなら仮説と整合するが、全期間CAGRは1.16%にとどまり買い持ち51.68%を下回る。さらにOOSは2025年の1期間・9往復取引で、Global proxyとBinance Japanの差、実注文制約、再起動・照合・kill switchの安全試験も未完了である。このため、研究上の参考結果として残すが、単独戦略の判定は`INCONCLUSIVE`とする。
 
 この結果はBinance Global proxy上のpaper計算であり、Binance Japanでの利益、fill、手数料、shadowまたはlive運用の証拠ではない。合成日足を含むため、実測データだけの性能証明でもない。
 

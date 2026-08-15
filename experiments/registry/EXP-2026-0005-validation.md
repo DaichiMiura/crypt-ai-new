@@ -2,13 +2,14 @@
 
 ## Decision
 
-- Status: `NEEDS_EVIDENCE`
+- Research status: `BACKTEST_CANDIDATE`
+- Promotion status: `NEEDS_FORWARD_EVIDENCE`
 - Validator: `research` quality gate（自動計算。paper/live承認ではない）
 - Reviewed at (UTC): 2026-08-15
 - Scope of approval: none
 - Expiry or review date: 複数OOS・walk-forwardとvenue差分検証が完了するまで
 
-事前登録した候補基準（OOS最大ドローダウン改善、費用控除後期待値、全期間最大ドローダウン非悪化）はbase feeと感度ケースで満たした。しかし、予約OOSは4往復取引だけであり、単一Global proxyの結果からpaper・shadow・liveへ昇格させる証拠としては不足しているため、`NEEDS_EVIDENCE`とする。これは承認ではない。
+事前登録した候補基準（OOS最大ドローダウン改善、費用控除後期待値、全期間最大ドローダウン非悪化）はbase feeと感度ケースで満たしたため、`BACKTEST_CANDIDATE`とする。しかし、予約OOSは4往復取引だけであり、単一Global proxyの結果からpaper・shadow・liveへ昇格させる証拠としては不足しているため、運用上は`NEEDS_FORWARD_EVIDENCE`とする。
 
 ## Frozen artifacts
 

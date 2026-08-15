@@ -2,13 +2,14 @@
 
 ## Decision
 
-- Status: `REJECTED | NEEDS_EVIDENCE | PAPER_APPROVED`
+- Research status: `REJECTED | INCONCLUSIVE | BACKTEST_CANDIDATE | PASSED_RETROSPECTIVE_VALIDATION | PASSED_FORWARD_TEST`
+- Promotion status: `NOT_ELIGIBLE | NEEDS_FORWARD_EVIDENCE | PAPER_APPROVED | SHADOW_APPROVED | LIMITED_LIVE_APPROVED | SCALED_APPROVED`
 - Validator:
 - Reviewed at (UTC):
 - Scope of approval:
 - Expiry or review date:
 
-`NEEDS_EVIDENCE` は承認ではない。現段階では `PAPER_APPROVED` より先へ昇格できない。
+`research_status`は研究証拠、`promotion_status`は許可された運用段階を表す。研究結果だけで運用許可を推論しない。現段階では `PAPER_APPROVED` より先へ昇格できない。
 
 ## Frozen artifacts
 
