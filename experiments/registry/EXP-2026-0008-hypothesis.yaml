@@ -1,0 +1,83 @@
+schema_version: 1
+experiment_id: "EXP-2026-0008"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "Donchian 55日ブレイクアウトの新規エントリーを終値が200日移動平均を上回る場合に限定すると、Donchian 55/20単独より長期下落局面の最大ドローダウンを抑えられる。"
+  economic_rationale: "ロング専用のブレイクアウト戦略では、長期下降レジーム中の一時的な反発を買って損失を受けやすい。200日移動平均を長期レジームの簡潔な代理として使い、エントリーだけを抑制する。保有後の退出はbaseと同じにして、改善要因をエントリー制限へ限定する。"
+  parent_experiment_ids:
+    - "EXP-2026-0003"
+    - "EXP-2026-0007"
+  expected_failure_modes:
+    - "200日移動平均の下では上昇初動への参加が遅れ、強い上昇年の収益を取り逃す。"
+    - "レジーム判定が遅行するため、下降局面の損失を十分に防げない。"
+    - "5年間・単一銘柄の年次結果だけでは相場環境の一般化ができない。"
+    - "Global proxyとBinance Japanの価格basis、spread、流動性、注文制約の差で再現しない。"
+
+methodology:
+  input: "DATA-2026-0003の補間済みUTC日足BTCUSDTを使用する。"
+  strategy_freeze: "entry_window=55、exit_window=20、regime_window=200、次日始値約定、終値がSMA200を上回る場合のみ新規entryを許可する。パラメータ探索は行わない。"
+  base_strategy: "Donchian 55 entry＋Donchian 20 exit。"
+  filtered_strategy: "Donchian 55 entry＋Donchian 20 exit。ただし新規entry時点のclose > 200日SMAを必須とし、保有後はSMA低下だけでは退出しない。"
+  evaluation_type: "retrospective temporal stability diagnostic。2021〜2025年は既存データで観測済みのため、pristine OOSとは呼ばない。"
+  annual_windows:
+    - "2021-01-01T00:00:00Z/2021-12-31T23:59:59Z"
+    - "2022-01-01T00:00:00Z/2022-12-31T23:59:59Z"
+    - "2023-01-01T00:00:00Z/2023-12-31T23:59:59Z"
+    - "2024-01-01T00:00:00Z/2024-12-31T23:59:59Z"
+    - "2025-01-01T00:00:00Z/2025-12-31T23:59:59Z"
+  warmup_and_state: "2020-01-01からの全履歴でDonchianとSMA200を計算する。各年は初期資金1,000 USDT相当にリセットし、年初のfiltered desired_positionが1なら年初始値で新規BUYとして扱う。"
+  period_end: "年末の未決済ポジションは強制決済せず、終値mark-to-marketし、open_position_at_endを記録する。"
+  no_trade_conditions:
+    - "日足の欠損・重複がある場合は評価を拒否する。"
+    - "SMA200またはDonchian履歴が不足する期間では新規entryを許可しない。"
+    - "合成日足上のシグナルと約定は別集計する。"
+  simplicity_rationale: "200日という一般的な長期レジーム窓を1つだけ事前登録し、他の窓、銘柄、期間を結果後に探索しない。"
+
+data:
+  source: "Binance Public Data monthly/daily archives"
+  snapshot_id: "DATA-2026-0003"
+  research_venue: "Binance Global Spot"
+  target_venue: "Binance Japan Spot"
+  symbol: "BTCUSDT"
+  timeframe: "1d UTC"
+  known_limitations:
+    - "15日の日足は線形補間された1時間足を含む。"
+    - "2021〜2025年は既存実験で観測済みであり、独立OOSではない。"
+    - "Global履歴はBinance Japanの板、spread、約定、手数料の正本ではない。"
+
+evaluation:
+  primary_metric: "base feeでfiltered戦略の最大DDがbaseより改善した暦年数と改善幅中央値。"
+  secondary_metrics:
+    - "filteredのCAGRがbase以上となる暦年数"
+    - "base・adverse・stress feeでの最終資産、CAGR、最大DD"
+    - "年次のclosed round trips、期待値、手数料、未決済状態"
+    - "Buy and Holdとの比較"
+  candidate_criteria:
+    - "base feeで5年中3年以上、filteredの最大DDがbase以上である。"
+    - "base feeで年次最大DD改善幅の中央値が正である。"
+    - "base feeで5年中2年以上、filteredのCAGRがbase以上である。"
+    - "5年合計のfiltered closed round tripsが5件以上ある。"
+  rejection_criteria:
+    - "未来情報、同一終値約定、または会計不整合が見つかる。"
+    - "最大DD改善年が2年未満、または改善幅中央値が非正である。"
+    - "5年すべてでfilteredのCAGRがbaseを下回る。"
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  fee_sensitivity_cases:
+    - "片道0.001 (base)"
+    - "片道0.0015 (adverse)"
+    - "片道0.002 (stress)"
+  spread_assumption: "往復0.0005で固定する。"
+  slippage_assumption: "片道0.0005で固定する。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0003"
+    - "EXP-2026-0007"
+  preregistration_commit: "このファイルを追加するコミットで戦略、期間、評価基準を結果確認前に固定する。"

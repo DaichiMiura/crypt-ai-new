@@ -1,0 +1,79 @@
+schema_version: 1
+experiment_id: "EXP-2026-0009"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0008で固定したDonchian 55/20＋SMA200 entry filterは、2026年1〜7月でもDonchian 55/20単独より最大ドローダウンを悪化させず、費用控除後の相対特性を維持する。"
+  economic_rationale: "長期下降レジームで新規ロングを抑制するentry filterが、2022年型の損失回避だけでなく、別の未使用期間でもDD抑制に寄与するかを確認する。"
+  parent_experiment_ids:
+    - "EXP-2026-0008"
+    - "EXP-2026-0007"
+  expected_failure_modes:
+    - "SMA200の遅行性により、下降局面のentryを防げない。"
+    - "上昇初動を取り逃し、baseよりCAGRと最終資産が悪化する。"
+    - "7か月・単一銘柄・Global proxyの少数取引で結論が不安定になる。"
+    - "このデータは親実験EXP-2026-0007で既に観測済みであり、独立したpristine OOSとは呼べない。"
+
+methodology:
+  input: "DATA-2026-0004の補間済みUTC日足BTCUSDTを使用する。"
+  strategy_freeze: "EXP-2026-0008のentry_window=55、exit_window=20、regime_window=200、close > SMA200の新規entry条件、次日始値約定を変更しない。"
+  base_strategy: "Donchian 55 entry＋Donchian 20 exit。"
+  filtered_strategy: "Donchian 55 entry＋Donchian 20 exit。ただし新規entry時点のclose > SMA200を必須とし、保有後はSMA低下だけでは退出しない。"
+  evaluation_type: "post-selection forward-like test。EXP-2026-0008の固定後に期間を切り出すが、同じ2026年データは親実験EXP-2026-0007で既に観測済みのため、独立forwardの合格証拠にはしない。"
+  forward_window:
+    start_utc: "2026-01-01T00:00:00Z"
+    end_utc: "2026-07-31T23:59:59Z"
+  warmup_and_state: "2020-01-01からの全履歴でDonchianとSMA200を計算する。forward開始時は初期資金1,000 USDT相当にリセットし、開始時のfiltered desired_positionが1なら開始日の始値で新規BUYとして扱う。"
+  period_end: "期間末の未決済ポジションは強制決済せず、終値mark-to-marketし、open_position_at_endを記録する。"
+  no_trade_conditions:
+    - "欠損・重複・端点欠損を含むデータは評価を拒否する。"
+    - "SMA200またはDonchian履歴が不足する場合は新規entryを許可しない。"
+    - "合成日足上のシグナルと約定は実測行と別集計する。"
+
+data:
+  source: "Binance Public Data monthly/daily archives"
+  snapshot_id: "DATA-2026-0004"
+  research_venue: "Binance Global Spot"
+  target_venue: "Binance Japan Spot"
+  symbol: "BTCUSDT"
+  timeframe: "1d UTC"
+  known_limitations:
+    - "15日の日足は線形補間された1時間足を含む。"
+    - "2026年1〜7月の結果はEXP-2026-0007で既に観測済みであり、独立OOSではない。"
+    - "Global履歴はBinance Japanの板、spread、約定、手数料の正本ではない。"
+
+evaluation:
+  primary_metric: "base feeでfilteredの最大DDがbase以上（悪化しない）か。"
+  secondary_metrics:
+    - "base・adverse・stress feeでの最終資産、CAGR、最大DD"
+    - "最大DD改善幅、CAGR差、closed round trips、期待値、手数料"
+    - "合成日足上のシグナル・約定数、期間末未決済状態"
+    - "Buy and Holdとの比較"
+  performance_candidate_criteria:
+    - "base feeでfilteredの最大DDがbase以上である。"
+    - "base feeでfilteredのCAGRがbase以上である。"
+    - "base feeでfilteredのclosed round tripsが2件以上ある。"
+  performance_rejection_criteria:
+    - "未来情報、同一終値約定、または会計不整合が見つかる。"
+    - "base feeでfilteredの最大DDがbaseより2 percentage points超悪化する。"
+    - "base feeでfilteredのCAGRがbaseより5 percentage points超悪化する。"
+  independence_rule: "性能条件を満たしても、親実験で同一期間を観測済みのためresearch_statusはPASSED_FORWARD_TESTにしない。"
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  fee_sensitivity_cases:
+    - "片道0.001 (base)"
+    - "片道0.0015 (adverse)"
+    - "片道0.002 (stress)"
+  spread_assumption: "往復0.0005で固定する。"
+  slippage_assumption: "片道0.0005で固定する。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0008"
+    - "EXP-2026-0007"
+  preregistration_commit: "このファイルを追加するコミットで期間、固定条件、性能基準、独立性制約を結果確認前に固定する。"

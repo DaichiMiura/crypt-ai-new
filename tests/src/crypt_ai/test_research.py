@@ -11,6 +11,7 @@ from crypt_ai.research import (
     interpolate_missing_hourly_data,
     prepare_bollinger_mean_reversion_signals,
     prepare_donchian_bollinger_exit_signals,
+    prepare_donchian_regime_filter_signals,
     prepare_donchian_signals,
     prepare_signals,
     run_backtest,
@@ -153,6 +154,58 @@ def test_prepare_donchian_signals_delays_breakout_to_next_day():
     assert result.loc[55, "signal_position"] == 1
     assert result.loc[55, "desired_position"] == 0
     assert result.loc[56, "desired_position"] == 1
+
+
+def test_prepare_donchian_regime_filter_blocks_breakout_below_long_sma():
+    """長期SMAを下回るDonchian突破の新規entryを抑制することをテストする。"""
+    timestamps = pd.date_range(
+        "2026-01-01T00:00:00Z", periods=201, freq="D", tz="UTC"
+    )
+    close = [300] * 145 + [100] * 55 + [110]
+    frame = pd.DataFrame(
+        {
+            "event_time": timestamps,
+            "open": close,
+            "high": [value + 1 for value in close],
+            "low": [value - 1 for value in close],
+            "close": close,
+        }
+    )
+
+    result = prepare_donchian_regime_filter_signals(
+        frame, entry_window=55, exit_window=20, regime_window=200
+    )
+
+    assert result.loc[200, "base_signal_position"] == 1
+    assert bool(result.loc[200, "regime_ok"]) is False
+    assert result.loc[200, "signal_position"] == 0
+    assert result.loc[201 - 1, "desired_position"] == 0
+
+
+def test_prepare_donchian_regime_filter_allows_breakout_above_long_sma():
+    """長期SMAを上回るDonchian突破を次日entryへ遅延することをテストする。"""
+    timestamps = pd.date_range(
+        "2026-01-01T00:00:00Z", periods=201, freq="D", tz="UTC"
+    )
+    close = [100] * 200 + [120]
+    frame = pd.DataFrame(
+        {
+            "event_time": timestamps,
+            "open": close,
+            "high": [value + 1 for value in close],
+            "low": [value - 1 for value in close],
+            "close": close,
+        }
+    )
+
+    result = prepare_donchian_regime_filter_signals(
+        frame, entry_window=55, exit_window=20, regime_window=200
+    )
+
+    assert bool(result.loc[200, "regime_ok"]) is True
+    assert bool(result.loc[200, "entry_signal"]) is True
+    assert result.loc[200, "desired_position"] == 0
+    assert result.loc[200, "signal_position"] == 1
 
 
 def test_prepare_bollinger_signals_delays_entry_and_exit_to_next_day():

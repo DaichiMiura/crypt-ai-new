@@ -471,6 +471,73 @@ def prepare_donchian_signals(
     return result
 
 
+def prepare_donchian_regime_filter_signals(
+    frame: pd.DataFrame,
+    entry_window: int = 55,
+    exit_window: int = 20,
+    regime_window: int = 200,
+) -> pd.DataFrame:
+    """Donchianシグナルの新規エントリーだけを長期SMAで制限する。
+
+    Donchian 55/20のシグナルを基礎にし、flat状態からの新規entryが発生する日
+    の終値が`regime_window`日SMAを上回る場合だけ保有状態へ遷移する。いったん
+    保有した後はSMAの低下では退出せず、Donchianのexitだけを使う。SMAやDonchian
+    の履歴が不足する期間はregime不成立としてentryを許可しない。確定足の状態は
+    次日始値へ遅延させる。
+
+    Args:
+        frame: `event_time`、`open`、`high`、`low`、`close`列を含む日足データ。
+        entry_window: Donchian entryに使う過去バー数。
+        exit_window: Donchian exitに使う過去バー数。
+        regime_window: 長期SMAに使う日足本数。
+
+    Returns:
+        Donchian水準、SMAレジーム判定、filteredシグナル状態、
+        次日用`desired_position`を追加したデータ。
+
+    Raises:
+        ValueError: windowが正でない、または入力列が不足する場合。
+    """
+
+    if regime_window <= 0:
+        raise ValueError("regime_window must be positive")
+    result = prepare_donchian_signals(
+        frame, entry_window=entry_window, exit_window=exit_window
+    )
+    result["base_signal_position"] = result["signal_position"]
+    result["regime_sma"] = result["close"].rolling(regime_window).mean()
+    result["regime_ok"] = result["close"] > result["regime_sma"]
+
+    filtered_positions: list[int] = []
+    entry_signals: list[bool] = []
+    exit_signals: list[bool] = []
+    position = 0
+    previous_base_position = 0
+    for row in result.itertuples(index=False):
+        entered = False
+        exited = False
+        base_position = int(row.base_signal_position)
+        if position == 0 and base_position == 1 and previous_base_position == 0:
+            if bool(row.regime_ok):
+                position = 1
+                entered = True
+        elif position == 1 and base_position == 0:
+            position = 0
+            exited = True
+        filtered_positions.append(position)
+        entry_signals.append(entered)
+        exit_signals.append(exited)
+        previous_base_position = base_position
+
+    result["signal_position"] = filtered_positions
+    result["entry_signal"] = entry_signals
+    result["exit_signal"] = exit_signals
+    result["desired_position"] = (
+        result["signal_position"].shift(1, fill_value=0).astype(int)
+    )
+    return result
+
+
 def prepare_bollinger_mean_reversion_signals(
     frame: pd.DataFrame,
     window: int = 20,
