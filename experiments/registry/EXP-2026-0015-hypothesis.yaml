@@ -39,7 +39,7 @@ methodology:
     - "補間した価格行は作らず、欠損は拒否する。"
   maximum_variants: 1
   strategy_specification: "experiments/registry/EXP-2026-0015-strategy.yaml"
-  implementation_status: "基本方針から損切りまでの戦略ルールを実装済み。実験runnerと約定・費用・Funding・清算会計は未実装・未実行。"
+  implementation_status: "基本方針から損切り、約定・手数料・Funding会計まで実装済み。実験runnerと清算価格計算は未実装・未実行。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -108,3 +108,6 @@ provenance:
     - amended_at_utc: "2026-08-15T00:00:00Z"
       reason: "元記事の押し戻し損切りを残しながら、無制限の逆行と清算を明示的に扱うため。"
       change: "1.618到達後の最高mark priceから1 ATR下落で次バー通常損切り、2.618で緊急停止、清算価格到達を最優先に固定した。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "バックテスト前にZOOMEX USDT無期限の約定費用を再現可能に固定するため。"
+      change: "maker 0.02%、taker 0.06%、taker 5bpスリッページ、実Funding履歴、価格接触時全量約定、不明な同一足は不利側優先とした。"

@@ -37,6 +37,10 @@ implementation_steps:
     name: "stop_loss"
     status: "implemented"
     scope: "1.618到達後の最高値から1 ATR押し戻したら通常損切りし、2.618または清算価格到達を即時処理する。"
+  - number: 9
+    name: "execution_accounting"
+    status: "implemented"
+    scope: "maker・taker手数料、不利なtakerスリッページ、Funding受払、全量約定仮定を建玉台帳へ反映する。"
 
 basic_policy:
   timeframe_minutes: 120
@@ -114,7 +118,7 @@ fibonacci_limit_policy:
     - "SMA200 >= SMA400"
     - "データまたは状態が不明"
     - "作成後168本経過"
-  fill_accounting: "未実装。次の段階で固定する。"
+  fill_accounting: "2時間足highが売り指値へ触れた場合、板数量を復元できないため全量maker約定とする。部分約定はshadow段階で実測する。"
 
 position_sizing_policy:
   reference_equity: "min(initial_equity, current_equity)"
@@ -168,6 +172,28 @@ stop_loss_policy:
   time_exit: "約定後168本の既存ルールを併用する。"
   sma_invalidation: "保有建玉は即時決済せず、未約定の新規指値だけを取り消す。"
 
+execution_accounting:
+  contract: "通常区分のZOOMEX USDT perpetual"
+  maker_fee_rate: "0.0002"
+  taker_fee_rate: "0.0006"
+  fee_formula: "quantity * execution_price * fee_rate"
+  maker_fills:
+    - "事前に板へ置く新規売り指値"
+    - "事前に板へ置く利確買い指値"
+  taker_fills:
+    - "通常損切りの次足買戻し"
+    - "緊急停止、時間切れ、清算の買戻し"
+  taker_slippage_rate: "0.0005"
+  taker_buy_price: "reference_price * (1 + 0.0005)"
+  funding: "Funding時刻に保有するquantity * mark price * funding rate。正の率はショートの受取、負の率は支払。"
+  partial_fill: "2時間足OHLCでは板数量を復元できないため、価格接触時に全量約定とする。"
+  same_bar_ambiguity: "イベント順を復元できない場合は、清算、緊急停止、通常損切り、利確の順に不利側を優先する。"
+  liquidation: "mark priceが清算価格へ達した時点で、清算価格を基準とするtaker買戻しとして全量を閉じ、結果をLIQUIDATIONと記録する。"
+  sources:
+    fees: "https://support.zoomex.com/en-as/articles/35622700459929"
+    funding: "https://support-testnet.zoomex.com/en-us/articles/34754678102937"
+    liquidation: "https://support-testnet.zoomex.com/en-as/articles/34843945642777"
+
 execution_status:
   strategy_runner_exists: false
   backtest_started: false
@@ -176,7 +202,8 @@ execution_status:
   live_started: false
 
 deferred_decisions:
-  - "手数料、Funding、スプレッド、スリッページ、部分約定、清算を含む約定会計"
+  - "戦略runnerで使う緊急停止・時間切れの具体的な基準約定価格"
+  - "shadowで観測した板・約定データによるスリッページと部分約定仮定の更新"
 
 provenance:
   source_document: "VOID式ショート記事の購入済みPDF"
