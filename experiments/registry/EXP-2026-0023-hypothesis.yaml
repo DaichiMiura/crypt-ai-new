@@ -1,0 +1,84 @@
+schema_version: 1
+experiment_id: "EXP-2026-0023"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0012のロングロジックを同じZOOMEX 2時間足へ時間換算し、バランス候補EXP-2026-0017のショートを固定スリーブで組み合わせると、ロング単独より下降局面の最大DDを抑えながら最終資産を維持または改善できる可能性がある。"
+  economic_rationale: "ロングは上昇局面、ショートは下降局面を担当する補完関係を想定する。ただしショートは上昇局面で損失を生む可能性があるため、独立した小さな資金スリーブへ制限し、ロング単独と同じ総初期資産で比較する。"
+  parent_experiment_ids:
+    - "EXP-2026-0012"
+    - "EXP-2026-0015"
+    - "EXP-2026-0017"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  long_companion: "EXP-2026-0012のSMA200付きDonchian entryとATR trailing exitを2時間足へ時間換算する。Donchian entry=660本（55日）、exit=240本（20日）、regime SMA=2400本（200日）、ATR=240本（20日）、倍率3.0。確定足シグナルを次足始値で適用する。"
+  arms:
+    long_only: "初期資産1,000 USDT相当をロングスリーブへ配分する。"
+    long_plus_control_short: "ロング750 USDT相当、ショート250 USDT相当。ショートはEXP-2026-0015の通常損切り1.0 ATR。"
+    long_plus_balanced_short: "ロング750 USDT相当、ショート250 USDT相当。ショートはEXP-2026-0017の通常損切り1.5 ATR。"
+  capital_allocation:
+    initial_equity: "1000"
+    long_sleeve: "0.75"
+    short_sleeve: "0.25"
+    short_max_gross_notional_ratio_of_portfolio: "0.20 at entry sizing; mark-price notional can exceed this during adverse price movement"
+    rebalancing: false
+    compounding: false
+  accounting: "ロングはZOOMEX費用モデルのtaker売買・Funding、ショートは既存のmaker指値・taker決済・Funding会計を使い、各スリーブの評価額を同一2時間足で合算する。"
+  maximum_variants: 3
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "3 armで入力データ、銘柄、期間、時間足、費用モデル、初期総資産が一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED_DIAGNOSTIC"
+  primary_metric: "各armの費用・Funding控除後最終資産、年率換算リターン、最大DDをlong_onlyと比較する。"
+  secondary_metrics:
+    - "6銘柄の中央値・合算の最終資産差、最大DD差、インデックス4年複利+46.41%基準"
+    - "ロング・ショート各スリーブのentry、exit、Funding、手数料、最大想定元本"
+    - "同時保有日数、ショートがロングの損失を補完した期間、ショートがロング利益を削った期間"
+  diagnostic_rule: "balanced_short armがlong_onlyより最終資産を維持し、最大DDを改善する銘柄数と、control_shortとの差を同時に報告する。"
+  benchmark_rule: "インデックス基準未達でも補完性の差分は報告するが、基準未達を収益候補合格とは扱わない。"
+  promotion_rule: "共通データ上の診断だけではpaper・shadow・liveへ昇格しない。ロングロジックの時間換算、Funding、銘柄一般化、未観測forwardは別途検証が必要。"
+  result_artifact: "artifacts/EXP-2026-0023/summary.json"
+  result_summary: "long_onlyに対しcontrol_shortは6銘柄中5銘柄で最終資産が改善し、中央値+56.62 USDT、合算+314.53 USDT、最大DDは6銘柄すべてで改善した。balanced_shortは6銘柄すべてで最終資産が改善し、中央値+47.70 USDT、合算+306.83 USDT、最大DDも6銘柄すべてで改善した。ただしbalanced_shortはcontrol_shortより合算-7.71 USDTで、6銘柄ともインデックス基準1,464.10 USDTには届かなかった。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  execution_model: "ロングは次足始値のtaker約定、ショートは既存実装の2時間足高値接触による指値全量約定。バー内のイベント順序は判定不能であり制約とする。"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0023/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0012"
+    - "EXP-2026-0015"
+    - "EXP-2026-0017"
+  preregistration_commit: "このファイルを追加するコミットで、2時間足換算ロング、75/25固定スリーブ、1.0 ATR control、1.5 ATR balanced variantを結果確認前に固定する。"
