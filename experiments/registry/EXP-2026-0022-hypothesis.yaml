@@ -1,0 +1,74 @@
+schema_version: 1
+experiment_id: "EXP-2026-0022"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "下降トレンド中に価格がSMA200付近まで戻った確定足でだけフィボナッチ売り指値を作ると、SMA接近を見ないEXP-2026-0015より不適切なショートを減らし、最大DDを改善できる可能性がある。"
+  economic_rationale: "VOID資料は急騰直後に飛び乗らず、価格が下降トレンドのSMA付近まで引きつけられたところでショートを検討するよう示している。現行実装は下降トレンドと上昇・下落・反発の順序を使うが、SMAへの接近を明示的には要求していない。"
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0021"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  control: "EXP-2026-0015と同じSMA200 < SMA400、2 ATR上昇・1 ATR下落・0.5 ATR反発、フィボナッチ指値、固定1ロット、通常損切り1.0 ATR。"
+  variant: "controlに加え、準備完了を確定した2時間足の高値がSMA200 - 0.5 ATR以上で、終値がSMA200以下の場合だけ次足でフィボナッチ売り指値を作る。高値がSMA200を上回る場合も、終値がSMA200以下なら接近・反落として許可する。"
+  sma_reference: "SMA200"
+  proximity_measure: "確定足のhigh >= SMA200 - 0.5 * ATR14 かつ close <= SMA200"
+  proximity_tolerance_atr: "0.5"
+  signal_availability: "確定足の高値・終値・ATR・SMA200を使い、次の2時間足から利用する。"
+  maximum_variants: 1
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "controlとvariantで入力データ、銘柄、期間、費用モデルが一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "PENDING"
+  primary_metric: "variantとcontrolの銘柄別・中央値・合算の費用控除後最終資産差。"
+  secondary_metrics:
+    - "最大DD差、エントリー数、最大建玉数量、最大建玉想定元本の差"
+    - "通常損切り・緊急停止・清算・時間切れ・利確の件数と損益差"
+    - "SMA接近条件による注文数の減少と、NISAインデックス4年複利+46.41%基準への到達可否"
+  diagnostic_rule: "variantがcontrolを上回る銘柄数、最大DDが改善する銘柄数、エントリー数、清算件数を同時に報告する。"
+  benchmark_rule: "インデックス基準未達でも、SMA接近条件による損益・リスク差分は報告する。"
+  promotion_rule: "この比較結果だけではpaper・shadow・liveへ昇格しない。最大DDの悪化、清算発生、または取引機会の過度な減少がある場合は不採用とする。"
+  result_artifact: "artifacts/EXP-2026-0022/summary.json"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  execution_model: "2時間足OHLCの高値接触で全量約定。バー内の複数水準の順序は判定不能であり、結果解釈の制約とする。"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: false
+  backtest_started: false
+  backtest_result_artifact: "artifacts/EXP-2026-0022/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0021"
+  preregistration_commit: "このファイルを追加するコミットで、SMA200から0.5 ATR以内という単一variantと比較指標を結果確認前に固定する。"
