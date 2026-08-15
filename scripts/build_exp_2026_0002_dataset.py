@@ -67,7 +67,7 @@ def main() -> None:
             "method": "time_linear_interpolation",
             "scope": "internal gaps only",
             "ohlc_constraint": "synthetic high >= max(open, close), synthetic low <= min(open, close)",
-            "observed_rows_unchanged": True,
+            "observed_values_unchanged_after_numeric_normalization": True,
             "synthetic_rows_are_not_venue_observations": True,
         },
     }

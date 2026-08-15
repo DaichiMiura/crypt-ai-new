@@ -256,6 +256,10 @@ def interpolate_missing_hourly_data(frame: pd.DataFrame) -> pd.DataFrame:
         "taker_buy_base_asset_volume",
         "taker_buy_quote_asset_volume",
     ]
+    observed_values = {
+        column: expanded[column].copy()
+        for column in [*numeric_columns, "open_time", "close_time", "ignore"]
+    }
     for column in numeric_columns:
         expanded[column] = pd.to_numeric(expanded[column], errors="coerce").interpolate(
             method="time", limit_area="inside"
@@ -287,6 +291,9 @@ def interpolate_missing_hourly_data(frame: pd.DataFrame) -> pd.DataFrame:
     expanded["open_time"] = timestamps_ms
     expanded["close_time"] = timestamps_ms + 3_599_999
     expanded["ignore"] = expanded["ignore"].fillna(0)
+    observed_indices = expanded.index[~synthetic]
+    for column, original in observed_values.items():
+        expanded.loc[observed_indices, column] = original.loc[observed_indices]
     expanded[INTERPOLATED_COLUMN] = synthetic
     return expanded.reset_index()
 
@@ -419,6 +426,58 @@ def run_backtest(
             }
         )
     return pd.DataFrame(equity_rows), pd.DataFrame(trade_rows)
+
+
+def run_buy_and_hold(
+    frame: pd.DataFrame,
+    cost_model: CostModel,
+    initial_cash: Decimal = Decimal("1000"),
+) -> pd.DataFrame:
+    """同一期間・同一費用モデルの現物買い持ち曲線を作る。
+
+    Args:
+        frame: `event_time`、`open`、`close`列を含む時系列データ。
+        cost_model: 買い付け時のfee、spread、slippageの仮定。
+        initial_cash: 初期のpaper現金残高。
+
+    Returns:
+        初バー始値で買い、各バー終値で評価した損益曲線。
+
+    Raises:
+        ValueError: 入力が空、必須列が不足する、または初期資金が正でない場合。
+    """
+
+    required = {"event_time", "open", "close"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"missing buy-and-hold columns: {sorted(missing)}")
+    if frame.empty:
+        raise ValueError("buy-and-hold frame must not be empty")
+    if initial_cash <= 0:
+        raise ValueError("initial_cash must be positive")
+    first_open = _decimal(frame.iloc[0]["open"])
+    if first_open <= 0:
+        raise ValueError("open price must be positive")
+    fee = initial_cash * cost_model.fee_rate
+    quantity = (initial_cash - fee) / cost_model.buy_price(first_open)
+    rows: list[dict[str, object]] = []
+    for row in frame.itertuples(index=False):
+        close = _decimal(row.close)
+        if close <= 0:
+            raise ValueError("close price must be positive")
+        rows.append(
+            {
+                "event_time": row.event_time,
+                "cash": "0",
+                "quantity": str(quantity),
+                "mark_price": str(close),
+                "equity": str(quantity * close),
+                INTERPOLATED_COLUMN: bool(
+                    getattr(row, INTERPOLATED_COLUMN, False)
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def summarize_equity(equity_curve: pd.DataFrame) -> dict[str, float | int | None]:
