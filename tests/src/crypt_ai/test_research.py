@@ -10,6 +10,7 @@ from crypt_ai.research import (
     inspect_daily_data,
     interpolate_missing_hourly_data,
     prepare_bollinger_mean_reversion_signals,
+    prepare_donchian_bollinger_exit_signals,
     prepare_donchian_signals,
     prepare_signals,
     run_backtest,
@@ -177,3 +178,31 @@ def test_prepare_bollinger_signals_delays_entry_and_exit_to_next_day():
     assert result.loc[21, "signal_position"] == 0
     assert result.loc[21, "desired_position"] == 1
     assert result.loc[22, "desired_position"] == 0
+
+
+def test_prepare_donchian_bollinger_exit_requires_lower_band_arm():
+    """Donchian買い後に下側バンド割れを経て中心線で退出することをテストする。"""
+    timestamps = pd.date_range(
+        "2026-01-01T00:00:00Z", periods=65, freq="D", tz="UTC"
+    )
+    close = [100] * 55 + [120, 100, 80, 100, 100] + [100] * 5
+    frame = pd.DataFrame(
+        {
+            "event_time": timestamps,
+            "open": close,
+            "high": [value + 1 for value in close],
+            "close": close,
+        }
+    )
+
+    result = prepare_donchian_bollinger_exit_signals(
+        frame, entry_window=55, band_window=3, std_multiplier=1.0
+    )
+
+    assert bool(result.loc[55, "entry_signal"]) is True
+    assert result.loc[55, "desired_position"] == 0
+    assert result.loc[56, "desired_position"] == 1
+    assert bool(result.loc[57, "overlay_armed"]) is True
+    assert bool(result.loc[58, "exit_signal"]) is True
+    assert result.loc[58, "desired_position"] == 1
+    assert result.loc[59, "desired_position"] == 0

@@ -1,0 +1,106 @@
+schema_version: 1
+experiment_id: "EXP-2026-0005"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "Donchian 55の買いエントリーに、ボリンジャー20日・2σの平均回帰退出オーバーレイを追加すると、Donchian 55/20単独より下落局面の最大ドローダウンを抑えられる。"
+  economic_rationale: "Donchianは上昇トレンドへの参加を担い、ボリンジャー退出は保有中に大きく下側へ乖離した後の平均回帰を退出点として使う。entryとexitを分離して、利益の源泉と損失制御の寄与を混同しない。"
+  parent_experiment_ids:
+    - "EXP-2026-0003"
+    - "EXP-2026-0004"
+  expected_failure_modes:
+    - "Donchianの買い後に下側バンド割れを待つため、下落中の損失を早期に止められない。"
+    - "下側バンド割れ後の反発を待つ退出で、相場の再下落や急変により損失が拡大する。"
+    - "オーバーレイの退出がトレンド相場で利益を早く切り、買い持ち・Donchian単独を下回る。"
+    - "追加の状態遷移と売買で、手数料・spread・slippageが増える。"
+    - "Global proxyとBinance Japanのpair、板、流動性の差で結果が再現しない。"
+
+methodology:
+  input: "DATA-2026-0003のUTC日足BTCUSDTを使用する。DATA-2026-0003はDATA-2026-0002の線形補間済み1時間足をUTC日足へ集約したスナップショットである。"
+  base_entry_rule: "日tの確定終値が、日tを含めない直前55日間のhighの最高値を上回った場合、日t+1の始値で現物ロングを建てる。"
+  overlay_arm_rule: "保有中に日tの終値が、日tを含む直近20日終値の中心線から母標準偏差（ddof=0）の2倍を引いた下側バンドを下回ったら、退出待機状態にする。"
+  overlay_exit_rule: "退出待機状態で、日tの終値が同じ20日中心線を上回った場合、日t+1の始値で全量決済する。下側バンド割れを経ていない中心線上抜けでは退出しない。"
+  baseline: "同じDonchian 55エントリーとDonchian 20 exitを使うEXP-2026-0003単独戦略。買い持ちは補助的な市場ベースラインとして併記する。"
+  position: "long-only、現物、レバレッジなし、同時保有は1ポジション。退出シグナルをエントリーより優先し、同一バーで反転注文を出さない。"
+  no_trade_conditions:
+    - "55日のentry履歴または20日のバンド計算値が揃わない場合はシグナルを出さない。"
+    - "日足の欠損・重複がある場合はデータセットを拒否する。"
+    - "欠損補間行を含む日足はis_interpolated=trueで追跡し、entry・退出待機・約定数を集計する。"
+    - "価格、費用、数量制約を計算できない場合は約定を成立させない。"
+  simplicity_rationale: "entry_window=55、band_window=20、std_multiplier=2、ddof=0を固定し、別の窓・倍率・組合せを探索しない。変更は新しい実験IDで登録する。"
+
+scope:
+  exchanges:
+    - "Binance Global Spot (research proxy)"
+    - "Binance Japan Spot (target venue; shadow only)"
+  research_venue: "Binance Global Spot"
+  execution_venue: "Binance Japan Spot"
+  venue_role: "research_proxy"
+  symbols:
+    - "BTCUSDT"
+  quote_assets:
+    - "USDT"
+  pair_mapping: "Global BTCUSDTをJapan側target pairと同一価格とは扱わない。"
+  venue_transfer_claim: "generic_signal_only"
+  timeframe: "1d UTC"
+  start_utc: "2020-01-01T00:00:00Z"
+  end_utc: "2025-12-31T23:59:59Z"
+  decision_time_information:
+    - "日足の確定終値からのみentryと退出待機・退出を計算する。"
+    - "同じ終値で約定せず、次日始値を約定候補とする。"
+    - "Globalの結果をBinance Japanのlive収益予測として扱わない。"
+
+data:
+  source: "Binance Public Data monthly/daily archives"
+  raw_snapshot_id: "DATA-2026-0001"
+  parent_snapshot_id: "DATA-2026-0002"
+  snapshot_id: "DATA-2026-0003"
+  timezone: "UTC"
+  known_limitations:
+    - "DATA-2026-0002の線形補間で生成した31時間を含み、合成日足は実測値ではない。"
+    - "日足集約は1日24本の1時間足が揃うことを要求する。"
+    - "Binance Globalの履歴データであり、Binance Japanの板、spread、約定、手数料の正本ではない。"
+
+evaluation:
+  primary_metric: "予約したOOS期間（2025年）の最大ドローダウンをDonchian 55/20単独と比較する。"
+  secondary_metrics:
+    - "OOSと全期間の費用控除後CAGR、最終資産、買い持ちとの差"
+    - "OOSの最大ドローダウン、回復時間、保有率、連敗、テール損失"
+    - "base戦略とoverlayの約定数、退出イベント数、回転率、費用"
+    - "往復勝率、平均利益、平均損失、費用控除後期待値"
+    - "合成日足でのentry、退出待機、約定数"
+  candidate_criteria:
+    - "OOSの最大ドローダウンがDonchian 55/20単独より5 percentage points以上小さい。"
+    - "OOSの費用控除後往復期待値が非負である。"
+    - "全期間の最大ドローダウンがDonchian 55/20単独より悪化しない。"
+  rejection_criteria:
+    - "未来情報、現在足での約定、退出待機状態の先読みが見つかる。"
+    - "データに欠損、重複、日足未完成、または未追跡の合成行がある。"
+    - "OOSの最大ドローダウンが改善しない、または費用控除後期待値が負である。"
+    - "追加退出による売買費用を控除すると改善が消える。"
+    - "取引数が少なすぎて、結果を不確実性付きで説明できない。"
+    - "Global proxy上の結果をBinance Japanで再現できる根拠がない。"
+  reserved_out_of_sample: "2025-01-01T00:00:00Z/2025-12-31T23:59:59Z"
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.001"
+  taker_fee: "0.001"
+  fee_sensitivity_cases:
+    - "maker/taker 0.001 / 0.001 (base assumption)"
+    - "maker/taker 0.0015 / 0.0015 (adverse case)"
+    - "maker/taker 0.002 / 0.002 (stress case)"
+  spread_assumption: "往復0.0005をbaseとし、今回のfee感度では固定する。"
+  slippage_assumption: "片道0.0005をbaseとし、今回のfee感度では固定する。"
+  liquidity_constraints: "現物・レバレッジなし・初期資金1,000 USDT相当。最小数量、tick size、丸めは検証結果に明記する。"
+
+provenance:
+  references:
+    - "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6941458"
+    - "https://papers.ssrn.com/sol3/Delivery.cfm/6505899.pdf?abstractid=6505899&mirid=1&type=2"
+    - "https://arxiv.org/abs/1411.5062"
+  preregistration_commit: "このファイルを追加するコミットで固定し、結果を見た後にentry・band・exit条件を変更しない。"
