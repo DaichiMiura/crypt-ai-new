@@ -48,6 +48,7 @@ required_files=(
   experiments/registry/EXP-2026-0010-validation.md
   experiments/registry/EXP-2026-0011-hypothesis.yaml
   experiments/registry/EXP-2026-0011-validation.md
+  experiments/registry/EXP-2026-0012-hypothesis.yaml
   scripts/download_binance_global_data.py
   scripts/build_exp_2026_0001_dataset.py
   scripts/build_exp_2026_0002_dataset.py
