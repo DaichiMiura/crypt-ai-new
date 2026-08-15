@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 
+VOID_SHORT_SYMBOLS = frozenset(
+    {"LINKUSDT", "UNIUSDT", "ADAUSDT", "AVAXUSDT", "NEARUSDT", "AAVEUSDT"}
+)
+
+
 @dataclass(frozen=True)
 class VoidShortCorePolicy:
     """VOID式ショートの変更不能な初期基本方針。
@@ -18,6 +23,7 @@ class VoidShortCorePolicy:
         allow_same_bar_exit: 約定バー内の通常決済を許可するか。
         default_no_trade: 判定不能時に新規取引を拒否するか。
         live_trading_enabled: 実注文を許可するか。
+        allowed_symbols: 新規エントリーを検討できる固定銘柄集合。
     """
 
     bar_interval: timedelta = timedelta(hours=2)
@@ -27,6 +33,7 @@ class VoidShortCorePolicy:
     allow_same_bar_exit: bool = False
     default_no_trade: bool = True
     live_trading_enabled: bool = False
+    allowed_symbols: frozenset[str] = VOID_SHORT_SYMBOLS
 
     def __post_init__(self) -> None:
         """基本方針を緩和する設定を拒否する。
@@ -49,6 +56,8 @@ class VoidShortCorePolicy:
             raise ValueError("unknown state must default to no trade")
         if self.live_trading_enabled:
             raise ValueError("live trading must remain disabled")
+        if self.allowed_symbols != VOID_SHORT_SYMBOLS:
+            raise ValueError("allowed_symbols must match the preregistered universe")
 
     @property
     def max_holding_duration(self) -> timedelta:
@@ -63,6 +72,7 @@ class VoidShortCorePolicy:
     def permits_entry(
         self,
         *,
+        symbol: str,
         side: str,
         order_type: str,
         signal_bar_closed: bool,
@@ -75,6 +85,7 @@ class VoidShortCorePolicy:
         ``setup_confirmed``へ集約し、本関数は不明状態を常に拒否する。
 
         Args:
+            symbol: 事前登録したZOOMEX symbol。
             side: 注文方向。``short``だけを許可する。
             order_type: 新規注文種別。``limit``だけを許可する。
             signal_bar_closed: シグナルに使ったバーが確定済みか。
@@ -89,9 +100,24 @@ class VoidShortCorePolicy:
             state_known
             and signal_bar_closed
             and setup_confirmed
+            and symbol in self.allowed_symbols
             and side == self.direction
             and order_type == self.entry_order_type
         )
+
+    def permits_symbol(self, symbol: str) -> bool:
+        """固定ユニバースに含まれる銘柄か返す。
+
+        大文字・空白除去などの暗黙な補正は行わず、未知の表記は取引拒否とする。
+
+        Args:
+            symbol: 判定するZOOMEX symbol。
+
+        Returns:
+            事前登録した6銘柄の完全一致なら``True``。
+        """
+
+        return symbol in self.allowed_symbols
 
     def can_evaluate_normal_exit(self, held_bars: int) -> bool:
         """通常の利確・損切り判定を開始できるか返す。

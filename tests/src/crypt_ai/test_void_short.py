@@ -2,7 +2,11 @@ from datetime import timedelta
 
 import pytest
 
-from crypt_ai.void_short import VOID_SHORT_CORE_POLICY, VoidShortCorePolicy
+from crypt_ai.void_short import (
+    VOID_SHORT_CORE_POLICY,
+    VOID_SHORT_SYMBOLS,
+    VoidShortCorePolicy,
+)
 
 
 def test_core_policy_fixes_two_hour_bars_and_fourteen_days():
@@ -15,6 +19,7 @@ def test_core_policy_fixes_two_hour_bars_and_fourteen_days():
 def test_core_policy_permits_only_confirmed_limit_short_entry():
     """確定足による既知の指値ショートだけを許可することをテストする。"""
     assert VOID_SHORT_CORE_POLICY.permits_entry(
+        symbol="LINKUSDT",
         side="short",
         order_type="limit",
         signal_bar_closed=True,
@@ -36,6 +41,7 @@ def test_core_policy_permits_only_confirmed_limit_short_entry():
 def test_core_policy_rejects_disallowed_or_unknown_entry(overrides):
     """禁止注文と未確定状態をNO_TRADEにすることをテストする。"""
     request = {
+        "symbol": "LINKUSDT",
         "side": "short",
         "order_type": "limit",
         "signal_bar_closed": True,
@@ -45,6 +51,33 @@ def test_core_policy_rejects_disallowed_or_unknown_entry(overrides):
     request.update(overrides)
 
     assert VOID_SHORT_CORE_POLICY.permits_entry(**request) is False
+
+
+def test_core_policy_allows_only_preregistered_symbols():
+    """事前登録した6銘柄だけを許可することをテストする。"""
+    assert VOID_SHORT_SYMBOLS == {
+        "LINKUSDT",
+        "UNIUSDT",
+        "ADAUSDT",
+        "AVAXUSDT",
+        "NEARUSDT",
+        "AAVEUSDT",
+    }
+    assert all(VOID_SHORT_CORE_POLICY.permits_symbol(symbol) for symbol in VOID_SHORT_SYMBOLS)
+    assert VOID_SHORT_CORE_POLICY.permits_symbol("BTCUSDT") is False
+    assert VOID_SHORT_CORE_POLICY.permits_symbol("linkusdt") is False
+
+
+def test_core_policy_rejects_entry_for_unregistered_symbol():
+    """未登録銘柄の新規エントリーを拒否することをテストする。"""
+    assert VOID_SHORT_CORE_POLICY.permits_entry(
+        symbol="BTCUSDT",
+        side="short",
+        order_type="limit",
+        signal_bar_closed=True,
+        setup_confirmed=True,
+        state_known=True,
+    ) is False
 
 
 def test_core_policy_blocks_same_bar_normal_exit():
@@ -65,6 +98,8 @@ def test_core_policy_rejects_safety_relaxation():
         VoidShortCorePolicy(entry_order_type="market")
     with pytest.raises(ValueError, match="live"):
         VoidShortCorePolicy(live_trading_enabled=True)
+    with pytest.raises(ValueError, match="allowed_symbols"):
+        VoidShortCorePolicy(allowed_symbols=frozenset({"BTCUSDT"}))
 
 
 def test_core_policy_rejects_negative_holding_bars():
