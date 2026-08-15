@@ -39,7 +39,7 @@ methodology:
     - "補間した価格行は作らず、欠損は拒否する。"
   maximum_variants: 1
   strategy_specification: "experiments/registry/EXP-2026-0015-strategy.yaml"
-  implementation_status: "基本方針だけを実装済み。実験runnerと売買ロジックは未実装・未実行。"
+  implementation_status: "基本方針、固定6銘柄、SMA200・SMA400下落トレンド判定まで実装済み。実験runnerとエントリー・決済ロジックは未実装・未実行。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -90,3 +90,6 @@ provenance:
     - amended_at_utc: "2026-08-15T00:00:00Z"
       reason: "実験実施前にVOID式ショートの基本方針を段階的に形式化するため。"
       change: "2時間足、ショート専用、指値専用、確定足、NO_TRADE既定、同一バー通常決済禁止、最大保有168本を固定した。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "実験実施前に元記事の下落トレンド条件を形式化するため。"
+      change: "確定した2時間足でSMA200 < SMA400の場合だけ、次バーのショート検討を許可する。交差回数フィルターは使用しない。"

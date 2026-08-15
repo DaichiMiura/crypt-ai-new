@@ -1,12 +1,27 @@
 from datetime import timedelta
 
+import pandas as pd
 import pytest
 
 from crypt_ai.void_short import (
     VOID_SHORT_CORE_POLICY,
     VOID_SHORT_SYMBOLS,
     VoidShortCorePolicy,
+    prepare_void_short_trend_regime,
 )
+
+
+def _trend_frame(close: list[float]) -> pd.DataFrame:
+    """テスト用の連続した2時間足を作る。"""
+    return pd.DataFrame(
+        {
+            "event_time": pd.date_range(
+                "2022-01-01T00:00:00Z", periods=len(close), freq="2h"
+            ),
+            "close": close,
+            "is_interpolated": [False] * len(close),
+        }
+    )
 
 
 def test_core_policy_fixes_two_hour_bars_and_fourteen_days():
@@ -106,3 +121,41 @@ def test_core_policy_rejects_negative_holding_bars():
     """負の保有バー数を拒否することをテストする。"""
     with pytest.raises(ValueError, match="non-negative"):
         VOID_SHORT_CORE_POLICY.time_exit_due(-1)
+
+
+def test_trend_regime_requires_sma200_below_sma400():
+    """SMA200がSMA400を下回る場合だけ下落トレンドにすることをテストする。"""
+    frame = _trend_frame([200.0] * 200 + [100.0] * 201)
+
+    result = prepare_void_short_trend_regime(frame)
+
+    assert bool(result.loc[398, "trend_state_known_at_close"]) is False
+    assert bool(result.loc[399, "trend_state_known_at_close"]) is True
+    assert bool(result.loc[399, "downtrend_regime_at_close"]) is True
+    assert bool(result.loc[399, "downtrend_regime_for_bar"]) is False
+    assert bool(result.loc[400, "downtrend_regime_for_bar"]) is True
+
+
+def test_trend_regime_treats_equal_smas_as_no_trade():
+    """SMA200とSMA400が同値なら下落トレンドにしないことをテストする。"""
+    result = prepare_void_short_trend_regime(_trend_frame([100.0] * 401))
+
+    assert bool(result.loc[399, "trend_state_known_at_close"]) is True
+    assert bool(result.loc[399, "downtrend_regime_at_close"]) is False
+    assert bool(result.loc[400, "downtrend_regime_for_bar"]) is False
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (lambda frame: frame.drop(index=10).reset_index(drop=True), "continuous"),
+        (lambda frame: frame.assign(is_interpolated=True), "interpolated"),
+        (lambda frame: frame.assign(close=0), "positive"),
+    ],
+)
+def test_trend_regime_rejects_unusable_data(mutation, message):
+    """欠損・補間・非正価格のデータを拒否することをテストする。"""
+    frame = mutation(_trend_frame([100.0] * 401))
+
+    with pytest.raises(ValueError, match=message):
+        prepare_void_short_trend_regime(frame)

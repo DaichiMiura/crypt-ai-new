@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 
+import pandas as pd
+
 
 VOID_SHORT_SYMBOLS = frozenset(
     {"LINKUSDT", "UNIUSDT", "ADAUSDT", "AVAXUSDT", "NEARUSDT", "AAVEUSDT"}
@@ -155,3 +157,67 @@ class VoidShortCorePolicy:
 
 
 VOID_SHORT_CORE_POLICY = VoidShortCorePolicy()
+
+
+def prepare_void_short_trend_regime(frame: pd.DataFrame) -> pd.DataFrame:
+    """2時間足のSMA200・SMA400から下落トレンド状態を作る。
+
+    現在バーの終値で確定した状態は次のバーからだけ利用可能にする。SMA400を
+    計算できない期間は状態不明として新規エントリーを許可しない。
+
+    Args:
+        frame: ``event_time``、``close``、``is_interpolated``を持つ2時間足。
+
+    Returns:
+        SMA、確定時点の状態、次バーで利用できる状態を追加したDataFrame。
+
+    Raises:
+        ValueError: 必須列不足、空、時刻不正、欠損、重複、補間行、または
+            非正の終値がある場合。
+    """
+
+    required_columns = {"event_time", "close", "is_interpolated"}
+    missing_columns = required_columns - set(frame.columns)
+    if missing_columns:
+        raise ValueError(f"missing columns: {sorted(missing_columns)}")
+    if frame.empty:
+        raise ValueError("frame must not be empty")
+
+    result = frame.copy()
+    event_time = pd.to_datetime(result["event_time"], utc=True, errors="coerce")
+    if event_time.isna().any():
+        raise ValueError("event_time contains invalid values")
+    if event_time.duplicated().any():
+        raise ValueError("event_time contains duplicates")
+    if not event_time.is_monotonic_increasing:
+        raise ValueError("event_time must be sorted")
+    if len(event_time) > 1 and not event_time.diff().dropna().eq(
+        VOID_SHORT_CORE_POLICY.bar_interval
+    ).all():
+        raise ValueError("event_time must be continuous 2-hour bars")
+    result["event_time"] = event_time
+
+    interpolated = result["is_interpolated"]
+    if not interpolated.map(lambda value: isinstance(value, bool)).all():
+        raise ValueError("is_interpolated must contain bool values")
+    if interpolated.any():
+        raise ValueError("interpolated rows are not allowed")
+
+    close = pd.to_numeric(result["close"], errors="coerce")
+    if close.isna().any() or not close.gt(0).all():
+        raise ValueError("close must contain positive numeric values")
+    result["close"] = close
+
+    result["sma200"] = close.rolling(window=200, min_periods=200).mean()
+    result["sma400"] = close.rolling(window=400, min_periods=400).mean()
+    result["trend_state_known_at_close"] = result["sma400"].notna()
+    result["downtrend_regime_at_close"] = (
+        result["trend_state_known_at_close"] & (result["sma200"] < result["sma400"])
+    )
+    result["trend_state_known_for_bar"] = result[
+        "trend_state_known_at_close"
+    ].shift(1, fill_value=False)
+    result["downtrend_regime_for_bar"] = result[
+        "downtrend_regime_at_close"
+    ].shift(1, fill_value=False)
+    return result

@@ -13,6 +13,10 @@ implementation_steps:
     name: "symbol_selection"
     status: "implemented"
     scope: "事前登録した6銘柄だけを固定許可し、動的な追加・削除・入替えを行わない。"
+  - number: 3
+    name: "downtrend_regime"
+    status: "implemented"
+    scope: "確定した2時間足のSMA200がSMA400を下回る場合だけ、次バーのショート検討を許可する。"
 
 basic_policy:
   timeframe_minutes: 120
@@ -41,6 +45,20 @@ symbol_policy:
   dynamic_turnover_ranking: false
   runtime_addition_or_replacement: false
 
+trend_policy:
+  price_source: "trade close"
+  fast_sma_bars: 200
+  slow_sma_bars: 400
+  downtrend_condition: "SMA200 < SMA400"
+  equality: "NO_TRADE"
+  insufficient_warmup: "NO_TRADE"
+  signal_availability: "確定足で計算し、次の2時間足から利用する。"
+  cross_count_filter: "初回実験では使用しない。別実験候補として保留する。"
+  rejected_input:
+    - "2時間足の内部欠損または重複"
+    - "補間行"
+    - "非正または非数値の終値"
+
 execution_status:
   strategy_runner_exists: false
   backtest_started: false
@@ -49,7 +67,6 @@ execution_status:
   live_started: false
 
 deferred_decisions:
-  - "SMA200・SMA400による下落トレンド判定"
   - "上昇、利確売り、初回下落、リバウンドの機械的定義"
   - "フィボナッチ指値と部分約定"
   - "ポジションサイズとココモ法の扱い"
