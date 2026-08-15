@@ -17,7 +17,7 @@ EXP-2026-0006で固定したDonchian 55 entry＋Bollinger 20日・2σ exit overl
 - Preregistration: `experiments/registry/EXP-2026-0007-hypothesis.yaml`（`95ec236`）
 - Dataset manifest: `experiments/registry/DATA-2026-0004-manifest.yaml`
 - Dataset builder: `scripts/build_exp_2026_0007_dataset.py`（`998d9c8`）
-- Runner: `scripts/run_exp_2026_0007.py`（`998d9c8`、判定status修正後の再実行）
+- Runner: `scripts/run_exp_2026_0007.py`（`637fbab`、判定status修正後の再実行）
 - Frozen strategy implementation: `src/crypt_ai/research.py`
 - Research venue: Binance Global Spot `BTCUSDT`
 - Target venue: Binance Japan Spot（今回の結果はshadow/liveではない）
