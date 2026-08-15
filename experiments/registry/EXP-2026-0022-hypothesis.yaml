@@ -35,7 +35,7 @@ methodology:
   execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
 
 evaluation:
-  status: "PENDING"
+  status: "COMPLETED_DIAGNOSTIC"
   primary_metric: "variantとcontrolの銘柄別・中央値・合算の費用控除後最終資産差。"
   secondary_metrics:
     - "最大DD差、エントリー数、最大建玉数量、最大建玉想定元本の差"
@@ -45,6 +45,7 @@ evaluation:
   benchmark_rule: "インデックス基準未達でも、SMA接近条件による損益・リスク差分は報告する。"
   promotion_rule: "この比較結果だけではpaper・shadow・liveへ昇格しない。最大DDの悪化、清算発生、または取引機会の過度な減少がある場合は不採用とする。"
   result_artifact: "artifacts/EXP-2026-0022/summary.json"
+  result_summary: "SMA200接近variantは6銘柄中1銘柄で最終資産が改善したが、中央値は-79.59 USDT、合算は-551.75 USDTだった。最大DDは5銘柄で改善し1銘柄で微悪化した一方、エントリー数はcontrolの268件から52件へ約80.6%減少した。清算は発生せず、6銘柄とも4年間のインデックス基準1,464.10 USDTには届かなかったため、収益戦略の条件としては不採用とする。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -61,7 +62,7 @@ data:
 execution_status:
   preregistered: true
   runner_exists: true
-  backtest_started: false
+  backtest_started: true
   backtest_result_artifact: "artifacts/EXP-2026-0022/summary.json"
   paper_started: false
   shadow_started: false
