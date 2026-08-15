@@ -523,6 +523,82 @@ def prepare_bollinger_mean_reversion_signals(
     return result
 
 
+def prepare_donchian_bollinger_exit_signals(
+    frame: pd.DataFrame,
+    entry_window: int = 55,
+    band_window: int = 20,
+    std_multiplier: float = 2.0,
+) -> pd.DataFrame:
+    """Donchianの買いとボリンジャー平均回帰の退出を組み合わせる。
+
+    日tの終値が、日tを含めない直前`entry_window`本のhighの最高値を上回ったら
+    現物ロングを建てる。保有中に終値がボリンジャー下側バンドを下回ったら退出を
+    待機状態にし、その後に終値が中心線を上回った場合に退出する。標準偏差は母標準
+    偏差（`ddof=0`）とし、確定足のシグナルを次日始値へ遅延させる。ボリンジャーの
+    下側バンド割れを経ていない保有では、中心線の上抜けだけで退出しない。
+
+    Args:
+        frame: `event_time`、`open`、`high`、`close`列を含む日足データ。
+        entry_window: Donchian買い判定に使う過去バー数。
+        band_window: ボリンジャー中心線と標準偏差に使う日足本数。
+        std_multiplier: 中心線からバンドまでの標準偏差倍率。
+
+    Returns:
+        Donchian水準、ボリンジャー水準、entry/exitイベント、状態、
+        次日用`desired_position`を追加したデータ。
+
+    Raises:
+        ValueError: 必須列が不足する、windowが正でない、または倍率が正でない場合。
+    """
+
+    required = {"event_time", "open", "high", "close"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"missing Donchian/Bollinger columns: {sorted(missing)}")
+    if entry_window <= 0 or band_window <= 0 or std_multiplier <= 0:
+        raise ValueError("windows and std_multiplier must be positive")
+
+    result = frame.sort_values("event_time").reset_index(drop=True).copy()
+    result["entry_level"] = result["high"].rolling(entry_window).max().shift(1)
+    result["middle_band"] = result["close"].rolling(band_window).mean()
+    result["band_std"] = result["close"].rolling(band_window).std(ddof=0)
+    result["upper_band"] = result["middle_band"] + std_multiplier * result["band_std"]
+    result["lower_band"] = result["middle_band"] - std_multiplier * result["band_std"]
+
+    signal_positions: list[int] = []
+    entry_signals: list[bool] = []
+    exit_signals: list[bool] = []
+    overlay_armed: list[bool] = []
+    position = 0
+    armed = False
+    for row in result.itertuples(index=False):
+        entered = False
+        exited = False
+        if position == 0 and pd.notna(row.entry_level) and row.close > row.entry_level:
+            position = 1
+            entered = True
+            armed = False
+        elif position == 1:
+            if pd.notna(row.lower_band) and row.close < row.lower_band:
+                armed = True
+            if armed and pd.notna(row.middle_band) and row.close > row.middle_band:
+                position = 0
+                exited = True
+                armed = False
+        signal_positions.append(position)
+        entry_signals.append(entered)
+        exit_signals.append(exited)
+        overlay_armed.append(armed)
+    result["entry_signal"] = entry_signals
+    result["exit_signal"] = exit_signals
+    result["overlay_armed"] = overlay_armed
+    result["signal_position"] = signal_positions
+    result["desired_position"] = (
+        result["signal_position"].shift(1, fill_value=0).astype(int)
+    )
+    return result
+
+
 def prepare_signals(frame: pd.DataFrame, fast_window: int = 20, slow_window: int = 50) -> pd.DataFrame:
     """確定足だけを使ってSMAクロスの次バー用ポジションを作る。
 
