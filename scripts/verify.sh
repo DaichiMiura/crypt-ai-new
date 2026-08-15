@@ -33,7 +33,7 @@ required_files=(
   scripts/build_exp_2026_0002_dataset.py
   scripts/run_exp_2026_0001.py
   scripts/run_exp_2026_0002.py
-  src/crypt_ai/exp_2026_0001.py
+  src/crypt_ai/research.py
   templates/hypothesis.yaml
   templates/data-manifest.yaml
   templates/validation-report.md

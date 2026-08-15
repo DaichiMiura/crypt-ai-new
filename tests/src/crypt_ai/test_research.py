@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pandas as pd
 
-from crypt_ai.exp_2026_0001 import (
+from crypt_ai.research import (
     KLINE_COLUMNS,
     CostModel,
     inspect_hourly_data,

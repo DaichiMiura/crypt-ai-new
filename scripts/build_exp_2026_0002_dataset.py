@@ -12,7 +12,7 @@ import sys
 repo_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(repo_root / "src"))
 
-from crypt_ai.exp_2026_0001 import (  # noqa: E402
+from crypt_ai.research import (  # noqa: E402
     INPUT_COLUMNS,
     inspect_hourly_data,
     interpolate_missing_hourly_data,
