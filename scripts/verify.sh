@@ -75,6 +75,7 @@ required_files=(
   scripts/run_exp_2026_0012.py
   scripts/run_exp_2026_0013.py
   scripts/run_exp_2026_0012_paper.py
+  scripts/run_paper_daily.sh
   src/crypt_ai/paper.py
   src/crypt_ai/research.py
   templates/hypothesis.yaml
