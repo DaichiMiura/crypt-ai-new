@@ -379,6 +379,30 @@ def test_position_size_uses_twenty_percent_equity_per_level_without_profit_growt
     assert sum(level.notional for level in sized) <= Decimal("80000")
 
 
+def test_position_size_compounds_after_profit_when_enabled():
+    """利益後に現在資産ベースで1ロットを増額することをテストする。"""
+    levels = build_void_short_fibonacci_levels(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        current_price=Decimal("112"),
+        tick_size=Decimal("0.1"),
+    )
+
+    sized = size_void_short_limit_levels(
+        levels,
+        initial_equity=Decimal("100000"),
+        current_equity=Decimal("120000"),
+        qty_step=Decimal("0.001"),
+        min_order_qty=Decimal("0.001"),
+        min_order_notional=Decimal("5"),
+        compound_profits=True,
+    )
+
+    assert all(level.notional <= Decimal("24000") for level in sized)
+    assert all(level.notional > Decimal("20000") for level in sized)
+
+
 def test_position_size_applies_fibonacci_lot_counts_without_redistribution():
     """登録済み水準へ1,1,2,3ロットを割り当てることをテストする。"""
     levels = build_void_short_fibonacci_levels(

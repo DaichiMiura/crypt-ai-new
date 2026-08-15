@@ -638,13 +638,15 @@ def size_void_short_limit_levels(
     min_order_notional: Decimal,
     lot_counts: tuple[int, ...] = (1, 1, 1, 1),
     max_total_lot_count: int | None = None,
+    compound_profits: bool = False,
 ) -> tuple[VoidShortSizedLimit, ...]:
     """指定したロット数を各フィボナッチ水準へ割り当てる。
 
-    基準資産は``min(initial_equity, current_equity)``とし、その20倍を100で
-    割った20%を1ロットの想定元本にする。``lot_counts``は登録済み比率の
-    順序に対応し、除外水準からの再配分は行わない。利益後の基準資産増額は
-    行わず、``max_total_lot_count``を指定した場合は合計ロット数を制限する。
+    通常は基準資産を``min(initial_equity, current_equity)``とし、その20倍を
+    100で割った20%を1ロットの想定元本にする。``compound_profits=True``では
+    現在資産を基準にするため、利益後はロットが増え、損失後は減る。
+    ``lot_counts``は登録済み比率の順序に対応し、除外水準からの再配分は行わない。
+    ``max_total_lot_count``を指定した場合は合計ロット数を制限する。
 
     Args:
         levels: 市場価格より上に残ったフィボナッチ指値候補。
@@ -655,6 +657,7 @@ def size_void_short_limit_levels(
         min_order_notional: 初期実験で使う最小想定元本。
         lot_counts: 各登録済みフィボナッチ水準へ割り当てるロット数。
         max_total_lot_count: 1回のセットアップで許可する合計ロット数。
+        compound_profits: 現在資産をロット計算へ反映するか。
 
     Returns:
         最小数量・想定元本を満たすロット数調整済みの指値候補。
@@ -662,7 +665,7 @@ def size_void_short_limit_levels(
     Raises:
         ValueError: 入力値が非正・非有限、比率が未登録・重複、候補数が4を
             超える、ロット列が不正、合計上限を超える、または指値価格が非正・
-            非有限の場合。
+            非有限、複利フラグがboolでない場合。
     """
 
     numeric_values = {
@@ -693,13 +696,19 @@ def size_void_short_limit_levels(
             raise ValueError("max_total_lot_count must be a positive integer")
         if sum(lot_counts) > max_total_lot_count:
             raise ValueError("lot_counts exceed max_total_lot_count")
+    if not isinstance(compound_profits, bool):
+        raise ValueError("compound_profits must be bool")
     ratios = tuple(level.ratio for level in levels)
     if len(set(ratios)) != len(ratios):
         raise ValueError("level ratios must not contain duplicates")
     if any(ratio not in VOID_SHORT_FIBONACCI_RATIOS for ratio in ratios):
         raise ValueError("level ratio is not preregistered")
 
-    reference_equity = min(initial_equity, current_equity)
+    reference_equity = (
+        current_equity
+        if compound_profits
+        else min(initial_equity, current_equity)
+    )
     lot_notional = (
         reference_equity
         * VOID_SHORT_SIZING_REFERENCE_LEVERAGE

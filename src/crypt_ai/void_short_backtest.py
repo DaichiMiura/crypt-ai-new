@@ -62,6 +62,7 @@ class VoidShortBacktestConfig:
     normal_stop_pullback_atr: Decimal = VOID_SHORT_STOP_PULLBACK_ATR
     entry_lot_counts: tuple[int, ...] = (1, 1, 1, 1)
     max_entry_lot_count: int = 4
+    compound_profits: bool = False
 
     def __post_init__(self) -> None:
         """実行設定の資産、期間、清算余裕率を検査する。
@@ -100,6 +101,8 @@ class VoidShortBacktestConfig:
             raise ValueError("max_entry_lot_count must be a positive integer")
         if sum(self.entry_lot_counts) > self.max_entry_lot_count:
             raise ValueError("entry_lot_counts exceed max_entry_lot_count")
+        if not isinstance(self.compound_profits, bool):
+            raise ValueError("compound_profits must be bool")
 
 
 @dataclass(frozen=True)
@@ -303,6 +306,7 @@ def run_void_short_backtest(
                 ),
                 lot_counts=config.entry_lot_counts,
                 max_total_lot_count=config.max_entry_lot_count,
+                compound_profits=config.compound_profits,
             )
             if new_anchors is not None:
                 active_anchors = new_anchors
@@ -408,6 +412,7 @@ def _update_pending_levels(
     current_equity: Decimal,
     lot_counts: tuple[int, ...],
     max_total_lot_count: int,
+    compound_profits: bool,
 ) -> tuple[
     dict[Decimal, _PendingLevel],
     object,
@@ -443,6 +448,7 @@ def _update_pending_levels(
         min_order_notional=instrument.min_order_notional,
         lot_counts=lot_counts,
         max_total_lot_count=max_total_lot_count,
+        compound_profits=compound_profits,
     )
     return (
         {level.ratio: _PendingLevel(level, index) for level in sized},

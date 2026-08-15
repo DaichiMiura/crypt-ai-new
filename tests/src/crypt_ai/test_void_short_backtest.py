@@ -48,6 +48,13 @@ def test_backtest_config_accepts_capped_fibonacci_lot_counts():
     assert config.entry_lot_counts == (1, 1, 2, 3)
 
 
+def test_backtest_config_accepts_profit_compounding():
+    """runnerが利益時の現在資産ベース設定を受け付けることをテストする。"""
+    config = VoidShortBacktestConfig(compound_profits=True)
+
+    assert config.compound_profits is True
+
+
 def test_instrument_requires_positive_tick_size():
     """銘柄仕様のtick sizeが正であることを検査することをテストする。"""
     instrument = VoidShortInstrument(

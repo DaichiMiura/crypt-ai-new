@@ -1,0 +1,71 @@
+schema_version: 1
+experiment_id: "EXP-2026-0020"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0015の固定ロット・通常損切り1.0 ATRを維持し、利益確定後の現在資産を次の1ロット計算へ反映すると、複利によって最終資産を改善できる可能性がある。"
+  economic_rationale: "これまでのリスク比較ではEXP-2026-0015の固定ロット・通常損切り1.0 ATRが最大DDの中央値と最悪値で最も小さかった。今回はその条件を維持し、ロット計算の基準資産だけを現在資産へ変更して利益時の増額効果を分離する。"
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0019"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  control: "EXP-2026-0015と同じ固定1ロット、通常損切り1.0 ATR、合計4ロット上限。1ロットの基準資産はmin(initial_equity, current_equity)。"
+  variant: "controlと同じ固定1ロット・通常損切り1.0 ATRだが、1ロットの基準資産をcurrent_equityへ変更する。利益確定後は1ロットの想定元本が増え、損失確定後は減る。ロット列、価格水準、利確、費用、保有期間を変更しない。"
+  compounding_scope: "建玉がない状態で新しい指値を作る時点の確定済み資産。含み益だけでは増額しない。"
+  maximum_variants: 1
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "controlとvariantで入力データ、銘柄、期間、費用モデルが一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "PENDING"
+  primary_metric: "variantとcontrolの銘柄別・中央値・合算の費用控除後最終資産差。"
+  secondary_metrics:
+    - "最大DD差、最大建玉数量、最大建玉想定元本の差"
+    - "通常損切り・緊急停止・清算・時間切れ・利確の件数と損益差"
+    - "NISAインデックス4年複利+46.41%基準への到達可否"
+  diagnostic_rule: "variantがcontrolを上回る銘柄数、最大DDが悪化する銘柄数、清算件数、最大想定元本を同時に報告する。"
+  benchmark_rule: "インデックス基準未達でも、利益時のロット複利による差分診断は報告する。"
+  promotion_rule: "この比較結果だけではpaper・shadow・liveへ昇格しない。清算発生または最大DDの重大な悪化がある場合は不採用とする。"
+  result_artifact: "artifacts/EXP-2026-0020/summary.json"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  execution_model: "2時間足OHLCの高値接触で全量約定。バー内の複数水準の順序は判定不能であり、結果解釈の制約とする。"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: false
+  backtest_result_artifact: "artifacts/EXP-2026-0020/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0019"
+  preregistration_commit: "このファイルを追加するコミットで、現在資産ベースの利益時複利という単一variantと比較指標を結果確認前に固定する。"
