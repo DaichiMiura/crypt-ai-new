@@ -33,7 +33,7 @@ methodology:
   execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
 
 evaluation:
-  status: "PENDING"
+  status: "COMPLETED_DIAGNOSTIC"
   primary_metric: "variantとcontrolの銘柄別・中央値・合算の費用控除後最終資産差。"
   secondary_metrics:
     - "最大DD差、エントリー数、最大建玉数量、最大建玉想定元本の差"
@@ -43,6 +43,7 @@ evaluation:
   benchmark_rule: "インデックス基準未達でも、持続下降トレンド条件による差分診断は報告する。"
   promotion_rule: "この比較結果だけではpaper・shadow・liveへ昇格しない。取引数の過度な減少または最大DDの悪化がある場合は不採用とする。"
   result_artifact: "artifacts/EXP-2026-0021/summary.json"
+  result_summary: "12本・24時間の持続下降トレンドvariantは6銘柄中2銘柄で最終資産が改善したが、中央値は-37.56 USDT、合算は-230.46 USDTだった。最大DDは6銘柄すべてで悪化し、清算はcontrol・variantとも発生しなかった。6銘柄とも4年間のインデックス基準1,464.10 USDTには届かなかったため、不採用とする。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -59,7 +60,7 @@ data:
 execution_status:
   preregistered: true
   runner_exists: true
-  backtest_started: false
+  backtest_started: true
   backtest_result_artifact: "artifacts/EXP-2026-0021/summary.json"
   paper_started: false
   shadow_started: false
