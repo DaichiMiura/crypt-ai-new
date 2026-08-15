@@ -10,6 +10,17 @@ source:
   retrieval_uri: ""
   retrieved_at_utc: ""
 
+venue:
+  role: "research_proxy | target_execution | reference"
+  market_type: "spot"
+  symbol: ""
+  base_asset: ""
+  quote_asset: ""
+  proxy_for_exchange: ""
+  proxy_for_symbol: ""
+  pair_mapping_method: ""
+  venue_constraints_snapshot: ""
+
 coverage:
   symbols: []
   start_utc: ""
@@ -27,5 +38,15 @@ integrity:
   missing_intervals: []
   duplicate_count: 0
   corrections: []
+
+cost_assumptions:
+  fee_schedule_uri: ""
+  fee_schedule_retrieved_at_utc: ""
+  maker_rate: ""
+  taker_rate: ""
+  fee_asset: ""
+  discount_or_promotion: ""
+  spread_model: ""
+  slippage_model: ""
 
 limitations: []

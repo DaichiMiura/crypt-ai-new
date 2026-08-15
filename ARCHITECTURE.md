@@ -71,6 +71,27 @@ data -> strategy -> portfolio/accounting -> risk -> execution
 
 現在許可されているのは `research` と `paper` のみである。
 
+## Venue and data separation
+
+```text
+Binance Global Spot historical data
+        |
+        v
+Research proxy / backtest
+        |
+        +--> independent validation
+        |
+Binance Japan live market data (no orders)
+        |
+        v
+Japan shadow / fill simulation
+        |
+        v  人間の別承認が必要
+Binance Japan order API
+```
+
+Binance Globalの履歴データは研究用proxyであり、Binance Japanの価格、板、手数料、約定を表す正本ではない。研究venue、target venue、銘柄対応、費用モデル、proxyの限界は、実験ごとにmanifestと仮説へ記録する。詳細は [venue-data-policy.md](docs/venue-data-policy.md) を参照する。
+
 ## Artifact identity
 
 検証・運用結果は最低限、次の組で特定する。
@@ -81,6 +102,9 @@ code_commit
 strategy_config_hash
 data_snapshot_id
 data_manifest_id
+research_venue
+execution_venue
+venue_mapping_version
 accounting_policy_version
 fee_model_version
 execution_model_version

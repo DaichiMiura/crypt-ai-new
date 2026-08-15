@@ -16,6 +16,19 @@
 
 アラートが送れない状態も監視障害として扱い、新規リスクを増やさない。
 
+## Binance Japan shadow operation
+
+shadowではBinance Japanの市場データを本番相当の経路で受信するが、注文APIへ送信してはならない。戦略の出力は注文直前で止め、次の情報から想定約定を計算する。
+
+- signal time、receive time、decision time、simulated order time
+- best bid/ask、spread、板の厚さ、想定価格、数量、価格刻み、最小数量
+- データ遅延、注文相当の処理時間、想定slippage、部分約定、未約定理由
+- その時点のfee model、想定commission、口座残高を使わないpaper残高
+
+Globalバックテストとの差は、損益だけでなく、価格basis、spread、fill rate、遅延、費用控除後の期待値、ドローダウンで確認する。shadowで観測した差を、Global proxyの欠陥、Japan venue固有の差、実装上の差に分類して記録する。
+
+shadow用のAPIキーを作る場合も、読み取り専用権限を基本とし、`TRADE`や資金移動権限を付与しない。live注文経路を解禁する変更は、本方針の通常運用とは別の人間承認付き変更とする。
+
 ## Daily reconciliation
 
 運用日ごとに次を照合する。

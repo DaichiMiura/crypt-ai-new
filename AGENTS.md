@@ -9,6 +9,7 @@
 - 全体像と依存方向: `ARCHITECTURE.md`
 - 会社の不変原則: `docs/charter.md`
 - 仮説と実験: `docs/research-policy.md`
+- 取引所とデータの対応関係: `docs/venue-data-policy.md`
 - 独立検証と昇格: `docs/validation-policy.md`
 - 注文・資金の安全境界: `docs/risk-policy.md`
 - 監視、障害、振り返り: `docs/operations.md`

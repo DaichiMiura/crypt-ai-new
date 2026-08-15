@@ -53,6 +53,18 @@ Penfold本の原則を、特定手法の採用理由ではなく設計チェッ�
 - 取引所、手数料、ティックサイズ、最小注文数量の履歴変更を扱う。
 - データ修正は破壊的に行わず、原本と変換後の版を追跡する。
 
+## Venue and proxy rules
+
+- 実際の運用対象はBinance Japan Spotとして登録し、Binance Global Spotの履歴データは研究用proxyとして明示する。
+- Global proxyの結果から、Binance Japanでの利益、流動性、約定率、spread、手数料を推定したことにしない。
+- 研究venue、実行venue、market type、symbol、quote asset、pair mapping、proxyの限界を仮説とmanifestに記録する。
+- `BTCUSDT`と`BTC/JPY`のような異なるpairは同一系列として扱わず、変換系列、変換時点、basis riskを記録する。
+- 板、短期microstructure、裁定、market makingなどvenue依存性の強い手法は、Global proxyだけで採用候補にしない。
+- Globalの候補は、Japanのリアルタイムデータを使うshadowで、注文なしのfill simulation、遅延、spread、流動性、拒否条件を検証する。
+- 代理データを使った実験の結論には、必ず「Global proxy上の結果であり、Binance Japanでの有効性は未検証」と書く。
+
+手数料は実験の一部である。片道のmaker/taker fee、feeの支払通貨、割引・キャンペーン、spread、slippage、部分約定、注文拒否を記録する。Binance Japanのshadow開始前に、アカウントに適用される料金と実約定のcommissionを確認し、fee model versionとして固定する。詳細なvenue、データ階層、昇格条件は [venue-data-policy.md](venue-data-policy.md) に従う。
+
 ## Research integrity
 
 - アウトオブサンプル領域を見た後は、それをインサンプルに戻さない。
