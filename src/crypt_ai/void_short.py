@@ -636,12 +636,15 @@ def size_void_short_limit_levels(
     qty_step: Decimal,
     min_order_qty: Decimal,
     min_order_notional: Decimal,
+    lot_counts: tuple[int, ...] = (1, 1, 1, 1),
+    max_total_lot_count: int | None = None,
 ) -> tuple[VoidShortSizedLimit, ...]:
-    """VOID式の1ロットを各フィボナッチ水準へ割り当てる。
+    """指定したロット数を各フィボナッチ水準へ割り当てる。
 
     基準資産は``min(initial_equity, current_equity)``とし、その20倍を100で
-    割った20%を1ロットの想定元本にする。利益後の増額、除外水準からの
-    再配分、ココモ法による複数ロット化は行わない。
+    割った20%を1ロットの想定元本にする。``lot_counts``は登録済み比率の
+    順序に対応し、除外水準からの再配分は行わない。利益後の基準資産増額は
+    行わず、``max_total_lot_count``を指定した場合は合計ロット数を制限する。
 
     Args:
         levels: 市場価格より上に残ったフィボナッチ指値候補。
@@ -650,13 +653,16 @@ def size_void_short_limit_levels(
         qty_step: ZOOMEX銘柄仕様の数量刻み。
         min_order_qty: ZOOMEX銘柄仕様の最小注文数量。
         min_order_notional: 初期実験で使う最小想定元本。
+        lot_counts: 各登録済みフィボナッチ水準へ割り当てるロット数。
+        max_total_lot_count: 1回のセットアップで許可する合計ロット数。
 
     Returns:
-        最小数量・想定元本を満たす1ロットの指値候補。
+        最小数量・想定元本を満たすロット数調整済みの指値候補。
 
     Raises:
         ValueError: 入力値が非正・非有限、比率が未登録・重複、候補数が4を
-            超える、または指値価格が非正・非有限の場合。
+            超える、ロット列が不正、合計上限を超える、または指値価格が非正・
+            非有限の場合。
     """
 
     numeric_values = {
@@ -671,6 +677,22 @@ def size_void_short_limit_levels(
             raise ValueError(f"{name} must be positive and finite")
     if len(levels) > len(VOID_SHORT_FIBONACCI_RATIOS):
         raise ValueError("levels must not exceed four candidates")
+    if len(lot_counts) != len(VOID_SHORT_FIBONACCI_RATIOS):
+        raise ValueError("lot_counts must contain four entries")
+    if any(
+        isinstance(count, bool) or not isinstance(count, int) or count <= 0
+        for count in lot_counts
+    ):
+        raise ValueError("lot_counts must contain positive integers")
+    if max_total_lot_count is not None:
+        if (
+            isinstance(max_total_lot_count, bool)
+            or not isinstance(max_total_lot_count, int)
+            or max_total_lot_count <= 0
+        ):
+            raise ValueError("max_total_lot_count must be a positive integer")
+        if sum(lot_counts) > max_total_lot_count:
+            raise ValueError("lot_counts exceed max_total_lot_count")
     ratios = tuple(level.ratio for level in levels)
     if len(set(ratios)) != len(ratios):
         raise ValueError("level ratios must not contain duplicates")
@@ -687,7 +709,9 @@ def size_void_short_limit_levels(
     for level in levels:
         if not level.limit_price.is_finite() or level.limit_price <= 0:
             raise ValueError("limit_price must be positive and finite")
-        raw_quantity = lot_notional / level.limit_price
+        lot_index = VOID_SHORT_FIBONACCI_RATIOS.index(level.ratio)
+        lot_count = lot_counts[lot_index]
+        raw_quantity = lot_notional * lot_count / level.limit_price
         steps = (raw_quantity / qty_step).to_integral_value(rounding=ROUND_FLOOR)
         quantity = steps * qty_step
         notional = quantity * level.limit_price
@@ -699,6 +723,7 @@ def size_void_short_limit_levels(
                 limit_price=level.limit_price,
                 quantity=quantity,
                 notional=notional,
+                lot_count=lot_count,
             )
         )
     return tuple(sized_levels)

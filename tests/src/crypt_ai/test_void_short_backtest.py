@@ -38,6 +38,16 @@ def test_backtest_config_accepts_wider_normal_stop_pullback():
     assert config.normal_stop_pullback_atr == Decimal("1.5")
 
 
+def test_backtest_config_accepts_capped_fibonacci_lot_counts():
+    """runnerが合計7ロットの1,1,2,3設定を受け付けることをテストする。"""
+    config = VoidShortBacktestConfig(
+        entry_lot_counts=(1, 1, 2, 3),
+        max_entry_lot_count=7,
+    )
+
+    assert config.entry_lot_counts == (1, 1, 2, 3)
+
+
 def test_instrument_requires_positive_tick_size():
     """銘柄仕様のtick sizeが正であることを検査することをテストする。"""
     instrument = VoidShortInstrument(

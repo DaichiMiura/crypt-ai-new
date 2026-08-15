@@ -60,6 +60,8 @@ class VoidShortBacktestConfig:
     )
     normal_stop_enabled: bool = True
     normal_stop_pullback_atr: Decimal = VOID_SHORT_STOP_PULLBACK_ATR
+    entry_lot_counts: tuple[int, ...] = (1, 1, 1, 1)
+    max_entry_lot_count: int = 4
 
     def __post_init__(self) -> None:
         """実行設定の資産、期間、清算余裕率を検査する。
@@ -83,6 +85,21 @@ class VoidShortBacktestConfig:
             or self.normal_stop_pullback_atr <= 0
         ):
             raise ValueError("normal_stop_pullback_atr must be positive and finite")
+        if len(self.entry_lot_counts) != 4 or any(
+            isinstance(count, bool)
+            or not isinstance(count, int)
+            or count <= 0
+            for count in self.entry_lot_counts
+        ):
+            raise ValueError("entry_lot_counts must contain four positive integers")
+        if (
+            isinstance(self.max_entry_lot_count, bool)
+            or not isinstance(self.max_entry_lot_count, int)
+            or self.max_entry_lot_count <= 0
+        ):
+            raise ValueError("max_entry_lot_count must be a positive integer")
+        if sum(self.entry_lot_counts) > self.max_entry_lot_count:
+            raise ValueError("entry_lot_counts exceed max_entry_lot_count")
 
 
 @dataclass(frozen=True)
@@ -284,6 +301,8 @@ def run_void_short_backtest(
                 current_equity=_mark_equity(
                     config.initial_equity, position, _decimal(row["mark_close"])
                 ),
+                lot_counts=config.entry_lot_counts,
+                max_total_lot_count=config.max_entry_lot_count,
             )
             if new_anchors is not None:
                 active_anchors = new_anchors
@@ -341,6 +360,9 @@ def run_void_short_backtest(
                     )
                 ),
                 "position_quantity": str(position.quantity),
+                "position_notional": str(
+                    position.quantity * _decimal(row["mark_close"])
+                ),
             }
         )
 
@@ -358,6 +380,7 @@ def run_void_short_backtest(
         events.append(event)
         equity_curve[-1]["equity"] = str(config.initial_equity + position.cash_flow)
         equity_curve[-1]["position_quantity"] = "0"
+        equity_curve[-1]["position_notional"] = "0"
 
     metrics = _summarize_metrics(
         instrument.symbol,
@@ -383,6 +406,8 @@ def _update_pending_levels(
     instrument: VoidShortInstrument,
     initial_equity: Decimal,
     current_equity: Decimal,
+    lot_counts: tuple[int, ...],
+    max_total_lot_count: int,
 ) -> tuple[
     dict[Decimal, _PendingLevel],
     object,
@@ -416,6 +441,8 @@ def _update_pending_levels(
         qty_step=instrument.qty_step,
         min_order_qty=instrument.min_order_qty,
         min_order_notional=instrument.min_order_notional,
+        lot_counts=lot_counts,
+        max_total_lot_count=max_total_lot_count,
     )
     return (
         {level.ratio: _PendingLevel(level, index) for level in sized},
@@ -615,6 +642,18 @@ def _summarize_metrics(
         "total_fees": str(position.trading_fees),
         "total_funding_cash_flow": str(position.funding_cash_flow),
         "open_position_at_end": position.quantity > 0,
+        "max_position_quantity": str(
+            max(
+                (Decimal(str(row["position_quantity"])) for row in equity_curve),
+                default=Decimal("0"),
+            )
+        ),
+        "max_position_notional": str(
+            max(
+                (Decimal(str(row["position_notional"])) for row in equity_curve),
+                default=Decimal("0"),
+            )
+        ),
     }
 
 
