@@ -304,23 +304,36 @@ class VoidShortCorePolicy:
 VOID_SHORT_CORE_POLICY = VoidShortCorePolicy()
 
 
-def prepare_void_short_trend_regime(frame: pd.DataFrame) -> pd.DataFrame:
+def prepare_void_short_trend_regime(
+    frame: pd.DataFrame,
+    *,
+    downtrend_persistence_bars: int = 1,
+) -> pd.DataFrame:
     """2時間足のSMA200・SMA400から下落トレンド状態を作る。
 
     現在バーの終値で確定した状態は次のバーからだけ利用可能にする。SMA400を
     計算できない期間は状態不明として新規エントリーを許可しない。
+    ``downtrend_persistence_bars``を2以上にすると、現在を含む直近の確定足が
+    すべて``SMA200 < SMA400``である場合だけ下落トレンドとする。
 
     Args:
         frame: ``event_time``、``close``、``is_interpolated``を持つ2時間足。
+        downtrend_persistence_bars: 下落条件を連続確認する確定足数。
 
     Returns:
         SMA、確定時点の状態、次バーで利用できる状態を追加したDataFrame。
 
     Raises:
-        ValueError: 必須列不足、空、時刻不正、欠損、重複、補間行、または
-            非正の終値がある場合。
+        ValueError: 必須列不足、空、時刻不正、欠損、重複、補間行、非正の終値、
+            または確認足数が不正な場合。
     """
 
+    if (
+        isinstance(downtrend_persistence_bars, bool)
+        or not isinstance(downtrend_persistence_bars, int)
+        or downtrend_persistence_bars <= 0
+    ):
+        raise ValueError("downtrend_persistence_bars must be a positive integer")
     required_columns = {"event_time", "close", "is_interpolated"}
     missing_columns = required_columns - set(frame.columns)
     if missing_columns:
@@ -356,8 +369,17 @@ def prepare_void_short_trend_regime(frame: pd.DataFrame) -> pd.DataFrame:
     result["sma200"] = close.rolling(window=200, min_periods=200).mean()
     result["sma400"] = close.rolling(window=400, min_periods=400).mean()
     result["trend_state_known_at_close"] = result["sma400"].notna()
-    result["downtrend_regime_at_close"] = (
-        result["trend_state_known_at_close"] & (result["sma200"] < result["sma400"])
+    downtrend_now = result["trend_state_known_at_close"] & (
+        result["sma200"] < result["sma400"]
+    )
+    result["downtrend_regime_at_close"] = downtrend_now & (
+        downtrend_now.astype(int)
+        .rolling(
+            window=downtrend_persistence_bars,
+            min_periods=downtrend_persistence_bars,
+        )
+        .sum()
+        == downtrend_persistence_bars
     )
     result["trend_state_known_for_bar"] = result[
         "trend_state_known_at_close"
@@ -368,7 +390,11 @@ def prepare_void_short_trend_regime(frame: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
-def prepare_void_short_entry_setup(frame: pd.DataFrame) -> pd.DataFrame:
+def prepare_void_short_entry_setup(
+    frame: pd.DataFrame,
+    *,
+    downtrend_persistence_bars: int = 1,
+) -> pd.DataFrame:
     """下落トレンド中の上昇・下落・反発を順番に検出する。
 
     下落トレンド開始後の最安値から2 ATR上昇し、その後の最高値から1 ATR
@@ -377,6 +403,7 @@ def prepare_void_short_entry_setup(frame: pd.DataFrame) -> pd.DataFrame:
 
     Args:
         frame: ``event_time``、OHLC、``is_interpolated``を持つ2時間足。
+        downtrend_persistence_bars: 下落条件を連続確認する確定足数。
 
     Returns:
         ATR、準備状態、遷移イベント、価格アンカーを追加したDataFrame。
@@ -389,7 +416,10 @@ def prepare_void_short_entry_setup(frame: pd.DataFrame) -> pd.DataFrame:
     missing_columns = {"high", "low"} - set(frame.columns)
     if missing_columns:
         raise ValueError(f"missing columns: {sorted(missing_columns)}")
-    result = prepare_void_short_trend_regime(frame)
+    result = prepare_void_short_trend_regime(
+        frame,
+        downtrend_persistence_bars=downtrend_persistence_bars,
+    )
 
     for column in ("high", "low"):
         values = pd.to_numeric(result[column], errors="coerce")

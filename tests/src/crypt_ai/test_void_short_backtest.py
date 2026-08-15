@@ -55,6 +55,13 @@ def test_backtest_config_accepts_profit_compounding():
     assert config.compound_profits is True
 
 
+def test_backtest_config_accepts_persistent_downtrend_bars():
+    """runnerが12本の下降トレンド確認設定を受け付けることをテストする。"""
+    config = VoidShortBacktestConfig(downtrend_persistence_bars=12)
+
+    assert config.downtrend_persistence_bars == 12
+
+
 def test_instrument_requires_positive_tick_size():
     """銘柄仕様のtick sizeが正であることを検査することをテストする。"""
     instrument = VoidShortInstrument(

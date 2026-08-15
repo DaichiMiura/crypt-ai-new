@@ -165,6 +165,28 @@ def test_trend_regime_requires_sma200_below_sma400():
     assert bool(result.loc[400, "downtrend_regime_for_bar"]) is True
 
 
+def test_trend_regime_requires_persistent_downtrend_when_configured():
+    """SMA条件が指定本数連続した場合だけ下落トレンドにすることをテストする。"""
+    result = prepare_void_short_trend_regime(
+        _trend_frame([200.0] * 200 + [100.0] * 204),
+        downtrend_persistence_bars=3,
+    )
+
+    assert bool(result.loc[399, "downtrend_regime_at_close"]) is False
+    assert bool(result.loc[400, "downtrend_regime_at_close"]) is False
+    assert bool(result.loc[401, "downtrend_regime_at_close"]) is True
+    assert bool(result.loc[402, "downtrend_regime_for_bar"]) is True
+
+
+def test_trend_regime_rejects_non_positive_persistence_bars():
+    """非正の下降トレンド確認足数を拒否することをテストする。"""
+    with pytest.raises(ValueError, match="persistence"):
+        prepare_void_short_trend_regime(
+            _trend_frame([100.0] * 401),
+            downtrend_persistence_bars=0,
+        )
+
+
 def test_trend_regime_treats_equal_smas_as_no_trade():
     """SMA200とSMA400が同値なら下落トレンドにしないことをテストする。"""
     result = prepare_void_short_trend_regime(_trend_frame([100.0] * 401))
