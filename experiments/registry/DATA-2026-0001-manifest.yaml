@@ -33,7 +33,7 @@ coverage:
 
 integrity:
   raw_hash: "sha256:ce0942908ad3406cccb1a5669a1cbf33a197da4ae237feba25e73b9b95dc46dc"
-  transform_commit: "research/exp-2026-0001 (immutable code commit is recorded in the validation report)"
+  transform_commit: "8efae22"
   transform_parameters:
     timestamp_unit: "milliseconds (入力値を検査して確定)"
     timezone_conversion: "UTC"

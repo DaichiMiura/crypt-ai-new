@@ -11,7 +11,7 @@
 
 ## Frozen artifacts
 
-- Code commit: このPRのコミットで確定
+- Code commit: `8efae22`
 - Strategy config: `experiments/registry/EXP-2026-0001-hypothesis.yaml`
 - Data snapshot ID: `DATA-2026-0001`
 - Research venue: Binance Global Spot `BTCUSDT`
