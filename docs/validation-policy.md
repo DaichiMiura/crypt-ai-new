@@ -14,6 +14,14 @@
 - タイムゾーン、意思決定時点、データ到着時点が整合する
 - 原本から特徴量までの来歴を追跡できる
 
+### Venue transfer
+
+- 研究venue、実行venue、market type、symbol、quote assetの対応が固定されている
+- Binance Globalをproxyにした場合、Binance Japanとの差（価格basis、spread、出来高、流動性、注文制約）を記録している
+- pair変換、為替変換、fee model、slippage modelの前提が再現できる
+- 注文なしのJapan shadowを行った場合、遅延、想定約定、未約定、拒否条件をバックテストと比較している
+- Global proxyの結果をBinance Japanの利益やlive承認の証拠として扱っていない
+
 ### バックテスト会計
 
 - 手数料、スプレッド、スリッページ、資金拘束を含む

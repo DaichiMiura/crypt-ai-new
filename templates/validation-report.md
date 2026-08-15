@@ -15,6 +15,9 @@
 - Code commit:
 - Strategy config hash:
 - Data snapshot ID:
+- Research venue:
+- Execution venue:
+- Venue/pair mapping:
 - Fee model version:
 - Execution model version:
 - Risk policy version:
@@ -31,6 +34,8 @@
 ### Data integrity
 
 - Decision-time availability:
+- Research proxy limitations and target-venue differences:
+- Symbol, quote asset, and market-type mapping:
 - Look-ahead checks:
 - Missing/duplicate data:
 - Timezone and timestamp semantics:
@@ -62,6 +67,7 @@
 - Simplicity and parameter-count assessment:
 - Money-management and sizing method:
 - Size increase/decrease conditions:
+- Shadow feed, latency, spread, and simulated fill result:
 
 ### Safety and operations
 

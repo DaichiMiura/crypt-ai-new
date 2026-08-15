@@ -14,6 +14,7 @@ AIを活用して仮想通貨取引戦略を研究・検証・運用するため
 - 本番用のfail-closed設定は [risk-limits.yaml](config/risk-limits.yaml)、ペーパー用設定は [paper-risk-limits.yaml](config/paper-risk-limits.yaml) に分ける
 - 戦略別の例は [exp-0001-risk.yaml](config/strategies/exp-0001-risk.yaml) に置く
 - データ取得、バックテスト、取引所接続、監視は成熟したOSSを積極的に利用する
+- 履歴の短いBinance Japanを補うため、Binance Global Spotを研究用proxyとして使い、Binance Japanのshadowでvenue差を検証する
 - 研究・検証・運用の責任を分離する
 
 収益性、安全性、法令適合性はまだ確認されていません。このリポジトリの存在やバックテスト結果は、実運用の承認を意味しません。
@@ -34,21 +35,22 @@ AIを活用して仮想通貨取引戦略を研究・検証・運用するため
 1. [AGENTS.md](AGENTS.md)
 2. [会社憲章](docs/charter.md)
 3. [アーキテクチャ](ARCHITECTURE.md)
-4. [研究方針](docs/research-policy.md)
-5. [検証・昇格方針](docs/validation-policy.md)
-6. [リスク方針](docs/risk-policy.md)
-7. [運用方針](docs/operations.md)
-8. [会計方針](docs/accounting-policy.md)
-9. [Penfold本からの設計原則](docs/references/penfold-universal-principles.md)
-10. [OSS・依存関係ポリシー](docs/dependency-policy.md)
+4. [取引所・データ方針](docs/venue-data-policy.md)
+5. [研究方針](docs/research-policy.md)
+6. [検証・昇格方針](docs/validation-policy.md)
+7. [リスク方針](docs/risk-policy.md)
+8. [運用方針](docs/operations.md)
+9. [会計方針](docs/accounting-policy.md)
+10. [Penfold本からの設計原則](docs/references/penfold-universal-principles.md)
+11. [OSS・依存関係ポリシー](docs/dependency-policy.md)
 
 ## 最初のマイルストーン
 
 単純な戦略を1つだけ選び、次をペーパー環境で一周させます。
 
 ```text
-仮説登録 → データ検査 → 実装 → バックテスト → 独立検証
-         → ペーパー運用 → 日次照合 → 振り返り
+仮説登録 → Global proxyデータ検査 → 実装 → バックテスト → 独立検証
+         → Japanデータ校正・注文なしshadow → ペーパー運用 → 日次照合 → 振り返り
 ```
 
 実験は [仮説テンプレート](templates/hypothesis.yaml) から始め、検証は [検証報告テンプレート](templates/validation-report.md) に記録します。

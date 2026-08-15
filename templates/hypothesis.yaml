@@ -19,7 +19,13 @@ methodology:
 
 scope:
   exchanges: []
+  research_venue: ""
+  execution_venue: "Binance Japan"
+  venue_role: "research_proxy"
   symbols: []
+  quote_assets: []
+  pair_mapping: ""
+  venue_transfer_claim: "not_established"
   timeframe: ""
   start_utc: ""
   end_utc: ""
@@ -43,6 +49,10 @@ evaluation:
 
 cost_model:
   fee_model_version: ""
+  maker_fee: ""
+  taker_fee: ""
+  fee_asset: ""
+  fee_sensitivity_cases: []
   spread_assumption: ""
   slippage_assumption: ""
   liquidity_constraints: ""

@@ -19,6 +19,7 @@ required_files=(
   docs/operations.md
   docs/research-policy.md
   docs/risk-policy.md
+  docs/venue-data-policy.md
   docs/validation-policy.md
   templates/hypothesis.yaml
   templates/data-manifest.yaml
