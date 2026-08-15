@@ -13,11 +13,13 @@ required_files=(
   config/risk-limits.yaml
   config/paper-risk-limits.yaml
   config/strategies/exp-0001-risk.yaml
+  config/strategies/exp-2026-0012-paper.yaml
   docs/accounting-policy.md
   docs/dependency-policy.md
   docs/references/penfold-universal-principles.md
   docs/charter.md
   docs/operations.md
+  docs/paper-exp-2026-0012.md
   docs/research-policy.md
   docs/risk-policy.md
   docs/venue-data-policy.md
@@ -48,7 +50,13 @@ required_files=(
   experiments/registry/EXP-2026-0010-validation.md
   experiments/registry/EXP-2026-0011-hypothesis.yaml
   experiments/registry/EXP-2026-0011-validation.md
+  experiments/registry/EXP-2026-0012-hypothesis.yaml
+  experiments/registry/EXP-2026-0012-validation.md
+  experiments/registry/EXP-2026-0013-hypothesis.yaml
+  experiments/registry/EXP-2026-0013-validation.md
+  experiments/approvals/EXP-2026-0012-paper.yaml
   scripts/download_binance_global_data.py
+  scripts/download_binance_btcjpy_daily.py
   scripts/build_exp_2026_0001_dataset.py
   scripts/build_exp_2026_0002_dataset.py
   scripts/build_exp_2026_0003_dataset.py
@@ -64,6 +72,11 @@ required_files=(
   scripts/run_exp_2026_0007.py
   scripts/run_exp_2026_0010.py
   scripts/run_exp_2026_0011.py
+  scripts/run_exp_2026_0012.py
+  scripts/run_exp_2026_0013.py
+  scripts/run_exp_2026_0012_paper.py
+  scripts/run_paper_daily.sh
+  src/crypt_ai/paper.py
   src/crypt_ai/research.py
   templates/hypothesis.yaml
   templates/data-manifest.yaml

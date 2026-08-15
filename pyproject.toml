@@ -5,6 +5,7 @@ description = "Research and validation workspace for an AI-assisted crypto tradi
 requires-python = ">=3.12"
 dependencies = [
   "pandas>=3.0,<4.0",
+  "pyyaml>=6.0,<7.0",
 ]
 
 [dependency-groups]

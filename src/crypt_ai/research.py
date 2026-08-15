@@ -539,6 +539,106 @@ def prepare_donchian_regime_filter_signals(
     return result
 
 
+def prepare_atr_trailing_exit_signals(
+    frame: pd.DataFrame,
+    entry_window: int = 55,
+    baseline_exit_window: int = 20,
+    regime_window: int = 200,
+    atr_window: int = 20,
+    atr_multiplier: float = 3.0,
+) -> pd.DataFrame:
+    """SMA制限付きDonchian entryへATRトレーリング退出を適用する。
+
+    entry候補はDonchian 55日高値突破かつ長期SMA上側に固定する。実際に保有を
+    始めた日以降の最高値から単純移動平均ATRの指定倍数を引き、stopは切り下げない。
+    終値がstopを下回った日の次日始値で退出する。退出後は、基礎Donchian状態が
+    いったんflatへ戻った後に発生する新しいentryイベントまで再entryしない。
+
+    Args:
+        frame: `event_time`、`open`、`high`、`low`、`close`列を含む日足データ。
+        entry_window: Donchian entryに使う過去バー数。
+        baseline_exit_window: 基礎状態の循環判定に使うDonchian exitのバー数。
+        regime_window: 新規entryを許可する長期SMAのバー数。
+        atr_window: True Rangeの単純移動平均に使うバー数。
+        atr_multiplier: 最高値からstopまでのATR倍率。
+
+    Returns:
+        基準戦略列、ATR、追随stop、退出イベント、次日用ATR positionを追加したデータ。
+
+    Raises:
+        ValueError: ATR設定が正でない場合。
+    """
+
+    if atr_window <= 0 or atr_multiplier <= 0:
+        raise ValueError("atr_window and atr_multiplier must be positive")
+    result = prepare_donchian_regime_filter_signals(
+        frame,
+        entry_window=entry_window,
+        exit_window=baseline_exit_window,
+        regime_window=regime_window,
+    )
+    previous_close = result["close"].shift(1)
+    result["true_range"] = pd.concat(
+        [
+            result["high"] - result["low"],
+            (result["high"] - previous_close).abs(),
+            (result["low"] - previous_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    result["atr"] = result["true_range"].rolling(atr_window).mean()
+
+    desired_positions: list[int] = []
+    highest_highs: list[float | None] = []
+    candidate_stops: list[float | None] = []
+    trailing_stops: list[float | None] = []
+    exit_signals: list[bool] = []
+    current_position = 0
+    next_position = 0
+    highest_high: float | None = None
+    trailing_stop: float | None = None
+
+    for row in result.itertuples(index=False):
+        previous_position = current_position
+        current_position = next_position
+        exit_signal = False
+        candidate_stop: float | None = None
+        if current_position == 1:
+            high = float(row.high)
+            highest_high = high if previous_position == 0 else max(highest_high, high)
+            if pd.notna(row.atr):
+                candidate_stop = highest_high - atr_multiplier * float(row.atr)
+                trailing_stop = (
+                    candidate_stop
+                    if trailing_stop is None
+                    else max(trailing_stop, candidate_stop)
+                )
+            if trailing_stop is not None and float(row.close) < trailing_stop:
+                exit_signal = True
+                next_position = 0
+            else:
+                next_position = 1
+        else:
+            highest_high = None
+            trailing_stop = None
+            if bool(row.entry_signal) and pd.notna(row.atr) and float(row.atr) > 0:
+                next_position = 1
+            else:
+                next_position = 0
+        desired_positions.append(current_position)
+        highest_highs.append(highest_high)
+        candidate_stops.append(candidate_stop)
+        trailing_stops.append(trailing_stop)
+        exit_signals.append(exit_signal)
+
+    result["atr_highest_high"] = highest_highs
+    result["atr_candidate_stop"] = candidate_stops
+    result["atr_trailing_stop"] = trailing_stops
+    result["atr_exit_signal"] = exit_signals
+    result["desired_atr_position"] = desired_positions
+    return result
+
+
 def prepare_donchian_long_short_regime_signals(
     frame: pd.DataFrame,
     entry_window: int = 55,

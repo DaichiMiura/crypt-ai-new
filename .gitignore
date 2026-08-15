@@ -13,6 +13,7 @@ data/
 artifacts/
 reports/generated/
 logs/
+var/
 *.log
 
 # Python

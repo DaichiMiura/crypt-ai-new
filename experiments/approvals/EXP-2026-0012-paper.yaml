@@ -1,0 +1,27 @@
+schema_version: 1
+experiment_id: EXP-2026-0012
+decision: PAPER_APPROVED
+approved_at_utc: "2026-08-15T00:00:00Z"
+approved_by: human_ceo
+approval_basis:
+  research_status: PASSED_RETROSPECTIVE_VALIDATION
+  validation_report: experiments/registry/EXP-2026-0012-validation.md
+  preregistration_commit: 00dcb3c
+  implementation_commit: 64288ca
+  rationale: "DD改善4/5年、中央値+4.84pt、合算最終資産103.05%、ATR exit 11件。未観測証拠は資金を使わないpaperで蓄積する。"
+scope:
+  environment: paper
+  strategy_config: config/strategies/exp-2026-0012-paper.yaml
+  symbol: BTC_JPY
+  product: spot
+  initial_cash_jpy: 10000
+  real_orders_allowed: false
+  exchange_credentials_allowed: false
+excluded:
+  - shadow
+  - live
+  - leverage
+  - short
+  - automatic_capital_increase
+rollback:
+  action: "paper runnerを停止し、状態と台帳を保持したまま設定statusをhaltedへ変更する。"

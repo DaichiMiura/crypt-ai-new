@@ -68,13 +68,18 @@
 `promotion_status`は、その成果物に許可された運用段階を表す。
 
 - `NOT_ELIGIBLE`: 次の運用段階へ進めない。
-- `NEEDS_FORWARD_EVIDENCE`: 研究候補としてforward testを行えるが、paper・shadow・liveは未承認。
+- `NEEDS_FORWARD_EVIDENCE`: 研究候補だが運用段階の人間承認がまだない。未観測証拠は
+  paper運用中に蓄積してよく、paper承認の必須前提とはしない。
 - `PAPER_APPROVED`: 固定したpaper設定とリスク予算の範囲だけでpaper運用を許可する。
 - `SHADOW_APPROVED`: 注文を送らないshadow運用だけを許可する。
 - `LIMITED_LIVE_APPROVED`: 人間承認済みの少額・固定上限内だけでlive運用を許可する。
 - `SCALED_APPROVED`: 別途承認された資本配分と上限内で増額を許可する。
 
-高い`research_status`は、資金・API権限・デプロイの許可を意味しない。運用可能範囲は常に`promotion_status`と人間の承認記録で決まる。過去データから開始する戦略は、候補基準を満たせば`BACKTEST_CANDIDATE`または`PASSED_RETROSPECTIVE_VALIDATION`へ進めるが、未観測証拠がない段階では`NEEDS_FORWARD_EVIDENCE`より先へ進めない。
+高い`research_status`は、資金・API権限・デプロイの許可を意味しない。運用可能範囲は常に
+`promotion_status`と人間の承認記録で決まる。`BACKTEST_CANDIDATE`または
+`PASSED_RETROSPECTIVE_VALIDATION`は、固定設定、自動テスト、戦略別paper予算、人間承認が
+そろえば`PAPER_APPROVED`へ進める。未観測データの性能検証はpaper運用の目的に含める。
+`PASSED_FORWARD_TEST`はshadowまたはliveの検討材料であり、paper開始の必須条件ではない。
 
 ## Promotion stages
 
@@ -83,7 +88,9 @@ idea -> registered -> implemented -> validated -> paper
      -> shadow -> live_candidate -> limited_live -> scaled
 ```
 
-現段階で昇格できる上限は `paper` とする。`shadow` 以降を解禁するには、別PRで方針、実装、検証証拠、ロールバック手順、人間の承認記録を追加する。
+現段階で昇格できる上限は `paper` とする。paperでは実資金、取引権限、秘密情報を使わない。
+`shadow` 以降を解禁するには、別PRで方針、実装、検証証拠、ロールバック手順、人間の
+承認記録を追加する。
 
 ## Approval packet
 

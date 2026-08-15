@@ -1,0 +1,104 @@
+schema_version: 1
+experiment_id: "EXP-2026-0012"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0008のSMA200付きDonchianロングに、20日ATRの3倍を使うラチェット式trailing exitを適用すると、Donchian 20日安値exitより収益の大部分を維持しながら最大ドローダウンを安定して抑えられる。"
+  economic_rationale: "Donchian 20日安値exitは価格水準だけで決まり、急なボラティリティ拡大や高値からの反落に対する距離が相場ごとに変わる。最高値からATRの固定倍数を引くexitなら、市場ノイズに応じた距離を保ちながらstopを下げず、利益の一部を守れる可能性がある。"
+  parent_experiment_ids:
+    - "EXP-2026-0008"
+    - "EXP-2026-0011"
+  expected_failure_modes:
+    - "3 ATRがBTCの日足ノイズに対して近すぎ、上昇トレンド途中の押し目で退出する。"
+    - "stop後は次の独立Donchian entryまで再参入しないため、大きな上昇を取り逃す。"
+    - "終値判定・次日始値約定では、急落やgap時の損失を十分に制限できない。"
+    - "取引回数と費用が増え、DD改善より収益低下が大きくなる。"
+    - "単一銘柄・既観測期間の結果が特定相場へ集中する。"
+
+methodology:
+  input: "DATA-2026-0003の補間済みUTC日足BTCUSDTを使用する。"
+  entry_freeze: "EXP-2026-0008のentry_window=55、regime_window=200、close > SMA200の新規entry条件を変更しない。"
+  baseline_exit: "EXP-2026-0008と同じDonchian 20日安値割れを終値で判定し、次日始値で売却する。"
+  true_range: "日tのmax(high-low, abs(high-前日close), abs(low-前日close))。"
+  atr: "True Rangeの20日単純移動平均。Wilder smoothingやEMAは使わない。"
+  atr_exit: "実際にlongを保有した日からhighest_highを更新し、candidate_stop=highest_high-3*ATRとする。operative_stopは前日stopとのmaxでラチェットし、低下させない。"
+  exit_trigger: "保有日の確定close < operative_stopでexitを決定し、次日始値で全数量を売却する。同日安値でstop約定したとは仮定しない。"
+  reentry: "ATR exit後は、元のDonchian状態が一度flatへ戻り、その後に新しい55日breakout entryが発生するまで再参入しない。"
+  execution: "entryとexitは確定日足の翌日始値。entry・exitに既存CostModelを適用する。"
+  evaluation_type: "retrospective exit-overlay diagnostic。2021〜2025年は既に観測済みであり、pristine OOSとは呼ばない。"
+  annual_windows:
+    - "2021-01-01T00:00:00Z/2021-12-31T23:59:59Z"
+    - "2022-01-01T00:00:00Z/2022-12-31T23:59:59Z"
+    - "2023-01-01T00:00:00Z/2023-12-31T23:59:59Z"
+    - "2024-01-01T00:00:00Z/2024-12-31T23:59:59Z"
+    - "2025-01-01T00:00:00Z/2025-12-31T23:59:59Z"
+  warmup_and_state: "2020-01-01からの全履歴でDonchian、SMA200、TR、ATRを計算する。各年は初期資金1,000 USDT相当にリセットする。年初に前年からのbaseline/ATR保有状態がある場合は、年初始値で新規BUYとして扱い、ATRのhighest_highとstop状態は全履歴で計算した前年状態を引き継ぐ。"
+  period_end: "年末の未決済longは強制決済せず、終値mark-to-marketし、position_at_endを記録する。"
+  no_trade_conditions:
+    - "日足の欠損・重複がある場合は評価を拒否する。"
+    - "Donchian、SMA200、またはATRの履歴が不足するentryは許可しない。"
+    - "ATRが0以下または非有限の場合はentryを許可しない。"
+    - "合成日足上の約定とATR exit判定は別集計する。"
+
+data:
+  source: "Binance Public Data monthly/daily archives"
+  snapshot_id: "DATA-2026-0003"
+  research_venue: "Binance Global Spot price proxy"
+  target_venue: "Binance Japan Spot"
+  symbol: "BTCUSDT"
+  timeframe: "1d UTC"
+  known_limitations:
+    - "Global proxyはBinance Japanの価格basis、流動性、約定、注文制約の正本ではない。"
+    - "線形補間された15日足を含む。補間日上の約定とexit判定は別集計する。"
+    - "日足OHLCだけではbar内の価格順序を確定できないため、stop水準での約定を再現しない。"
+    - "2021〜2025年は既存実験で観測済みであり、独立OOSではない。"
+
+evaluation:
+  primary_metric: "base feeでATR exitの最大DDがDonchian 20 exitより改善した暦年数と改善幅中央値。"
+  secondary_metrics:
+    - "baselineとATR exitの年次CAGR、最終資産、最大DD"
+    - "5年の独立1,000 USDTバケットを合算した最終資産維持率"
+    - "ATR exit発火回数、closed round trips、勝率、平均損失、期待値、総手数料"
+    - "ATR exit後にbaselineが保有を継続した日数と、機会損失"
+    - "合成日足上の約定・exit判定、年末position"
+    - "base・adverse・stress費用ケースでの方向性"
+  candidate_criteria:
+    - "base feeで5年中3年以上、ATR exitの最大DDがbaselineより改善する。"
+    - "base feeで最大DD改善幅中央値が3 percentage points以上である。"
+    - "base feeで5年合算最終資産がbaselineの90%以上である。"
+    - "base feeで5年中2年以上、ATR exitのCAGRがbaseline以上である。"
+    - "5年合計のATR exit発火が3件以上あり、overlayを実際に評価できる。"
+  rejection_criteria:
+    - "未来情報、同日stop約定、stop低下、または会計不整合が見つかる。"
+    - "最大DD改善年が2年未満、または改善幅中央値が非正である。"
+    - "5年合算最終資産がbaselineの80%未満である。"
+    - "5年すべてでATR exitのCAGRがbaselineを下回る。"
+    - "ATR exit発火が0件で、overlayを評価できない。"
+  promotion_rule: "候補基準を満たしても、既観測データのためPASSED_RETROSPECTIVE_VALIDATIONまでとし、未観測forwardを通るまでpaperへ昇格させない。"
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  fee_sensitivity_cases:
+    - "片道0.001 (base)"
+    - "片道0.0015 (adverse)"
+    - "片道0.002 (stress)"
+  spread_assumption: "entryとexitの往復0.0005で固定する。"
+  slippage_assumption: "各fill片道0.0005で固定する。"
+
+references:
+  - title: "When Do Stop-Loss Rules Stop Losses?"
+    url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=968338"
+    relevance: "stop-lossが期待収益とリスクへ与える効果は原戦略と価格過程に依存するため、利益とDDを同時評価する根拠。"
+  - title: "The Significance of Trading Frequency and Stop Loss in Trend Following Strategies"
+    url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2349848"
+    relevance: "stop-lossは深刻な損失を防ぐ場合がある一方、通常損失での効果は曖昧という比較上の注意。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0008"
+    - "EXP-2026-0011"
+  preregistration_commit: "このファイルを追加するコミットでentry、ATR式、期間、倍率、ラチェット、再参入、約定、採否基準を結果確認前に固定する。"

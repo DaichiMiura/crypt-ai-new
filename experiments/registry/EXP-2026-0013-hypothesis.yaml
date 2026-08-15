@@ -1,0 +1,82 @@
+schema_version: 1
+experiment_id: "EXP-2026-0013"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0012で固定したSMA200付きDonchian entry＋20日ATR 3倍trailing exitは、2026年1〜7月でもDonchian 20日安値exitより最大ドローダウンを悪化させず、費用控除後の資産を大きく毀損しない。"
+  economic_rationale: "ボラティリティに応じて追随するexitが、高値からの反落をDonchian安値exitより早く捉える効果が、選定期間後の異なる相場でも維持されるかを確認する。"
+  parent_experiment_ids:
+    - "EXP-2026-0012"
+    - "EXP-2026-0007"
+  expected_failure_modes:
+    - "上昇途中の押し目で退出し、再entry待ちによる機会損失が拡大する。"
+    - "期間内にATR exitが発火せず、出口差を評価できない。"
+    - "7か月の少数取引で結果が偶然に左右される。"
+    - "同じ2026年データは別実験で閲覧済みであり、独立したforward evidenceにならない。"
+
+methodology:
+  input: "DATA-2026-0004の補間済みUTC日足BTCUSDTを使用する。"
+  strategy_freeze: "EXP-2026-0012のentry_window=55、baseline_exit_window=20、regime_window=200、ATR_window=20、ATR_multiplier=3、単純平均ATR、ラチェット、終値判定、次日始値約定、再entry規則を変更しない。"
+  baseline_strategy: "SMA200付きDonchian 55日高値entry＋Donchian 20日安値exit。"
+  atr_strategy: "同一entry＋実保有後の最高値から20日単純平均ATRの3倍を引いた切り下げないstop。close < stopの次日始値で退出する。"
+  evaluation_type: "post-selection forward-like diagnostic。選定期間2021〜2025年より後だが、同じ2026年データはEXP-2026-0007とEXP-2026-0009で閲覧済みなのでPASSED_FORWARD_TESTには使わない。"
+  forward_like_window:
+    start_utc: "2026-01-01T00:00:00Z"
+    end_utc: "2026-07-31T23:59:59Z"
+  warmup_and_state: "2020-01-01から全指標と状態を計算する。期間開始時に資金を1,000 USDT相当にリセットし、開始時desired_positionが1なら開始日始値でBUYする。ATRのhighest_highとstopは前年状態を引き継ぐ。"
+  period_end: "期間末の未決済longは強制決済せず、終値mark-to-marketする。"
+  no_trade_conditions:
+    - "欠損・重複・端点欠損、またはwarm-up不足があれば評価を拒否する。"
+    - "ATRが0以下または非有限のentryは許可しない。"
+    - "合成日足上のexit判定と約定を別集計する。"
+  maximum_variants: 1
+
+data:
+  source: "Binance Public Data monthly/daily archives"
+  snapshot_id: "DATA-2026-0004"
+  research_venue: "Binance Global Spot price proxy"
+  target_venue: "Binance Japan Spot"
+  symbol: "BTCUSDT"
+  timeframe: "1d UTC"
+  known_limitations:
+    - "線形補間された1時間足を含む15日足がある。"
+    - "2026年1〜7月は別戦略の結果として組織内で既に観測済みである。"
+    - "Global proxyはBinance Japanの板、spread、約定、手数料の正本ではない。"
+
+evaluation:
+  primary_metric: "base feeでATR版の最大DDがbaseline以上（悪化しない）か。"
+  secondary_metrics:
+    - "base・adverse・stress費用での最終資産、CAGR、最大DDと差分"
+    - "ATR exit発火、closed round trips、勝率、期待値、手数料"
+    - "baseline long中のATR flat日数と最終資産維持率"
+    - "補間日上のexit判定・約定、期間末position"
+  performance_candidate_criteria:
+    - "base feeでATR版の最大DDがbaseline以上である。"
+    - "base feeでATR版の最終資産がbaselineの90%以上である。"
+    - "ATR exitが1件以上発火し、出口差を評価できる。"
+  performance_rejection_criteria:
+    - "未来情報、同日stop約定、stop低下、または会計不整合が見つかる。"
+    - "base feeでATR版の最大DDがbaselineより2 percentage points超悪化する。"
+    - "base feeでATR版のCAGRがbaselineより5 percentage points超悪化する。"
+    - "base feeでATR版の最終資産がbaselineの80%未満である。"
+  inconclusive_conditions:
+    - "candidateとrejectionのどちらも満たさない。"
+    - "ATR exitが0件で出口差を評価できない。"
+  independence_rule: "性能条件を満たしても、組織内で観測済みの期間なのでresearch_statusはPASSED_FORWARD_TESTにせず、promotion_statusもNEEDS_FORWARD_EVIDENCEに留める。"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  fee_sensitivity_cases:
+    - "片道0.001 (base)"
+    - "片道0.0015 (adverse)"
+    - "片道0.002 (stress)"
+  spread_assumption: "往復0.0005で固定する。"
+  slippage_assumption: "片道0.0005で固定する。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0012"
+    - "EXP-2026-0007"
+  preregistration_commit: "このファイルを追加するコミットで期間、固定戦略、性能基準、独立性制約を結果確認前に固定する。"

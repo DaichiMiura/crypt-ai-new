@@ -10,6 +10,7 @@ from crypt_ai.research import (
     inspect_hourly_data,
     inspect_daily_data,
     interpolate_missing_hourly_data,
+    prepare_atr_trailing_exit_signals,
     prepare_bollinger_mean_reversion_signals,
     prepare_donchian_bollinger_exit_signals,
     prepare_donchian_long_short_regime_signals,
@@ -211,6 +212,69 @@ def test_prepare_donchian_regime_filter_allows_breakout_above_long_sma():
     assert bool(result.loc[200, "entry_signal"]) is True
     assert result.loc[200, "desired_position"] == 0
     assert result.loc[200, "signal_position"] == 1
+
+
+def test_prepare_atr_exit_uses_next_open_and_ratchets_stop():
+    """ATR stopを切り下げず、終値割れの次日まで保有することをテストする。"""
+    close = [100, 100, 100, 100, 100, 110, 112, 115, 111, 109]
+    frame = pd.DataFrame(
+        {
+            "event_time": pd.date_range(
+                "2026-01-01", periods=len(close), freq="D", tz="UTC"
+            ),
+            "open": close,
+            "high": close,
+            "low": [value - 2 for value in close],
+            "close": close,
+        }
+    )
+
+    result = prepare_atr_trailing_exit_signals(
+        frame,
+        entry_window=3,
+        baseline_exit_window=2,
+        regime_window=3,
+        atr_window=2,
+        atr_multiplier=1.0,
+    )
+
+    assert bool(result.loc[5, "entry_signal"]) is True
+    assert result.loc[5, "desired_atr_position"] == 0
+    assert result.loc[6, "desired_atr_position"] == 1
+    held_stops = result.loc[6:8, "atr_trailing_stop"].dropna()
+    assert held_stops.is_monotonic_increasing
+    assert bool(result.loc[8, "atr_exit_signal"]) is True
+    assert result.loc[8, "desired_atr_position"] == 1
+    assert result.loc[9, "desired_atr_position"] == 0
+
+
+def test_prepare_atr_exit_waits_for_new_base_entry_after_exit():
+    """ATR退出後に基礎状態がlongのままなら再entryしないことをテストする。"""
+    close = [100, 100, 100, 100, 100, 110, 112, 115, 111, 112, 113]
+    frame = pd.DataFrame(
+        {
+            "event_time": pd.date_range(
+                "2026-01-01", periods=len(close), freq="D", tz="UTC"
+            ),
+            "open": close,
+            "high": close,
+            "low": [value - 2 for value in close],
+            "close": close,
+        }
+    )
+
+    result = prepare_atr_trailing_exit_signals(
+        frame,
+        entry_window=3,
+        baseline_exit_window=2,
+        regime_window=3,
+        atr_window=2,
+        atr_multiplier=1.0,
+    )
+
+    assert result.loc[9, "signal_position"] == 1
+    assert result.loc[9, "desired_atr_position"] == 0
+    assert result.loc[10, "desired_atr_position"] == 0
 
 
 def test_prepare_long_short_signals_detects_short_breakout_below_long_sma():
