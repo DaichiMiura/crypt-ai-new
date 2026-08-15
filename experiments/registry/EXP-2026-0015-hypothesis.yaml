@@ -1,0 +1,86 @@
+schema_version: 1
+experiment_id: "EXP-2026-0015"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "VOID式ショートのうち、主要銘柄を避けて下落局面のアルトコインをショートするという考え方を、ZOOMEXのUSDT無期限で再現可能なルールへ分解すると、過去期間でロング専用ベースラインより下落局面の損失を抑えられる可能性がある。"
+  economic_rationale: "BTC・ETHなどの主要銘柄とは異なる需給・ボラティリティを持つ暗号資産では、下落局面の反発後に売り圧力が再開する場面をショートで捉えられる可能性がある。ただし、これは検証前の仮説であり、銘柄選定だけで優位性を意味しない。"
+  parent_experiment_ids:
+    - "EXP-2026-0014"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+  category: "linear"
+  symbol_selection_rule: "2026-08-15 UTCのZOOMEX公開linear銘柄・tickerスナップショットを固定し、BTC・ETH・SOL・XRP・DOGE、ステーブルコイン、トークン化株式・コモディティ、極端に新しい銘柄を除外する。2021-11-30以前から2時間足履歴があり、暗号資産ネイティブで、残った銘柄の24時間turnover上位6銘柄としてLINK・UNI・ADA・AVAX・NEAR・AAVEを事前固定する。結果を見て追加・削除・入替えをしない。"
+  expected_failure_modes:
+    - "ショートの利益が限定される一方、急反発・ギャップ・清算で損失が拡大する。"
+    - "2時間足SMAや反発条件が遅く、下落の大部分を取り逃す。"
+    - "銘柄間の流動性、Funding、契約仕様、上場時期の差で共通ルールが一般化しない。"
+    - "現物価格ではなく無期限契約固有のmark price、index price、Funding、清算条件が結果を支配する。"
+    - "6銘柄の同期間比較が市場全体の特定局面に依存する。"
+
+methodology:
+  scope: "本コミットは銘柄・商品・データ期間の登録とデータ取得だけを行う。売買ロジックの実験runnerは作成・実行しない。"
+  execution_gate: "strategy formalization、会計仕様、リスク上限、独立検証手順を別途コミットして人間承認するまで、バックテスト・paper・shadow・liveを禁止する。"
+  planned_strategy_components:
+    - "2時間足SMA200がSMA400を下回る下落トレンド判定。"
+    - "急落への飛び乗りではなく反発後に入る、VOID式の考え方を決定論的な条件へ分解する。"
+    - "フィボナッチ分割指値、ココモ法、高レバレッジは初回実験へ自動的に含めず、固定ロット・低レバレッジ版を先に比較する。"
+  evaluation_window: "全銘柄共通で2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z。2021-01-01から指標warm-up用データを取得し、2時間足400本以上を確保する。"
+  no_trade_conditions:
+    - "欠損・重複・2時間足の内部gapがある銘柄は実験対象から除外する。"
+    - "OHLC、mark price、index price、Fundingの時刻整合性が確認できない場合は実験を開始しない。"
+    - "補間した価格行は作らず、欠損は拒否する。"
+  maximum_variants: 1
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  base_url: "https://openapi.zoomex.com"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  category: "linear"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+  timeframe: "120 minutes UTC"
+  endpoints:
+    trade_kline: "/cloud/trade/v3/market/kline"
+    mark_price_kline: "/cloud/trade/v3/market/mark-price-kline"
+    index_price_kline: "/cloud/trade/v3/market/index-price-kline"
+    funding_history: "/cloud/trade/v3/market/funding/history"
+    instruments_info: "/cloud/trade/v3/market/instruments-info"
+    tickers: "/cloud/trade/v3/market/tickers"
+  data_window:
+    start_utc: "2021-01-01T00:00:00Z"
+    end_utc_exclusive: "2026-01-01T00:00:00Z"
+  required_artifacts:
+    - "trade OHLCV 2時間足"
+    - "mark price OHLC 2時間足"
+    - "index price OHLC 2時間足"
+    - "Funding rate履歴"
+    - "銘柄仕様と取得時点tickerのスナップショット"
+  known_limitations:
+    - "ZOOMEXの公開履歴が銘柄ごとに開始日・保持期間が異なる可能性がある。"
+    - "現行tickerのturnoverは銘柄選定スナップショットであり、過去の流動性を保証しない。"
+    - "USDT無期限のFunding、mark price、index price、清算ルールを含めない単純なOHLCバックテストは採用しない。"
+    - "日本居住者のZOOMEX利用可否・法令・税務の確認は本研究登録では完了しておらず、実取引を承認しない。"
+
+evaluation:
+  status: "not_started"
+  primary_metric: "未登録。strategy formalizationコミットで、下落局面の損失、最大DD、清算余裕、費用控除後損益を固定する。"
+  promotion_rule: "データ取得完了は研究開始・paper・shadow・liveの承認を意味しない。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0014"
+  preregistration_commit: "このファイルを追加するコミットで、銘柄、商品、データ範囲、取得対象、未実施ゲートを結果確認前に固定する。"
