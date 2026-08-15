@@ -1,0 +1,99 @@
+schema_version: 1
+experiment_id: "EXP-2026-0004"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "BTCの日足終値が20日ボリンジャーバンドの下側（中心線から母標準偏差2倍）を下回った後は中心線へ回帰しやすく、次日始値で買い、中心線を上回った次日始値で決済するロング専用ルールが、費用控除後に買い持ちを上回る。"
+  economic_rationale: "短期的な売られ過ぎによる反発が存在する可能性を、固定ルールで検証する。ただし、暗号資産では平均回帰ではなく平均乖離が観測される可能性もあり、結果を見てからルールを変更しない。"
+  parent_experiment_id: "EXP-2026-0003"
+  expected_failure_modes:
+    - "下落トレンドで下側バンドへの接触が継続し、反発前に損失が拡大する。"
+    - "急落・急反発時に次日始値の約定価格が不利になり、バックテストとの差が拡大する。"
+    - "固定20日窓の結果が特定の相場環境や少数の取引へ集中する。"
+    - "Global proxyとBinance Japanのpair、板、流動性の差で結果が再現しない。"
+
+methodology:
+  input: "DATA-2026-0003のUTC日足BTCUSDTを使用する。DATA-2026-0003はDATA-2026-0002の線形補間済み1時間足をUTC日足へ集約したスナップショットである。"
+  band_rule: "日tを含む直近20日終値の単純移動平均を中心線とし、母標準偏差（ddof=0）の2倍を上下へ加減する。履歴が20日に満たない日はシグナルを出さない。"
+  entry_rule: "保有していない場合、日tの確定終値が下側バンドを下回ったら、日t+1の始値で現物ロングを建てる。"
+  exit_rule: "保有中に日tの確定終値が中心線を上回ったら、日t+1の始値で全量決済する。"
+  position: "long-only、現物、レバレッジなし、同時保有は1ポジション。"
+  no_trade_conditions:
+    - "20日の履歴またはバンド計算値が揃わない場合はシグナルを出さない。"
+    - "日足の欠損・重複がある場合はデータセットを拒否する。"
+    - "欠損補間行を含む日足はis_interpolated=trueで追跡し、合成行のシグナル・約定数を集計する。"
+    - "価格、費用、数量制約を計算できない場合は約定を成立させない。"
+  simplicity_rationale: "window=20、std_multiplier=2、ddof=0を固定し、他の窓・倍率・フィルターを探索しない。変更は新しい実験IDで登録する。"
+
+scope:
+  exchanges:
+    - "Binance Global Spot (research proxy)"
+    - "Binance Japan Spot (target venue; shadow only)"
+  research_venue: "Binance Global Spot"
+  execution_venue: "Binance Japan Spot"
+  venue_role: "research_proxy"
+  symbols:
+    - "BTCUSDT"
+  quote_assets:
+    - "USDT"
+  pair_mapping: "Global BTCUSDTをJapan側target pairと同一価格とは扱わない。"
+  venue_transfer_claim: "generic_signal_only"
+  timeframe: "1d UTC"
+  start_utc: "2020-01-01T00:00:00Z"
+  end_utc: "2025-12-31T23:59:59Z"
+  decision_time_information:
+    - "日足の確定終値からのみバンドとシグナルを計算する。"
+    - "同じ終値で約定せず、次日始値を約定候補とする。"
+    - "Globalの結果をBinance Japanのlive収益予測として扱わない。"
+
+data:
+  source: "Binance Public Data monthly/daily archives"
+  raw_snapshot_id: "DATA-2026-0001"
+  parent_snapshot_id: "DATA-2026-0002"
+  snapshot_id: "DATA-2026-0003"
+  timezone: "UTC"
+  known_limitations:
+    - "DATA-2026-0002の線形補間で生成した31時間を含み、合成日足は実測値ではない。"
+    - "日足集約は1日24本の1時間足が揃うことを要求する。"
+    - "Binance Globalの履歴データであり、Binance Japanの板、spread、約定、手数料の正本ではない。"
+
+evaluation:
+  baseline: "同じ日足期間・同じ初期資金・同じ費用モデルでBTCUSDTを買い持ちする。"
+  primary_metric: "予約したOOS期間（2025年）の費用控除後CAGR"
+  secondary_metrics:
+    - "全期間の費用控除後CAGRと最終資産"
+    - "買い持ちとの差、最大ドローダウン、取引数、回転率"
+    - "合成日足でのシグナル数と約定数"
+    - "fee、spread、slippageが総損益に占める割合"
+    - "相場環境別の成績、連敗、保有期間、少数取引への集中"
+  rejection_criteria:
+    - "未来情報、現在足を除くべき箇所の扱い誤り、同一終値での約定が見つかる。"
+    - "データに欠損、重複、日足未完成、または未追跡の合成行がある。"
+    - "OOSで費用控除後の期待値が非正、または買い持ちを下回る。"
+    - "取引数が少なすぎて、結果を不確実性付きで説明できない。"
+    - "Global proxy上の結果をBinance Japanで再現できる根拠がない。"
+  reserved_out_of_sample: "2025-01-01T00:00:00Z/2025-12-31T23:59:59Z"
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.001"
+  taker_fee: "0.001"
+  fee_sensitivity_cases:
+    - "maker/taker 0.001 / 0.001 (base assumption)"
+    - "maker/taker 0.0015 / 0.0015 (adverse case)"
+    - "maker/taker 0.002 / 0.002 (stress case)"
+  spread_assumption: "往復0.0005をbaseとし、今回のfee感度では固定する。"
+  slippage_assumption: "片道0.0005をbaseとし、今回のfee感度では固定する。"
+  liquidity_constraints: "現物・レバレッジなし・初期資金1,000 USDT相当。最小数量、tick size、丸めは検証結果に明記する。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0003"
+  references:
+    - "https://www.sciencedirect.com/science/article/pii/S1544612319306415"
+    - "https://www.sciencedirect.com/science/article/pii/S1042443122000816"
+  preregistration_commit: "このファイルを追加するコミットで固定し、結果を見た後にwindow・倍率・期間・費用条件を変更しない。"

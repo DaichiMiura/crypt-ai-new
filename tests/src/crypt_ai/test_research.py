@@ -9,6 +9,7 @@ from crypt_ai.research import (
     inspect_hourly_data,
     inspect_daily_data,
     interpolate_missing_hourly_data,
+    prepare_bollinger_mean_reversion_signals,
     prepare_donchian_signals,
     prepare_signals,
     run_backtest,
@@ -151,3 +152,28 @@ def test_prepare_donchian_signals_delays_breakout_to_next_day():
     assert result.loc[55, "signal_position"] == 1
     assert result.loc[55, "desired_position"] == 0
     assert result.loc[56, "desired_position"] == 1
+
+
+def test_prepare_bollinger_signals_delays_entry_and_exit_to_next_day():
+    """ボリンジャーバンドの買いと中心線決済を次日始値へ遅延させることをテストする。"""
+    timestamps = pd.date_range(
+        "2026-01-01T00:00:00Z", periods=25, freq="D", tz="UTC"
+    )
+    close = [100] * 20 + [80, 100, 100, 100, 100]
+    frame = pd.DataFrame(
+        {
+            "event_time": timestamps,
+            "open": close,
+            "close": close,
+        }
+    )
+
+    result = prepare_bollinger_mean_reversion_signals(
+        frame, window=20, std_multiplier=2.0
+    )
+
+    assert result.loc[20, "signal_position"] == 1
+    assert result.loc[20, "desired_position"] == 0
+    assert result.loc[21, "signal_position"] == 0
+    assert result.loc[21, "desired_position"] == 1
+    assert result.loc[22, "desired_position"] == 0

@@ -471,6 +471,58 @@ def prepare_donchian_signals(
     return result
 
 
+def prepare_bollinger_mean_reversion_signals(
+    frame: pd.DataFrame,
+    window: int = 20,
+    std_multiplier: float = 2.0,
+) -> pd.DataFrame:
+    """ボリンジャーバンド下抜け買い・中心線回帰決済のポジションを作る。
+
+    日tの終値が、日tを含む直近`window`本の平均から`std_multiplier`倍の
+    標準偏差を引いた下側バンドを下回った場合に買い状態へ遷移する。保有中に
+    終値が同じ窓の中心線を上回った場合に決済状態へ遷移する。標準偏差は母標準
+    偏差（`ddof=0`）とし、確定した日足のシグナルを次日始値へ遅延させる。
+
+    Args:
+        frame: `event_time`、`open`、`close`列を含む日足データ。
+        window: 移動平均と標準偏差に使う過去の日足本数。
+        std_multiplier: 中心線からバンドまでの標準偏差倍率。
+
+    Returns:
+        バンド水準、シグナル状態、次日用`desired_position`を追加したデータ。
+
+    Raises:
+        ValueError: 必須列が不足する、windowが正でない、または倍率が正でない場合。
+    """
+
+    required = {"event_time", "open", "close"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"missing Bollinger columns: {sorted(missing)}")
+    if window <= 0 or std_multiplier <= 0:
+        raise ValueError("window and std_multiplier must be positive")
+
+    result = frame.sort_values("event_time").reset_index(drop=True).copy()
+    result["middle_band"] = result["close"].rolling(window).mean()
+    result["band_std"] = result["close"].rolling(window).std(ddof=0)
+    result["upper_band"] = result["middle_band"] + std_multiplier * result["band_std"]
+    result["lower_band"] = result["middle_band"] - std_multiplier * result["band_std"]
+
+    signal_positions: list[int] = []
+    position = 0
+    for row in result.itertuples(index=False):
+        if position == 0 and pd.notna(row.lower_band) and row.close < row.lower_band:
+            position = 1
+        elif position == 1 and pd.notna(row.middle_band) and row.close > row.middle_band:
+            position = 0
+        signal_positions.append(position)
+    result["signal_position"] = signal_positions
+    result["desired_position"] = (
+        result["signal_position"].shift(1, fill_value=0).astype(int)
+    )
+    return result
+
+
 def prepare_signals(frame: pd.DataFrame, fast_window: int = 20, slow_window: int = 50) -> pd.DataFrame:
     """確定足だけを使ってSMAクロスの次バー用ポジションを作る。
 
