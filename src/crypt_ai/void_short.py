@@ -30,6 +30,7 @@ VOID_SHORT_EXECUTION_LEVERAGE = Decimal("1")
 VOID_SHORT_TAKE_PROFIT_RATIOS = (Decimal("0.382"), Decimal("0.618"))
 VOID_SHORT_STOP_ARM_RATIO = Decimal("1.618")
 VOID_SHORT_EMERGENCY_STOP_RATIO = Decimal("2.618")
+VOID_SHORT_SMA_PROXIMITY_ATR = Decimal("0.5")
 
 
 class VoidShortSetupState(StrEnum):
@@ -394,6 +395,7 @@ def prepare_void_short_entry_setup(
     frame: pd.DataFrame,
     *,
     downtrend_persistence_bars: int = 1,
+    require_sma_proximity: bool = False,
 ) -> pd.DataFrame:
     """下落トレンド中の上昇・下落・反発を順番に検出する。
 
@@ -404,6 +406,8 @@ def prepare_void_short_entry_setup(
     Args:
         frame: ``event_time``、OHLC、``is_interpolated``を持つ2時間足。
         downtrend_persistence_bars: 下落条件を連続確認する確定足数。
+        require_sma_proximity: 準備完了足の高値がSMA200付近まで戻り、終値が
+            SMA200以下であることを追加要求するか。
 
     Returns:
         ATR、準備状態、遷移イベント、価格アンカーを追加したDataFrame。
@@ -416,6 +420,8 @@ def prepare_void_short_entry_setup(
     missing_columns = {"high", "low"} - set(frame.columns)
     if missing_columns:
         raise ValueError(f"missing columns: {sorted(missing_columns)}")
+    if not isinstance(require_sma_proximity, bool):
+        raise ValueError("require_sma_proximity must be bool")
     result = prepare_void_short_trend_regime(
         frame,
         downtrend_persistence_bars=downtrend_persistence_bars,
@@ -446,6 +452,16 @@ def prepare_void_short_entry_setup(
         window=VOID_SHORT_ATR_BARS,
         min_periods=VOID_SHORT_ATR_BARS,
     ).mean()
+    result["sma200_proximity_at_close"] = (
+        result["sma200"].notna()
+        & result["atr14"].notna()
+        & (
+            result["high"]
+            >= result["sma200"]
+            - result["atr14"] * float(VOID_SHORT_SMA_PROXIMITY_ATR)
+        )
+        & (result["close"] <= result["sma200"])
+    )
 
     states: list[str] = []
     ready_events: list[bool] = []
@@ -502,8 +518,12 @@ def prepare_void_short_entry_setup(
             if float(row.low) < rebound_low_price:
                 rebound_low_price = float(row.low)
                 rebound_low_time = row.event_time
-            if float(row.close) - rebound_low_price >= VOID_SHORT_REBOUND_ATR * float(
-                row.atr14
+            rebound_confirmed = float(row.close) - rebound_low_price >= (
+                VOID_SHORT_REBOUND_ATR * float(row.atr14)
+            )
+            sma_proximity_confirmed = bool(row.sma200_proximity_at_close)
+            if rebound_confirmed and (
+                not require_sma_proximity or sma_proximity_confirmed
             ):
                 state = VoidShortSetupState.READY
                 ready_event = True

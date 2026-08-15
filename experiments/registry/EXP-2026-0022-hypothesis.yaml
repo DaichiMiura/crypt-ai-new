@@ -60,7 +60,7 @@ data:
 
 execution_status:
   preregistered: true
-  runner_exists: false
+  runner_exists: true
   backtest_started: false
   backtest_result_artifact: "artifacts/EXP-2026-0022/summary.json"
   paper_started: false

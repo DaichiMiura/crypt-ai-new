@@ -62,6 +62,13 @@ def test_backtest_config_accepts_persistent_downtrend_bars():
     assert config.downtrend_persistence_bars == 12
 
 
+def test_backtest_config_accepts_sma_proximity_filter():
+    """runnerがSMA200接近フィルター設定を受け付けることをテストする。"""
+    config = VoidShortBacktestConfig(require_sma_proximity=True)
+
+    assert config.require_sma_proximity is True
+
+
 def test_instrument_requires_positive_tick_size():
     """銘柄仕様のtick sizeが正であることを検査することをテストする。"""
     instrument = VoidShortInstrument(

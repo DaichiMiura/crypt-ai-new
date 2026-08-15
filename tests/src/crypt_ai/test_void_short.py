@@ -224,6 +224,27 @@ def test_entry_setup_requires_rally_pullback_and_rebound_in_order():
     assert bool(result.loc[403, "entry_setup_ready_for_bar"]) is False
 
 
+def test_entry_setup_can_require_sma200_proximity():
+    """SMA200付近への接近を追加条件にできることをテストする。"""
+    away_frame = _entry_setup_frame()
+    away = prepare_void_short_entry_setup(
+        away_frame,
+        require_sma_proximity=True,
+    )
+    assert bool(away.loc[403, "sma200_proximity_at_close"]) is False
+    assert bool(away.loc[403, "entry_setup_ready_at_close"]) is False
+
+    near_frame = _entry_setup_frame()
+    near_frame.loc[402, ["close", "high", "low"]] = [100.0, 107.0, 98.0]
+    near_frame.loc[403, ["close", "high", "low"]] = [100.0, 100.5, 98.0]
+    near = prepare_void_short_entry_setup(
+        near_frame,
+        require_sma_proximity=True,
+    )
+    assert bool(near.loc[403, "sma200_proximity_at_close"]) is True
+    assert bool(near.loc[403, "entry_setup_ready_at_close"]) is True
+
+
 def test_entry_setup_becomes_available_on_next_bar():
     """準備完了イベントと価格アンカーを次のバーへ遅延することをテストする。"""
     frame = _entry_setup_frame()

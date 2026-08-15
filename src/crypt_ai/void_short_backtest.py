@@ -61,6 +61,7 @@ class VoidShortBacktestConfig:
     normal_stop_enabled: bool = True
     normal_stop_pullback_atr: Decimal = VOID_SHORT_STOP_PULLBACK_ATR
     downtrend_persistence_bars: int = 1
+    require_sma_proximity: bool = False
     entry_lot_counts: tuple[int, ...] = (1, 1, 1, 1)
     max_entry_lot_count: int = 4
     compound_profits: bool = False
@@ -93,6 +94,8 @@ class VoidShortBacktestConfig:
             or self.downtrend_persistence_bars <= 0
         ):
             raise ValueError("downtrend_persistence_bars must be a positive integer")
+        if not isinstance(self.require_sma_proximity, bool):
+            raise ValueError("require_sma_proximity must be bool")
         if len(self.entry_lot_counts) != 4 or any(
             isinstance(count, bool)
             or not isinstance(count, int)
@@ -159,6 +162,7 @@ def run_void_short_backtest(
     prepared = prepare_void_short_entry_setup(
         frame,
         downtrend_persistence_bars=config.downtrend_persistence_bars,
+        require_sma_proximity=config.require_sma_proximity,
     )
     _validate_funding(funding)
     _validate_instrument(instrument)
