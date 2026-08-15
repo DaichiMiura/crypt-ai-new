@@ -1,0 +1,84 @@
+schema_version: 1
+experiment_id: "EXP-2026-0006"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0005で固定したDonchian 55 entry＋Bollinger 20日・2σ exit overlayは、複数の暦年でもDonchian 55/20単独より最大ドローダウンを安定して抑える。"
+  economic_rationale: "単一の2025年OOSで得た改善が特定相場だけの偶然かを確認する。パラメータを変更せず、年次区間ごとに初期資金をリセットして、損失制御と収益の方向を比較する。"
+  parent_experiment_ids:
+    - "EXP-2026-0005"
+  expected_failure_modes:
+    - "2025年以外ではoverlayの退出が遅く、Donchian単独より最大DDが悪化する。"
+    - "年次区間の取引数が少なく、改善年数だけでは統計的根拠にならない。"
+    - "年初の保有状態引継ぎと資金リセットが結果へ影響する。"
+    - "過去に全期間集計で観測済みのデータであり、未観測OOSとして扱えない。"
+    - "Global proxyとBinance Japanの差で結果が再現しない。"
+
+methodology:
+  input: "DATA-2026-0003のUTC日足BTCUSDTを使用する。"
+  strategy_freeze: "EXP-2026-0005のentry_window=55、band_window=20、std_multiplier=2、ddof=0、次日始値約定を変更しない。"
+  base_strategy: "Donchian 55 entry＋Donchian 20 exit。"
+  overlay_strategy: "Donchian 55 entry＋下側Bollinger band割れで退出待機、その後20日中心線上抜けでexit。"
+  evaluation_type: "retrospective temporal stability diagnostic。EXP-2026-0005で全期間結果を観測済みのため、pristine OOSとは呼ばない。"
+  annual_windows:
+    - "2021-01-01T00:00:00Z/2021-12-31T23:59:59Z"
+    - "2022-01-01T00:00:00Z/2022-12-31T23:59:59Z"
+    - "2023-01-01T00:00:00Z/2023-12-31T23:59:59Z"
+    - "2024-01-01T00:00:00Z/2024-12-31T23:59:59Z"
+    - "2025-01-01T00:00:00Z/2025-12-31T23:59:59Z"
+  warmup_and_state: "各年のシグナルはそれ以前の履歴を含む全系列で計算する。年初は初期資金1,000 USDT相当にリセットし、前年末のdesired_positionが1なら年初始値で新規BUYする。"
+  period_end: "年末時点の未決済ポジションは強制決済せず、終値でmark-to-marketし、open_position_at_endを記録する。"
+  no_trade_conditions:
+    - "日足の欠損・重複がある場合は評価を拒否する。"
+    - "entry・bandの履歴が不足する場合はシグナルを出さない。"
+    - "合成日足の約定は別集計する。"
+  simplicity_rationale: "戦略条件と費用ケースを変更せず、暦年5区間を一度だけ評価する。年を除外・結合しない。"
+
+data:
+  source: "Binance Public Data monthly/daily archives"
+  snapshot_id: "DATA-2026-0003"
+  research_venue: "Binance Global Spot"
+  target_venue: "Binance Japan Spot"
+  symbol: "BTCUSDT"
+  timeframe: "1d UTC"
+  known_limitations:
+    - "15日の日足は線形補間された1時間足を含む。"
+    - "2021〜2025年はEXP-2026-0005の全期間結果で既に観測済みである。"
+    - "Global履歴はBinance Japanの板、spread、約定、手数料の正本ではない。"
+
+evaluation:
+  primary_metric: "base feeでoverlayの最大DDがDonchian単独より改善した暦年数。"
+  secondary_metrics:
+    - "年次最大DD改善幅の中央値"
+    - "overlayのCAGRがDonchian単独を上回った暦年数"
+    - "overlayの費用控除後CAGRが正だった暦年数"
+    - "年次の往復取引数、期待値、手数料、年末未決済状態"
+    - "adverse・stress feeでの改善年数"
+  candidate_criteria:
+    - "base feeで5年中3年以上、overlayの最大DDがDonchian単独より改善する。"
+    - "base feeで年次最大DD改善幅の中央値が正である。"
+    - "base feeで5年中3年以上、overlayのCAGRがDonchian単独以上である。"
+    - "5年合計のclosed round tripsが10以上ある。"
+  rejection_criteria:
+    - "未来情報、同一終値約定、年次区間の除外・後付け結合が見つかる。"
+    - "最大DD改善年が3年未満、または改善幅中央値が非正である。"
+    - "CAGRがDonchian単独以上の年が3年未満である。"
+    - "closed round tripsが合計10未満で、安定性を説明できない。"
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  fee_sensitivity_cases:
+    - "片道0.001 (base)"
+    - "片道0.0015 (adverse)"
+    - "片道0.002 (stress)"
+  spread_assumption: "往復0.0005で固定する。"
+  slippage_assumption: "片道0.0005で固定する。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0005"
+  preregistration_commit: "このファイルを追加するコミットで年次区間と判定基準を固定し、結果後に変更しない。"
