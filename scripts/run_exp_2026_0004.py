@@ -48,6 +48,66 @@ def _read_daily_file(path: Path) -> pd.DataFrame:
     return frame
 
 
+def _summarize_round_trips(trades: pd.DataFrame) -> dict[str, object]:
+    """約定履歴から往復損益、勝率、費用を再計算する。
+
+    Args:
+        trades: `run_backtest`が返すBUY/SELLの約定履歴。
+
+    Returns:
+        クローズ済み往復取引の件数、勝率、平均損益、期待値、費用を含む辞書。
+
+    Raises:
+        ValueError: BUY/SELLの順序が現物ロングの不変条件に反する場合。
+    """
+
+    total_fees = Decimal("0")
+    round_trip_pnls: list[Decimal] = []
+    open_buy = None
+    for row in trades.itertuples(index=False):
+        total_fees += Decimal(str(row.fee))
+        if row.side == "BUY":
+            if open_buy is not None:
+                raise ValueError("trade history contains consecutive BUY fills")
+            open_buy = row
+        elif row.side == "SELL":
+            if open_buy is None:
+                raise ValueError("trade history contains SELL without a BUY")
+            buy_cost = Decimal(str(open_buy.quantity)) * Decimal(
+                str(open_buy.execution_price)
+            ) + Decimal(str(open_buy.fee))
+            sell_value = Decimal(str(row.quantity)) * Decimal(
+                str(row.execution_price)
+            ) - Decimal(str(row.fee))
+            round_trip_pnls.append(sell_value - buy_cost)
+            open_buy = None
+        else:
+            raise ValueError(f"unknown trade side: {row.side}")
+
+    wins = [pnl for pnl in round_trip_pnls if pnl > 0]
+    losses = [pnl for pnl in round_trip_pnls if pnl < 0]
+    closed_count = len(round_trip_pnls)
+    return {
+        "closed_round_trips": closed_count,
+        "open_position_at_end": open_buy is not None,
+        "win_rate": (len(wins) / closed_count) if closed_count else None,
+        "average_win": (
+            str(sum(wins, Decimal("0")) / Decimal(len(wins))) if wins else None
+        ),
+        "average_loss": (
+            str(sum(losses, Decimal("0")) / Decimal(len(losses)))
+            if losses
+            else None
+        ),
+        "expectancy_per_closed_trade": (
+            str(sum(round_trip_pnls, Decimal("0")) / Decimal(closed_count))
+            if closed_count
+            else None
+        ),
+        "total_fees": str(total_fees),
+    }
+
+
 def _evaluate(
     frame: pd.DataFrame,
     cost_model: CostModel,
@@ -91,6 +151,8 @@ def _evaluate(
         "full_buy_and_hold": summarize_equity(baseline),
         "oos_strategy": summarize_equity(oos_equity),
         "oos_buy_and_hold": summarize_equity(oos_baseline),
+        "full_trade_statistics": _summarize_round_trips(trades),
+        "oos_trade_statistics": _summarize_round_trips(oos_trades),
         "trade_count": int(len(trades)),
         "oos_trade_count": int(len(oos_trades)),
         "trades_on_interpolated_days": synthetic_trades,
