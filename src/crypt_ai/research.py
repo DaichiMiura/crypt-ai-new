@@ -26,6 +26,19 @@ KLINE_COLUMNS = [
 ]
 INTERPOLATED_COLUMN = "is_interpolated"
 INPUT_COLUMNS = [*KLINE_COLUMNS, INTERPOLATED_COLUMN]
+DAILY_COLUMNS = [
+    "event_time",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "quote_asset_volume",
+    "number_of_trades",
+    "taker_buy_base_asset_volume",
+    "taker_buy_quote_asset_volume",
+    INTERPOLATED_COLUMN,
+]
 
 
 @dataclass(frozen=True)
@@ -296,6 +309,166 @@ def interpolate_missing_hourly_data(frame: pd.DataFrame) -> pd.DataFrame:
         expanded.loc[observed_indices, column] = original.loc[observed_indices]
     expanded[INTERPOLATED_COLUMN] = synthetic
     return expanded.reset_index()
+
+
+def aggregate_hourly_to_daily(frame: pd.DataFrame) -> pd.DataFrame:
+    """完全なUTC 1時間足をUTC日足へ集約する。
+
+    Args:
+        frame: `load_kline_files`が返す、欠損のない1時間足データ。
+
+    Returns:
+        日足のevent_time、OHLCV、出来高関連列、合成行フラグを含むデータ。
+
+    Raises:
+        ValueError: 日単位の24本が揃わない、重複がある、または必須列が不足する場合。
+    """
+
+    required = {
+        "event_time",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+    }
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"missing daily aggregation columns: {sorted(missing)}")
+    source = frame.sort_values("event_time").copy()
+    if source["event_time"].duplicated().any():
+        raise ValueError("cannot aggregate duplicate event times")
+    source["day"] = source["event_time"].dt.floor("D")
+    counts = source.groupby("day", sort=True).size()
+    if (counts != 24).any():
+        incomplete = counts[counts != 24].to_dict()
+        raise ValueError(f"daily aggregation requires 24 hourly bars: {incomplete}")
+
+    numeric_columns = [
+        "volume",
+        "quote_asset_volume",
+        "number_of_trades",
+        "taker_buy_base_asset_volume",
+        "taker_buy_quote_asset_volume",
+    ]
+    rows: list[dict[str, object]] = []
+    for day, group in source.groupby("day", sort=True):
+        group = group.sort_values("event_time")
+
+        def numeric_sum(column: str) -> float:
+            if column not in group:
+                return 0.0
+            return float(pd.to_numeric(group[column], errors="coerce").sum())
+
+        rows.append(
+            {
+                "event_time": day,
+                "open": float(group.iloc[0]["open"]),
+                "high": float(group["high"].max()),
+                "low": float(group["low"].min()),
+                "close": float(group.iloc[-1]["close"]),
+                "volume": numeric_sum("volume"),
+                "quote_asset_volume": numeric_sum("quote_asset_volume"),
+                "number_of_trades": int(round(numeric_sum("number_of_trades"))),
+                "taker_buy_base_asset_volume": numeric_sum(
+                    "taker_buy_base_asset_volume"
+                ),
+                "taker_buy_quote_asset_volume": numeric_sum(
+                    "taker_buy_quote_asset_volume"
+                ),
+                INTERPOLATED_COLUMN: bool(
+                    group.get(
+                        INTERPOLATED_COLUMN,
+                        pd.Series(False, index=group.index),
+                    )
+                    .fillna(False)
+                    .astype(bool)
+                    .any()
+                ),
+            }
+        )
+    return pd.DataFrame(rows, columns=DAILY_COLUMNS)
+
+
+def inspect_daily_data(frame: pd.DataFrame) -> dict[str, object]:
+    """日足データの重複、欠損、合成行を検査する。
+
+    Args:
+        frame: `aggregate_hourly_to_daily`が返す日足データ。
+
+    Returns:
+        行数、期間、重複日数、欠損日数、合成行数を含む検査結果。
+    """
+
+    timestamps = frame["event_time"].sort_values()
+    gaps = timestamps.diff().dropna()
+    expected = pd.Timedelta(days=1)
+    missing_segments = int((gaps > expected).sum())
+    missing_intervals = int(
+        ((gaps / expected).round().astype("int64") - 1).clip(lower=0).sum()
+    )
+    duplicate_count = int(timestamps.duplicated().sum())
+    interpolated = frame.get(
+        INTERPOLATED_COLUMN, pd.Series(False, index=frame.index)
+    ).fillna(False).astype(bool)
+    return {
+        "rows": int(len(frame)),
+        "start_utc": timestamps.iloc[0].isoformat() if len(timestamps) else None,
+        "end_utc": timestamps.iloc[-1].isoformat() if len(timestamps) else None,
+        "duplicate_count": duplicate_count,
+        "missing_segments": missing_segments,
+        "missing_intervals": missing_intervals,
+        "interpolated_rows": int(interpolated.sum()),
+        "interpolated_ratio": float(interpolated.mean()) if len(frame) else 0.0,
+    }
+
+
+def prepare_donchian_signals(
+    frame: pd.DataFrame,
+    entry_window: int = 55,
+    exit_window: int = 20,
+) -> pd.DataFrame:
+    """終値のDonchianチャネル突破から次バー用の現物ポジションを作る。
+
+    現在の終値を、直前`entry_window`本の最高値より上で確定した場合に買い、
+    直前`exit_window`本の最安値より下で確定した場合に決済する。現在足自身を
+    チャネル計算へ含めず、シグナルは次バー始値へ遅延させる。
+
+    Args:
+        frame: `event_time`、`open`、`high`、`low`、`close`列を含む日足データ。
+        entry_window: エントリー判定に使う過去バー数。
+        exit_window: 決済判定に使う過去バー数。
+
+    Returns:
+        チャネル水準、シグナル状態、次バー用`desired_position`を追加したデータ。
+
+    Raises:
+        ValueError: 必須列が不足する、windowが正でない、またはentryがexit以下の場合。
+    """
+
+    required = {"event_time", "open", "high", "low", "close"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"missing Donchian columns: {sorted(missing)}")
+    if entry_window <= 0 or exit_window <= 0 or entry_window <= exit_window:
+        raise ValueError("windows must satisfy 0 < exit_window < entry_window")
+    result = frame.sort_values("event_time").reset_index(drop=True).copy()
+    result["entry_level"] = result["high"].rolling(entry_window).max().shift(1)
+    result["exit_level"] = result["low"].rolling(exit_window).min().shift(1)
+
+    signal_positions: list[int] = []
+    position = 0
+    for row in result.itertuples(index=False):
+        if position == 0 and pd.notna(row.entry_level) and row.close > row.entry_level:
+            position = 1
+        elif position == 1 and pd.notna(row.exit_level) and row.close < row.exit_level:
+            position = 0
+        signal_positions.append(position)
+    result["signal_position"] = signal_positions
+    result["desired_position"] = (
+        result["signal_position"].shift(1, fill_value=0).astype(int)
+    )
+    return result
 
 
 def prepare_signals(frame: pd.DataFrame, fast_window: int = 20, slow_window: int = 50) -> pd.DataFrame:

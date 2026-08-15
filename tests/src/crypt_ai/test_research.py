@@ -5,8 +5,11 @@ import pandas as pd
 from crypt_ai.research import (
     KLINE_COLUMNS,
     CostModel,
+    aggregate_hourly_to_daily,
     inspect_hourly_data,
+    inspect_daily_data,
     interpolate_missing_hourly_data,
+    prepare_donchian_signals,
     prepare_signals,
     run_backtest,
 )
@@ -98,3 +101,53 @@ def test_interpolate_missing_hourly_data_marks_synthetic_rows():
     assert result.loc[1, "close"] == 105
     assert result.loc[1, "high"] >= result.loc[1, "close"]
     assert inspect_hourly_data(result)["missing_intervals"] == 0
+
+
+def test_aggregate_hourly_to_daily_requires_complete_days():
+    """24本の1時間足を1日へ集約し、日足品質を検査できることをテストする。"""
+    timestamps = pd.date_range(
+        "2026-01-01T00:00:00Z", periods=48, freq="h", tz="UTC"
+    )
+    frame = pd.DataFrame(
+        {
+            "event_time": timestamps,
+            "open": range(48),
+            "high": [value + 1 for value in range(48)],
+            "low": range(48),
+            "close": range(1, 49),
+            "volume": [1] * 48,
+            "is_interpolated": [False] * 47 + [True],
+        }
+    )
+
+    result = aggregate_hourly_to_daily(frame)
+
+    assert len(result) == 2
+    assert result.loc[0, "open"] == 0
+    assert result.loc[0, "close"] == 24
+    assert bool(result.loc[1, "is_interpolated"]) is True
+    assert inspect_daily_data(result)["missing_intervals"] == 0
+
+
+def test_prepare_donchian_signals_delays_breakout_to_next_day():
+    """Donchian突破を次の日足始値へ遅延させることをテストする。"""
+    timestamps = pd.date_range(
+        "2026-01-01T00:00:00Z", periods=60, freq="D", tz="UTC"
+    )
+    close = [100 + index for index in range(60)]
+    close[55] = 160
+    frame = pd.DataFrame(
+        {
+            "event_time": timestamps,
+            "open": close,
+            "high": [value + 1 for value in close],
+            "low": [value - 1 for value in close],
+            "close": close,
+        }
+    )
+
+    result = prepare_donchian_signals(frame, entry_window=55, exit_window=20)
+
+    assert result.loc[55, "signal_position"] == 1
+    assert result.loc[55, "desired_position"] == 0
+    assert result.loc[56, "desired_position"] == 1
