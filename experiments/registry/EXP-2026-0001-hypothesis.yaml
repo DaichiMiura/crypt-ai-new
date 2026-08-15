@@ -1,0 +1,103 @@
+schema_version: 1
+experiment_id: "EXP-2026-0001"
+created_at_utc: "2026-08-15T05:45:14Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "BTCの1時間足で短期移動平均が長期移動平均を上抜けた後、一定期間のトレンド継続が発生し、費用控除後の成績が単純な買い持ちベースラインを上回る。"
+  economic_rationale: "市場参加者の情報反映やポジション調整が一度に完了せず、短期的な価格の持続性が生じる可能性を検証する。"
+  expected_failure_modes:
+    - "横ばい相場で売買シグナルが往復し、手数料とslippageが累積する。"
+    - "急反転により次のバーの約定価格が不利になる。"
+    - "Global proxyとBinance Japanのpair、板、流動性の差で結果が再現しない。"
+
+methodology:
+  setup: "Binance Global SpotのBTCUSDT・1時間足の確定済み終値から、20本SMAと50本SMAを計算する。"
+  entry_rule: "確定足の終値で20本SMAが50本SMAを上抜けた場合、次のバーの始値で現物ロングを建てる。"
+  stop_rule: "固定stopは置かず、20本SMAが50本SMAを下抜けた次のバーの始値で決済する。"
+  exit_rule: "20本SMAが50本SMAを下抜けた場合、次のバーの始値で全量決済する。"
+  no_trade_conditions:
+    - "未確定のバーをシグナル計算に使わない。"
+    - "価格、時刻、数量の欠損または重複を検出したバーでは売買しない。"
+    - "費用、丸め、最小数量を計算できない場合は約定を成立させない。"
+  simplicity_rationale: "最初の実験では予測精度より、データ来歴、時点整合性、費用、会計、検証工程を一周させることを優先する。"
+
+scope:
+  exchanges:
+    - "Binance Global Spot (research proxy)"
+    - "Binance Japan Spot (target venue; shadow only)"
+  research_venue: "Binance Global Spot"
+  execution_venue: "Binance Japan Spot"
+  venue_role: "research_proxy"
+  symbols:
+    - "BTCUSDT"
+  quote_assets:
+    - "USDT"
+  pair_mapping: "Global BTCUSDTをJapan側のtarget pairと同一価格とは扱わない。Japanの対象pairはshadow開始前に確定し、変換系列とbasis riskを別途記録する。"
+  venue_transfer_claim: "generic_signal_only"
+  timeframe: "1h"
+  start_utc: "2020-01-01T00:00:00Z"
+  end_utc: "2025-12-31T23:59:59Z"
+  decision_time_information:
+    - "すべてのシグナルは確定済み1時間足の終値時点で計算する。"
+    - "同じ終値で約定させず、次のバーの始値を約定候補とする。"
+    - "Globalの結果をBinance Japanのlive収益予測として扱わない。"
+
+data:
+  source: "Binance Public Data"
+  snapshot_id: "DATA-2026-0001"
+  timezone: "UTC"
+  known_limitations:
+    - "Binance Globalの履歴データであり、Binance Japanのorder book、spread、約定、手数料を含まない。"
+    - "BTCUSDTとJapan側target pairのquote assetが異なる可能性がある。"
+    - "Japan側のshadow用データ収集はこの実験のバックテスト結果に含めない。"
+
+evaluation:
+  baseline: "同じ期間・同じ初期資金・同じ費用モデルでBTCUSDTを買い持ちする。"
+  primary_metric: "予約したOOS期間の費用控除後CAGR"
+  secondary_metrics:
+    - "費用控除後の総収益と超過収益"
+    - "最大ドローダウン"
+    - "取引数、回転率、勝率、平均利益、平均損失"
+    - "費用、spread、slippageが総損益に占める割合"
+    - "相場環境別の成績と連敗"
+  expected_value_formula: "win_rate * average_win - loss_rate * average_loss - trading_costs"
+  rejection_criteria:
+    - "未来情報、未確定足、同一終値での無条件約定が見つかる。"
+    - "費用、spread、slippage、丸め、最小数量を会計に反映できない。"
+    - "OOSで費用控除後の期待値が非正、または買い持ちを下回る。"
+    - "不利なfee・spread・slippage感度ケースで成績が消失し、依存度を説明できない。"
+    - "Global proxy上の結果をBinance Japanで再現できるという根拠がない。"
+  reserved_out_of_sample: "2025-01-01T00:00:00Z/2025-12-31T23:59:59Z"
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.001"
+  taker_fee: "0.001"
+  fee_asset: "未確定。バックテストでは実約定時のcommission相当を別途記録する。"
+  fee_sensitivity_cases:
+    - "maker/taker 0.001 / 0.001 (base assumption)"
+    - "maker/taker 0.0015 / 0.0015 (adverse case)"
+    - "maker/taker 0.002 / 0.002 (stress case)"
+  spread_assumption: "ゼロにしない。baseは往復0.0005、sensitivityは0.0000と0.0010を併記し、Japan shadowで更新する。"
+  slippage_assumption: "ゼロにしない。baseは片道0.0005、sensitivityは0.0000と0.0010を併記し、約定モデルの根拠を記録する。"
+  liquidity_constraints: "現物・レバレッジなし・最大想定notional 1,000 USDTのpaper simulation。最小数量、tick size、丸めを適用する。"
+
+money_management:
+  sizing_method: "現金のみ、レバレッジ1倍、paper simulationの利用可能資金に対する固定比率。"
+  risk_budget_basis: "実資金は使わず、研究上の初期資金1,000 USDT相当で比較する。"
+  loss_response: "研究上の損失を理由にパラメータを途中変更しない。"
+  increase_conditions: []
+  decrease_conditions:
+    - "データ不整合、会計差異、費用計算不能があれば実験を停止する。"
+  risk_of_ruin_method: "取引ごとの損益分布、最大連敗、ドローダウン、固定サイズ仮定を使い、保証ではない推定として記録する。"
+
+provenance:
+  parent_experiment_ids: []
+  references:
+    - "https://github.com/binance/binance-public-data"
+    - "https://developers.binance.com/en/docs/products/spot/rest-api"
+  preregistration_commit: "このファイルを追加するコミットで固定し、結果を見た後に仮説・期間・費用条件を変更しない。"

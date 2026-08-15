@@ -21,6 +21,8 @@ required_files=(
   docs/risk-policy.md
   docs/venue-data-policy.md
   docs/validation-policy.md
+  experiments/registry/EXP-2026-0001-hypothesis.yaml
+  experiments/registry/DATA-2026-0001-manifest.yaml
   templates/hypothesis.yaml
   templates/data-manifest.yaml
   templates/validation-report.md

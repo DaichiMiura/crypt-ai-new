@@ -56,6 +56,8 @@ AIを活用して仮想通貨取引戦略を研究・検証・運用するため
 実験は [仮説テンプレート](templates/hypothesis.yaml) から始め、検証は [検証報告テンプレート](templates/validation-report.md) に記録します。
 データ取得は [データmanifest](templates/data-manifest.yaml) に記録し、損益は [会計方針](docs/accounting-policy.md) に従います。
 
+最初の登録済み実験は [EXP-2026-0001](experiments/registry/EXP-2026-0001-hypothesis.yaml) です。結果を確認する前に仮説、費用条件、OOS期間、Binance GlobalからBinance Japanへのvenue移管上の限界を固定しています。対応するデータmanifestは [DATA-2026-0001](experiments/registry/DATA-2026-0001-manifest.yaml) です。
+
 ## 最小検証
 
 ```bash
