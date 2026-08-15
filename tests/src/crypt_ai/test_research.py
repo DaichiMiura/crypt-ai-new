@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import pandas as pd
+import pytest
 
 from crypt_ai.research import (
     KLINE_COLUMNS,
@@ -15,7 +16,9 @@ from crypt_ai.research import (
     prepare_donchian_regime_filter_signals,
     prepare_donchian_signals,
     prepare_signals,
+    prepare_volatility_scaled_regime_signals,
     run_backtest,
+    run_fractional_entry_backtest,
     run_long_short_backtest,
 )
 
@@ -215,7 +218,7 @@ def test_prepare_long_short_signals_detects_short_breakout_below_long_sma():
     timestamps = pd.date_range(
         "2026-01-01T00:00:00Z", periods=201, freq="D", tz="UTC"
     )
-    close = [300] * 145 + [100] * 55 + [90]
+    close = [300] * 200 + [90]
     frame = pd.DataFrame(
         {
             "event_time": timestamps,
@@ -234,6 +237,36 @@ def test_prepare_long_short_signals_detects_short_breakout_below_long_sma():
     assert result.loc[200, "short_signal_position"] == -1
     assert result.loc[200, "signal_position"] == -1
     assert result.loc[200, "desired_position"] == 0
+
+
+def test_long_short_long_leg_matches_existing_regime_filter():
+    """long/short実装のlong系列がEXP-2026-0008と一致することをテストする。"""
+    close = [100] * 200 + list(range(101, 151)) + list(range(150, 89, -1))
+    frame = pd.DataFrame(
+        {
+            "event_time": pd.date_range(
+                "2025-01-01", periods=len(close), freq="D", tz="UTC"
+            ),
+            "open": close,
+            "high": close,
+            "low": close,
+            "close": close,
+        }
+    )
+
+    expected = prepare_donchian_regime_filter_signals(frame)
+    actual = prepare_donchian_long_short_regime_signals(frame)
+
+    pd.testing.assert_series_equal(
+        actual["long_signal_position"],
+        expected["signal_position"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        actual["desired_long_position"],
+        expected["desired_position"],
+        check_names=False,
+    )
 
 
 def test_run_long_short_backtest_accounts_for_short_cover():
@@ -261,6 +294,87 @@ def test_run_long_short_backtest_accounts_for_short_cover():
 
     assert list(trades["side"]) == ["SELL_SHORT", "BUY_TO_COVER"]
     assert float(equity.iloc[-1]["equity"]) > 1000
+
+
+def test_prepare_volatility_scaled_signals_delays_reduced_entry_exposure():
+    """高ボラティリティentryの縮小比率を次日始値へ遅延することをテストする。"""
+    close = [100, 115, 90, 120, 80, 130, 131]
+    frame = pd.DataFrame(
+        {
+            "event_time": pd.date_range(
+                "2026-01-01", periods=len(close), freq="D", tz="UTC"
+            ),
+            "open": close,
+            "high": close,
+            "low": [value - 1 for value in close],
+            "close": close,
+        }
+    )
+
+    result = prepare_volatility_scaled_regime_signals(
+        frame,
+        entry_window=4,
+        exit_window=2,
+        regime_window=5,
+        volatility_window=3,
+        target_annual_volatility=0.40,
+    )
+
+    assert bool(result.loc[5, "entry_signal"]) is True
+    assert 0 < result.loc[5, "entry_exposure"] < 1
+    assert result.loc[5, "desired_exposure"] == 0
+    assert result.loc[6, "desired_exposure"] == result.loc[5, "entry_exposure"]
+
+
+def test_run_fractional_backtest_keeps_uninvested_cash():
+    """50%のentryで残りの現金を保持し、exit損益を計上することをテストする。"""
+    frame = pd.DataFrame(
+        {
+            "event_time": pd.date_range(
+                "2026-01-01", periods=3, freq="D", tz="UTC"
+            ),
+            "open": [100, 120, 120],
+            "close": [100, 120, 120],
+            "desired_exposure": [0.5, 0.5, 0.0],
+        }
+    )
+
+    equity, trades = run_fractional_entry_backtest(
+        frame,
+        CostModel(
+            fee_rate=Decimal("0"),
+            round_trip_spread=Decimal("0"),
+            slippage_per_fill=Decimal("0"),
+        ),
+    )
+
+    assert list(trades["side"]) == ["BUY", "SELL"]
+    assert Decimal(equity.iloc[0]["cash"]) == Decimal("500")
+    assert Decimal(equity.iloc[-1]["equity"]) == Decimal("1100")
+
+
+def test_run_fractional_backtest_rejects_resize_while_holding():
+    """保有中に投資比率を書き換える入力を拒否することをテストする。"""
+    frame = pd.DataFrame(
+        {
+            "event_time": pd.date_range(
+                "2026-01-01", periods=2, freq="D", tz="UTC"
+            ),
+            "open": [100, 100],
+            "close": [100, 100],
+            "desired_exposure": [0.5, 0.4],
+        }
+    )
+
+    with pytest.raises(ValueError, match="changed while position was open"):
+        run_fractional_entry_backtest(
+            frame,
+            CostModel(
+                fee_rate=Decimal("0"),
+                round_trip_spread=Decimal("0"),
+                slippage_per_fill=Decimal("0"),
+            ),
+        )
 
 
 def test_prepare_bollinger_signals_delays_entry_and_exit_to_next_day():

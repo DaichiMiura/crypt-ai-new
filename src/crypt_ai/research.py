@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+import math
 from pathlib import Path
 from typing import Iterable
 
@@ -584,6 +585,8 @@ def prepare_donchian_long_short_regime_signals(
     result["long_regime_ok"] = result["close"] > result["regime_sma"]
     result["short_regime_ok"] = result["close"] < result["regime_sma"]
 
+    base_long_positions: list[int] = []
+    base_short_positions: list[int] = []
     long_positions: list[int] = []
     short_positions: list[int] = []
     combined_positions: list[int] = []
@@ -592,32 +595,53 @@ def prepare_donchian_long_short_regime_signals(
     short_entries: list[bool] = []
     short_exits: list[bool] = []
     combined_conflicts: list[bool] = []
+    base_long_position = 0
+    base_short_position = 0
     long_position = 0
     short_position = 0
     combined_position = 0
     for row in result.itertuples(index=False):
-        long_entry = (
-            long_position == 0
+        previous_base_long = base_long_position
+        previous_base_short = base_short_position
+        if (
+            base_long_position == 0
             and pd.notna(row.long_entry_level)
             and row.close > row.long_entry_level
-            and bool(row.long_regime_ok)
-        )
-        long_exit = (
-            long_position == 1
+        ):
+            base_long_position = 1
+        elif (
+            base_long_position == 1
             and pd.notna(row.long_exit_level)
             and row.close < row.long_exit_level
-        )
-        short_entry = (
-            short_position == 0
+        ):
+            base_long_position = 0
+        if (
+            base_short_position == 0
             and pd.notna(row.short_entry_level)
             and row.close < row.short_entry_level
-            and bool(row.short_regime_ok)
-        )
-        short_exit = (
-            short_position == -1
+        ):
+            base_short_position = -1
+        elif (
+            base_short_position == -1
             and pd.notna(row.short_exit_level)
             and row.close > row.short_exit_level
+        ):
+            base_short_position = 0
+
+        long_entry = (
+            long_position == 0
+            and previous_base_long == 0
+            and base_long_position == 1
+            and bool(row.long_regime_ok)
         )
+        long_exit = long_position == 1 and base_long_position == 0
+        short_entry = (
+            short_position == 0
+            and previous_base_short == 0
+            and base_short_position == -1
+            and bool(row.short_regime_ok)
+        )
+        short_exit = short_position == -1 and base_short_position == 0
         if long_entry:
             long_position = 1
         elif long_exit:
@@ -641,6 +665,8 @@ def prepare_donchian_long_short_regime_signals(
         elif short_entry:
             combined_position = -1
 
+        base_long_positions.append(base_long_position)
+        base_short_positions.append(base_short_position)
         long_positions.append(long_position)
         short_positions.append(short_position)
         combined_positions.append(combined_position)
@@ -650,6 +676,8 @@ def prepare_donchian_long_short_regime_signals(
         short_exits.append(short_exit)
         combined_conflicts.append(conflict)
 
+    result["base_long_signal_position"] = base_long_positions
+    result["base_short_signal_position"] = base_short_positions
     result["long_signal_position"] = long_positions
     result["short_signal_position"] = short_positions
     result["signal_position"] = combined_positions
@@ -666,6 +694,78 @@ def prepare_donchian_long_short_regime_signals(
     )
     result["desired_position"] = (
         result["signal_position"].shift(1, fill_value=0).astype(int)
+    )
+    return result
+
+
+def prepare_volatility_scaled_regime_signals(
+    frame: pd.DataFrame,
+    entry_window: int = 55,
+    exit_window: int = 20,
+    regime_window: int = 200,
+    volatility_window: int = 20,
+    target_annual_volatility: float = 0.40,
+) -> pd.DataFrame:
+    """SMA付きDonchianのentry時に実現ボラティリティで投資比率を固定する。
+
+    日次close-to-close単純リターンの母標準偏差を年率化し、新規entry時の
+    投資比率を`min(1, target / realized_volatility)`とする。レバレッジは使わず、
+    entry後はDonchian exitまで投資比率を変えない。日tの確定値から得た比率は
+    日t+1の始値へ遅延する。
+
+    Args:
+        frame: `event_time`、`open`、`high`、`low`、`close`列を含む日足データ。
+        entry_window: Donchian entryに使う過去バー数。
+        exit_window: Donchian exitに使う過去バー数。
+        regime_window: 新規entryのSMA判定に使う日足本数。
+        volatility_window: 実現ボラティリティに使う日次リターン本数。
+        target_annual_volatility: 投資比率の分子となる年率目標ボラティリティ。
+
+    Returns:
+        実現ボラティリティ、entry時の投資比率、保有中の固定比率、次日始値用
+        `desired_exposure`を追加したデータ。
+
+    Raises:
+        ValueError: windowまたは目標ボラティリティが正でない場合。
+    """
+
+    if volatility_window <= 0:
+        raise ValueError("volatility_window must be positive")
+    if target_annual_volatility <= 0:
+        raise ValueError("target_annual_volatility must be positive")
+    result = prepare_donchian_regime_filter_signals(
+        frame,
+        entry_window=entry_window,
+        exit_window=exit_window,
+        regime_window=regime_window,
+    )
+    result["daily_return"] = result["close"].pct_change(fill_method=None)
+    result["realized_volatility"] = (
+        result["daily_return"].rolling(volatility_window).std(ddof=0)
+        * math.sqrt(365)
+    )
+
+    signal_exposures: list[float] = []
+    entry_exposures: list[float | None] = []
+    active_exposure = 0.0
+    for row in result.itertuples(index=False):
+        entry_exposure = None
+        if bool(row.entry_signal):
+            realized = float(row.realized_volatility)
+            if math.isfinite(realized) and realized > 0:
+                active_exposure = min(
+                    1.0, target_annual_volatility / realized
+                )
+                entry_exposure = active_exposure
+        elif bool(row.exit_signal):
+            active_exposure = 0.0
+        signal_exposures.append(active_exposure)
+        entry_exposures.append(entry_exposure)
+
+    result["entry_exposure"] = entry_exposures
+    result["signal_exposure"] = signal_exposures
+    result["desired_exposure"] = result["signal_exposure"].shift(
+        1, fill_value=0.0
     )
     return result
 
@@ -1082,6 +1182,118 @@ def run_long_short_backtest(
                 "mark_price": str(close),
                 "equity": str(equity),
                 INTERPOLATED_COLUMN: bool(getattr(row, INTERPOLATED_COLUMN, False)),
+            }
+        )
+    return pd.DataFrame(equity_rows), pd.DataFrame(trade_rows)
+
+
+def run_fractional_entry_backtest(
+    frame: pd.DataFrame,
+    cost_model: CostModel,
+    initial_cash: Decimal = Decimal("1000"),
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """entry時に固定した0〜1の投資比率で現物ロングを会計する。
+
+    `desired_exposure`が0から正へ変わる始値で、その時点の現金に投資比率を
+    掛けた予算だけを使って買う。残額は現金で保持し、保有中の比率変更は
+    許可しない。0へ戻る始値で全数量を売却する。
+
+    Args:
+        frame: `event_time`、`open`、`close`、`desired_exposure`列を含むデータ。
+        cost_model: entryとexitへ適用するfee、spread、slippageの仮定。
+        initial_cash: 初期のpaper現金残高。
+
+    Returns:
+        `(equity_curve, trades)`の組。BUYにはentry時の`target_exposure`を記録する。
+
+    Raises:
+        ValueError: 必須列不足、比率範囲外、保有中の比率変更、不正価格、または
+            現金・資産が負になる場合。
+    """
+
+    required = {"event_time", "open", "close", "desired_exposure"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"missing fractional backtest columns: {sorted(missing)}")
+    if initial_cash <= 0:
+        raise ValueError("initial_cash must be positive")
+    cash = initial_cash
+    quantity = Decimal("0")
+    active_exposure = Decimal("0")
+    equity_rows: list[dict[str, object]] = []
+    trade_rows: list[dict[str, object]] = []
+
+    for row in frame.itertuples(index=False):
+        desired = _decimal(row.desired_exposure)
+        if not Decimal("0") <= desired <= Decimal("1"):
+            raise ValueError(f"desired_exposure must be between 0 and 1: {desired}")
+        raw_open = _decimal(row.open)
+        if raw_open <= 0:
+            raise ValueError("open price must be positive")
+
+        if desired == 0 and quantity > 0:
+            execution_price = cost_model.sell_price(raw_open)
+            sold_quantity = quantity
+            gross = sold_quantity * execution_price
+            fee = gross * cost_model.fee_rate
+            cash += gross - fee
+            quantity = Decimal("0")
+            active_exposure = Decimal("0")
+            trade_rows.append(
+                {
+                    "event_time": row.event_time,
+                    "side": "SELL",
+                    "raw_price": str(raw_open),
+                    "execution_price": str(execution_price),
+                    "quantity": str(sold_quantity),
+                    "fee": str(fee),
+                    "target_exposure": "0",
+                    INTERPOLATED_COLUMN: bool(
+                        getattr(row, INTERPOLATED_COLUMN, False)
+                    ),
+                }
+            )
+        elif desired > 0 and quantity == 0:
+            execution_price = cost_model.buy_price(raw_open)
+            budget = cash * desired
+            fee = budget * cost_model.fee_rate
+            quantity = (budget - fee) / execution_price
+            cash -= budget
+            active_exposure = desired
+            trade_rows.append(
+                {
+                    "event_time": row.event_time,
+                    "side": "BUY",
+                    "raw_price": str(raw_open),
+                    "execution_price": str(execution_price),
+                    "quantity": str(quantity),
+                    "fee": str(fee),
+                    "target_exposure": str(desired),
+                    INTERPOLATED_COLUMN: bool(
+                        getattr(row, INTERPOLATED_COLUMN, False)
+                    ),
+                }
+            )
+        elif desired > 0 and desired != active_exposure:
+            raise ValueError("desired_exposure changed while position was open")
+
+        close = _decimal(row.close)
+        if close <= 0:
+            raise ValueError("close price must be positive")
+        equity = cash + quantity * close
+        if cash < 0 or equity < 0:
+            raise ValueError("fractional backtest balance became negative")
+        equity_rows.append(
+            {
+                "event_time": row.event_time,
+                "cash": str(cash),
+                "quantity": str(quantity),
+                "active_exposure": str(active_exposure),
+                "mark_price": str(close),
+                "equity": str(equity),
+                INTERPOLATED_COLUMN: bool(
+                    getattr(row, INTERPOLATED_COLUMN, False)
+                ),
             }
         )
     return pd.DataFrame(equity_rows), pd.DataFrame(trade_rows)
