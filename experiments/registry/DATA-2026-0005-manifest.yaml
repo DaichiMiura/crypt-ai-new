@@ -1,0 +1,72 @@
+schema_version: 1
+snapshot_id: "DATA-2026-0005"
+created_at_utc: "2026-08-15T00:00:00Z"
+
+source:
+  provider: "ZOOMEX public V3 REST API"
+  exchange: "ZOOMEX Global"
+  dataset_name: "Linear USDT perpetual 2-hour trade/mark/index prices and funding history"
+  retrieval_uri: "https://openapi.zoomex.com"
+  retrieved_at_utc: "2026-08-15T11:25:18.468841+00:00"
+  authentication_used: false
+  endpoints:
+    trade_kline: "/cloud/trade/v3/market/kline"
+    mark_price_kline: "/cloud/trade/v3/market/mark-price-kline"
+    index_price_kline: "/cloud/trade/v3/market/index-price-kline"
+    funding_history: "/cloud/trade/v3/market/funding/history"
+    instruments_info: "/cloud/trade/v3/market/instruments-info"
+    tickers: "/cloud/trade/v3/market/tickers"
+
+venue:
+  role: "target_execution"
+  market_type: "linear_usdt_perpetual"
+  exchange: "ZOOMEX Global"
+  category: "linear"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+  selection_snapshot: "2026-08-15 UTCの公開linear銘柄・tickerを使い、主要銘柄等を除外した残りの24時間turnover上位6銘柄を固定した。"
+
+coverage:
+  requested_start_utc: "2021-01-01T00:00:00Z"
+  requested_end_utc_exclusive: "2026-01-01T00:00:00Z"
+  evaluation_start_utc: "2022-02-01T00:00:00Z"
+  evaluation_end_utc_exclusive: "2026-01-01T00:00:00Z"
+  interval: "2h"
+  timezone: "UTC"
+  event_time_definition: "ZOOMEX Klineの開始時刻をUTCへ正規化した。"
+  price_source_alignment: "trade・mark price・index priceの共通event_timeだけを残し、先頭の片側だけに存在する行を削除した。"
+
+integrity:
+  retrieval_script_commit: "516eff5"
+  metadata_path: "var/exp-2026-0015-data.json"
+  metadata_sha256: "sha256:5fdf1fe16edd07672b68aeeaa9084ce65d6c00c20f3fe534b1cfcea575f28a56"
+  transform: "API取得後に価格3系列を共通時刻へ整列。価格行の補間は行っていない。"
+  duplicate_count: 0
+  internal_price_gap_count: 0
+  price_sources_aligned: true
+  interpolated_price_rows: 0
+  artifact_hashes: "各CSVのSHA-256、行数、端点はmetadata_pathのsymbols[].artifactsに記録した。"
+  per_symbol_price_rows:
+    LINKUSDT: 21912
+    UNIUSDT: 17916
+    ADAUSDT: 20997
+    AVAXUSDT: 18824
+    NEARUSDT: 18514
+    AAVEUSDT: 20324
+
+transform:
+  method: "common_timestamp_intersection"
+  price_columns: "取得したOHLCを変更せず、共通event_timeの行だけを保持する。"
+  funding_columns: "取得したFunding rateを数値化し、時刻順に保存する。"
+  synthetic_rows_are_venue_observations: false
+
+limitations:
+  - "価格CSVとFunding CSVはサイズのためリポジトリへコミットせず、取得スクリプト・manifest・メタデータハッシュを追跡する。"
+  - "銘柄ごとに上場時刻と公開履歴の開始時刻が異なるため、全銘柄の実際の価格共通開始日は同一ではない。"
+  - "現行tickerのturnoverは選定時点のスナップショットで、過去の流動性を保証しない。"
+  - "本スナップショットは銘柄・データの登録と取得を示すだけで、戦略の有効性、paper、shadow、live運用を承認しない。"

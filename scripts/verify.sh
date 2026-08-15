@@ -56,10 +56,13 @@ required_files=(
   experiments/registry/EXP-2026-0013-validation.md
   experiments/registry/EXP-2026-0014-hypothesis.yaml
   experiments/registry/EXP-2026-0014-validation.md
+  experiments/registry/EXP-2026-0015-hypothesis.yaml
+  experiments/registry/DATA-2026-0005-manifest.yaml
   experiments/approvals/EXP-2026-0012-paper.yaml
   scripts/download_binance_global_data.py
   scripts/download_binance_btcjpy_daily.py
   scripts/download_exp_2026_0014_data.py
+  scripts/download_zoomex_exp_2026_0015_data.py
   scripts/build_exp_2026_0001_dataset.py
   scripts/build_exp_2026_0002_dataset.py
   scripts/build_exp_2026_0003_dataset.py
