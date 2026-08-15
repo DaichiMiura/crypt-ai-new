@@ -26,6 +26,7 @@ VOID_SHORT_FIBONACCI_RATIOS = (
 VOID_SHORT_SIZING_REFERENCE_LEVERAGE = Decimal("20")
 VOID_SHORT_LOT_DIVISOR = Decimal("100")
 VOID_SHORT_EXECUTION_LEVERAGE = Decimal("1")
+VOID_SHORT_TAKE_PROFIT_RATIOS = (Decimal("0.382"), Decimal("0.618"))
 
 
 class VoidShortSetupState(StrEnum):
@@ -70,6 +71,23 @@ class VoidShortSizedLimit:
     quantity: Decimal
     notional: Decimal
     lot_count: int = 1
+
+
+@dataclass(frozen=True)
+class VoidShortTakeProfit:
+    """ショート建玉を減らすフィボナッチ利確候補。
+
+    Attributes:
+        ratio: フィボナッチ・リトレースメント比率。
+        raw_price: tick size適用前の理論価格。
+        limit_price: tick sizeへ切り下げた買い指値価格。
+        quantity: この水準で閉じる建玉数量。
+    """
+
+    ratio: Decimal
+    raw_price: Decimal
+    limit_price: Decimal
+    quantity: Decimal
 
 
 @dataclass(frozen=True)
@@ -616,3 +634,87 @@ def size_void_short_limit_levels(
             )
         )
     return tuple(sized_levels)
+
+
+def build_void_short_take_profits(
+    *,
+    rally_start_price: Decimal,
+    rally_peak_price: Decimal,
+    average_entry_price: Decimal,
+    open_quantity: Decimal,
+    tick_size: Decimal,
+    qty_step: Decimal,
+) -> tuple[VoidShortTakeProfit, ...]:
+    """フィボナッチ・リトレースメントから2段階利確を作る。
+
+    0.382で建玉の半分、0.618で残量すべてを閉じる。ショート平均約定価格
+    以上の候補は利益確定にならないため除外し、浅い候補が除外された場合は
+    深い候補へ全数量を割り当てる。
+
+    Args:
+        rally_start_price: 上昇開始地点の下ヒゲ価格。
+        rally_peak_price: 上昇後の高値の上ヒゲ価格。
+        average_entry_price: 現在のショート平均約定価格。
+        open_quantity: 現在のショート建玉数量。
+        tick_size: ZOOMEX銘柄仕様の価格刻み。
+        qty_step: ZOOMEX銘柄仕様の数量刻み。
+
+    Returns:
+        比率順の有効な買い指値利確候補。
+
+    Raises:
+        ValueError: 入力が非正・非有限、上昇値幅が非正、または建玉数量が
+            qty stepに整合しない場合。
+    """
+
+    values = {
+        "rally_start_price": rally_start_price,
+        "rally_peak_price": rally_peak_price,
+        "average_entry_price": average_entry_price,
+        "open_quantity": open_quantity,
+        "tick_size": tick_size,
+        "qty_step": qty_step,
+    }
+    for name, value in values.items():
+        if not value.is_finite() or value <= 0:
+            raise ValueError(f"{name} must be positive and finite")
+    if rally_peak_price <= rally_start_price:
+        raise ValueError("rally_peak_price must be above rally_start_price")
+    quantity_steps = open_quantity / qty_step
+    if quantity_steps != quantity_steps.to_integral_value():
+        raise ValueError("open_quantity must align with qty_step")
+
+    price_range = rally_peak_price - rally_start_price
+    valid_prices: list[tuple[Decimal, Decimal, Decimal]] = []
+    for ratio in VOID_SHORT_TAKE_PROFIT_RATIOS:
+        raw_price = rally_peak_price - price_range * ratio
+        ticks = (raw_price / tick_size).to_integral_value(rounding=ROUND_FLOOR)
+        limit_price = ticks * tick_size
+        if limit_price <= 0 or limit_price >= average_entry_price:
+            continue
+        valid_prices.append((ratio, raw_price, limit_price))
+    if not valid_prices:
+        return ()
+
+    first_quantity_steps = (quantity_steps / Decimal("2")).to_integral_value(
+        rounding=ROUND_FLOOR
+    )
+    first_quantity = first_quantity_steps * qty_step
+    quantities: list[Decimal]
+    if len(valid_prices) == 1 or first_quantity == 0:
+        quantities = [open_quantity]
+        valid_prices = [valid_prices[-1]]
+    else:
+        quantities = [first_quantity, open_quantity - first_quantity]
+
+    return tuple(
+        VoidShortTakeProfit(
+            ratio=ratio,
+            raw_price=raw_price,
+            limit_price=limit_price,
+            quantity=quantity,
+        )
+        for (ratio, raw_price, limit_price), quantity in zip(
+            valid_prices, quantities, strict=True
+        )
+    )

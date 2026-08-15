@@ -9,10 +9,12 @@ from crypt_ai.void_short import (
     VOID_SHORT_FIBONACCI_RATIOS,
     VOID_SHORT_EXECUTION_LEVERAGE,
     VOID_SHORT_SIZING_REFERENCE_LEVERAGE,
+    VOID_SHORT_TAKE_PROFIT_RATIOS,
     VOID_SHORT_SYMBOLS,
     VoidShortCorePolicy,
     VoidShortSetupState,
     build_void_short_fibonacci_levels,
+    build_void_short_take_profits,
     partition_touched_void_short_levels,
     pending_void_short_limits_must_cancel,
     prepare_void_short_entry_setup,
@@ -440,3 +442,88 @@ def test_position_size_rounds_quantity_down_and_rejects_exchange_minimums():
     )
 
     assert sized == ()
+
+
+def test_take_profits_split_position_between_0382_and_0618():
+    """0.382で半分、0.618で残量を利確することをテストする。"""
+    take_profits = build_void_short_take_profits(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        average_entry_price=Decimal("125"),
+        open_quantity=Decimal("10"),
+        tick_size=Decimal("0.1"),
+        qty_step=Decimal("0.001"),
+    )
+
+    assert tuple(item.ratio for item in take_profits) == VOID_SHORT_TAKE_PROFIT_RATIOS
+    assert tuple(item.raw_price for item in take_profits) == (
+        Decimal("112.360"),
+        Decimal("107.640"),
+    )
+    assert tuple(item.limit_price for item in take_profits) == (
+        Decimal("112.3"),
+        Decimal("107.6"),
+    )
+    assert tuple(item.quantity for item in take_profits) == (
+        Decimal("5.000"),
+        Decimal("5.000"),
+    )
+
+
+def test_take_profits_assign_all_quantity_to_deep_valid_level():
+    """浅い利確が平均建値以上なら深い利確へ全数量を割り当てることをテストする。"""
+    take_profits = build_void_short_take_profits(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        average_entry_price=Decimal("110"),
+        open_quantity=Decimal("10"),
+        tick_size=Decimal("0.1"),
+        qty_step=Decimal("0.001"),
+    )
+
+    assert len(take_profits) == 1
+    assert take_profits[0].ratio == Decimal("0.618")
+    assert take_profits[0].quantity == Decimal("10")
+
+
+def test_take_profits_return_empty_without_profitable_level():
+    """平均建値より下の利確水準がなければ空結果にすることをテストする。"""
+    take_profits = build_void_short_take_profits(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        average_entry_price=Decimal("105"),
+        open_quantity=Decimal("10"),
+        tick_size=Decimal("0.1"),
+        qty_step=Decimal("0.001"),
+    )
+
+    assert take_profits == ()
+
+
+def test_take_profits_put_quantity_rounding_residual_in_second_exit():
+    """数量丸めの残量を0.618側へ含めることをテストする。"""
+    take_profits = build_void_short_take_profits(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        average_entry_price=Decimal("125"),
+        open_quantity=Decimal("1.001"),
+        tick_size=Decimal("0.1"),
+        qty_step=Decimal("0.001"),
+    )
+
+    assert take_profits[0].quantity == Decimal("0.500")
+    assert take_profits[1].quantity == Decimal("0.501")
+    assert sum(item.quantity for item in take_profits) == Decimal("1.001")
+
+
+def test_take_profits_reject_quantity_outside_qty_step():
+    """qtyStepに整合しない建玉数量を拒否することをテストする。"""
+    with pytest.raises(ValueError, match="align"):
+        build_void_short_take_profits(
+            rally_start_price=Decimal("100"),
+            rally_peak_price=Decimal("120"),
+            average_entry_price=Decimal("125"),
+            open_quantity=Decimal("1.0005"),
+            tick_size=Decimal("0.1"),
+            qty_step=Decimal("0.001"),
+        )

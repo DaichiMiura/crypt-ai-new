@@ -29,6 +29,10 @@ implementation_steps:
     name: "position_sizing"
     status: "implemented"
     scope: "VOID式の余力20倍÷100を1ロットとし、各有効水準へ1ロットを割り当てる。ココモ増額は行わない。"
+  - number: 7
+    name: "take_profit"
+    status: "implemented"
+    scope: "上昇値幅の0.382と0.618リトレースメントで、ショート建玉を50%・残量に分けて利確する。"
 
 basic_policy:
   timeframe_minutes: 120
@@ -126,6 +130,22 @@ position_sizing_policy:
   cocomo_progression: "初回実験では使用しない。別実験候補として保留する。"
   portfolio_scope: "6銘柄を個別に検証し、同時運用ポートフォリオは作らない。"
 
+take_profit_policy:
+  formula: "rally_peak - (rally_peak - rally_start) * ratio"
+  ratios:
+    - "0.382"
+    - "0.618"
+  allocation:
+    first_target: "qtyStepへ切り下げた保有数量の50%"
+    second_target: "丸め残量を含む残りすべて"
+  price_rounding: "買い指値をtick sizeへ切り下げる。"
+  gross_profit_filter: "ショート平均約定価格以上の候補を除外する。"
+  shallow_target_removed: "0.618の有効候補へ全数量を割り当てる。"
+  no_valid_target: "空候補とし、エントリー可否は約定会計・損切り実装後に判定する。"
+  trailing_take_profit: false
+  automatic_reentry: false
+  net_profit_check: "手数料・Fundingを含む約定会計の段階で追加する。"
+
 execution_status:
   strategy_runner_exists: false
   backtest_started: false
@@ -134,7 +154,7 @@ execution_status:
   live_started: false
 
 deferred_decisions:
-  - "利確、損切り、清算余裕の具体値"
+  - "損切り、清算余裕の具体値"
 
 provenance:
   source_document: "VOID式ショート記事の購入済みPDF"
