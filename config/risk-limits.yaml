@@ -1,0 +1,29 @@
+# Fail-closed bootstrap configuration. Any live use requires a separately reviewed change.
+schema_version: 1
+environment: paper
+live_trading_enabled: false
+
+allowed_exchanges: []
+allowed_accounts: []
+allowed_symbols: []
+allowed_order_types: []
+
+limits:
+  max_order_notional: 0
+  max_symbol_position_notional: 0
+  max_total_position_notional: 0
+  max_leverage: 0
+  max_orders_per_minute: 0
+  max_daily_loss: 0
+  max_drawdown: 0
+
+market_data:
+  max_age_seconds: 0
+  max_price_deviation_bps: 0
+
+safety:
+  kill_switch_engaged: true
+  reject_on_unknown_state: true
+  reject_on_reconciliation_failure: true
+  reject_on_risk_engine_failure: true
+  cancel_open_orders_on_shutdown: true

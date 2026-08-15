@@ -1,0 +1,31 @@
+schema_version: 1
+snapshot_id: "DATA-YYYY-NNNN"
+created_at_utc: "YYYY-MM-DDTHH:MM:SSZ"
+
+source:
+  provider: ""
+  exchange: ""
+  dataset_name: ""
+  license: ""
+  retrieval_uri: ""
+  retrieved_at_utc: ""
+
+coverage:
+  symbols: []
+  start_utc: ""
+  end_utc: ""
+  timezone: "UTC"
+  event_time_definition: ""
+  receive_time_definition: ""
+  ingest_time_definition: ""
+
+integrity:
+  raw_hash: ""
+  transform_commit: ""
+  transform_parameters: {}
+  output_hash: ""
+  missing_intervals: []
+  duplicate_count: 0
+  corrections: []
+
+limitations: []

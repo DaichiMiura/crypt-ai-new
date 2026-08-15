@@ -1,0 +1,16 @@
+# Example strategy allocation for paper trading.
+# Replace this file with a registered experiment-specific profile before use.
+schema_version: 1
+strategy_id: EXP-0001
+status: draft
+environment: paper
+
+allowed_symbols: [BTC_JPY]
+allowed_order_types: [market, limit]
+
+limits:
+  max_order_notional: 2000
+  max_symbol_position_notional: 8000
+  max_orders_per_minute: 3
+  max_daily_loss: 300
+  max_drawdown: 1000

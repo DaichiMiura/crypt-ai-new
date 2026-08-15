@@ -1,0 +1,61 @@
+schema_version: 1
+experiment_id: "EXP-YYYY-NNNN"
+created_at_utc: "YYYY-MM-DDTHH:MM:SSZ"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: ""
+  economic_rationale: ""
+  expected_failure_modes: []
+
+methodology:
+  setup: ""
+  entry_rule: ""
+  stop_rule: ""
+  exit_rule: ""
+  no_trade_conditions: []
+  simplicity_rationale: ""
+
+scope:
+  exchanges: []
+  symbols: []
+  timeframe: ""
+  start_utc: ""
+  end_utc: ""
+  decision_time_information: []
+
+data:
+  source: ""
+  snapshot_id: ""
+  timezone: "UTC"
+  known_limitations: []
+
+evaluation:
+  baseline: ""
+  primary_metric: ""
+  secondary_metrics: []
+  expected_value_formula: "win_rate * average_win - loss_rate * average_loss - trading_costs"
+  rejection_criteria: []
+  reserved_out_of_sample: ""
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: ""
+  spread_assumption: ""
+  slippage_assumption: ""
+  liquidity_constraints: ""
+
+money_management:
+  sizing_method: ""
+  risk_budget_basis: ""
+  loss_response: ""
+  increase_conditions: []
+  decrease_conditions: []
+  risk_of_ruin_method: ""
+
+provenance:
+  parent_experiment_ids: []
+  references: []
+  preregistration_commit: ""
