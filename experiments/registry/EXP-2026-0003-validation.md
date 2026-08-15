@@ -2,7 +2,8 @@
 
 ## Decision
 
-- Status: `REJECTED`
+- Research status: `REJECTED`
+- Promotion status: `NOT_ELIGIBLE`
 - Validator: `research` quality gate（自動計算。paper/live承認ではない）
 - Reviewed at (UTC): 2026-08-15
 - Scope of approval: none

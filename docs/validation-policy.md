@@ -49,6 +49,33 @@
 - 状態復旧時に二重注文を起こさない
 - 監視、照合、キルスイッチ、ロールバックを確認する
 
+## Two-axis decision model
+
+検証報告は、研究結果と運用許可を一つのstatusへ混在させず、次の二軸で記録する。
+
+### Research status
+
+`research_status`は、固定した仮説に対して得られた研究証拠を表す。
+
+- `REJECTED`: データ品質、実装、会計、または事前登録した基準を満たさない。
+- `INCONCLUSIVE`: 一部に有望な結果はあるが、固定した仮説を支持する証拠として一貫しない。
+- `BACKTEST_CANDIDATE`: 事前登録した単一バックテストまたはOOS候補基準を満たした。
+- `PASSED_RETROSPECTIVE_VALIDATION`: 固定条件のまま複数の過去期間・相場環境で候補基準を満たした。ただし未観測データの証拠ではない。
+- `PASSED_FORWARD_TEST`: 事前に封印した未観測期間または開始後に取得したデータで、登録済みforward基準を満たした。
+
+### Promotion status
+
+`promotion_status`は、その成果物に許可された運用段階を表す。
+
+- `NOT_ELIGIBLE`: 次の運用段階へ進めない。
+- `NEEDS_FORWARD_EVIDENCE`: 研究候補としてforward testを行えるが、paper・shadow・liveは未承認。
+- `PAPER_APPROVED`: 固定したpaper設定とリスク予算の範囲だけでpaper運用を許可する。
+- `SHADOW_APPROVED`: 注文を送らないshadow運用だけを許可する。
+- `LIMITED_LIVE_APPROVED`: 人間承認済みの少額・固定上限内だけでlive運用を許可する。
+- `SCALED_APPROVED`: 別途承認された資本配分と上限内で増額を許可する。
+
+高い`research_status`は、資金・API権限・デプロイの許可を意味しない。運用可能範囲は常に`promotion_status`と人間の承認記録で決まる。過去データから開始する戦略は、候補基準を満たせば`BACKTEST_CANDIDATE`または`PASSED_RETROSPECTIVE_VALIDATION`へ進めるが、未観測証拠がない段階では`NEEDS_FORWARD_EVIDENCE`より先へ進めない。
+
 ## Promotion stages
 
 ```text

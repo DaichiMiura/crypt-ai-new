@@ -2,7 +2,8 @@
 
 ## Decision
 
-- Status: `REJECTED`
+- Research status: `REJECTED`
+- Promotion status: `NOT_ELIGIBLE`
 - Validator: `research` quality gate (automated checks; human approval not granted)
 - Reviewed at (UTC): 2026-08-15
 - Scope of approval: none. This report does not approve paper or live trading.

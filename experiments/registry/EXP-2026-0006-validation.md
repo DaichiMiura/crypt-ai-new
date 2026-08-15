@@ -2,14 +2,15 @@
 
 ## Decision
 
-- Status: `NEEDS_EVIDENCE`
+- Research status: `PASSED_RETROSPECTIVE_VALIDATION`
+- Promotion status: `NEEDS_FORWARD_EVIDENCE`
 - Validator: `research` quality gate（自動計算。paper/live承認ではない）
 - Reviewed at (UTC): 2026-08-15
 - Scope of approval: none
 
 固定したexit overlayは、base feeで最大DDを5年中4年改善し、改善幅中央値6.54 percentage points、CAGRは5年すべてでDonchian単独以上、closed round tripsは合計12件となり、事前登録した候補基準を満たした。adverse・stress feeでも同じ方向だった。
 
-ただし、2022年は最大DDが3.86 points悪化した。また、対象期間はEXP-2026-0005の全期間集計で既に観測済みで、未観測OOSではない。したがって時間的安定性を補強する診断結果として記録するが、paper・shadow・liveへの昇格は行わない。
+ただし、2022年は最大DDが3.86 points悪化した。また、対象期間はEXP-2026-0005の全期間集計で既に観測済みで、未観測OOSではない。したがって研究上は`PASSED_RETROSPECTIVE_VALIDATION`とするが、運用上は`NEEDS_FORWARD_EVIDENCE`に留め、paper・shadow・liveへの昇格は行わない。
 
 ## Frozen artifacts
 
