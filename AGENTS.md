@@ -27,6 +27,12 @@
 6. 失敗、不採用、欠測を削除せず、理由とともに残す。
 7. 本番昇格、増額、リスク上限緩和は、人間の明示承認を得て別変更として扱う。
 
+## GitHub CLI execution
+
+- GitHubへの認証済み操作（`gh auth status`、`gh pr create`、`gh pr view`など）はsandbox外で実行する。sandbox内では同じ設定ファイルを参照しても、認証エラーやAPIの403になる場合がある。
+- PRを作成する前に`gh auth status`で認証状態を確認し、対象リポジトリ、head、base、Draft状態を明示する。
+- 認証情報、トークン、cookieの内容をログやリポジトリへ保存しない。
+
 ## Hard safety boundaries
 
 - AIセッション、開発用スクリプト、テストから実注文を送信しない。
