@@ -78,10 +78,21 @@ data:
     - "日本居住者のZOOMEX利用可否・法令・税務の確認は本研究登録では完了しておらず、実取引を承認しない。"
 
 evaluation:
-  status: "PRELIMINARY_BACKTEST_COMPLETED_NEEDS_REVIEW"
-  research_status: "INCONCLUSIVE"
+  status: "BENCHMARK_REJECTED"
+  research_status: "REJECTED"
   promotion_status: "NOT_ELIGIBLE"
-  primary_metric: "銘柄別の費用控除後最終資産、最大DD、損切り・清算件数、Funding受払をartifacts/EXP-2026-0015/summary.jsonへ保存する。"
+  primary_metric: "銘柄別の費用控除後最終資産が、NISAインデックスの4年間複利基準+46.41%を全銘柄で上回るかを判定する。"
+  benchmark:
+    name: "NISAインデックス投資"
+    annual_return: "0.10"
+    compounding_years: 4
+    cumulative_return: "0.4641"
+    tax_rate: "0"
+    crypto_tax: "個人の所得状況に依存するため未設定。税引前で基準未達なら即不合格。"
+    pass_scope: "事前登録6銘柄すべて"
+    pass_condition: "各銘柄の費用控除後最終資産 >= 初期資産 * 1.4641"
+  result_artifact: "artifacts/EXP-2026-0015/summary.json"
+  result_summary: "6銘柄中0銘柄が4年間+46.41%基準を達成。最高はNEARUSDTの+30.81%で、基準未達。"
   result_artifact: "artifacts/EXP-2026-0015/summary.json"
   promotion_rule: "予備バックテスト結果だけではpaper・shadow・liveを承認しない。代理清算式・固定スリッページの感度分析と独立レビューが必要。"
 
@@ -119,4 +130,7 @@ provenance:
       change: "2022-02-01から2025-12-31までの6銘柄を個別評価し、約定・Funding・mark評価額・監査イベントを成果物へ保存した。"
     - amended_at_utc: "2026-08-15T00:00:00Z"
       reason: "予備バックテストの実装確認と、独立検証・昇格判定を分離するため。"
-      change: "runnerの実行自体は許可するが、今回の結果はINCONCLUSIVE・NOT_ELIGIBLEとして扱う。"
+      change: "runnerの実行自体は許可するが、独立検証と昇格判定は別工程とする。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "NISAインデックス投資を機会費用の事前登録基準へ追加し、結果を判定するため。"
+      change: "年率10%を4年間複利運用した+46.41%を全6銘柄へ適用し、0/6銘柄達成のためresearch_statusをREJECTEDとした。"

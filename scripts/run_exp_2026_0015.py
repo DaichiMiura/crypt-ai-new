@@ -22,6 +22,42 @@ from crypt_ai.void_short_backtest import (  # noqa: E402
 )
 
 
+INDEX_BENCHMARK_ANNUAL_RETURN = Decimal("0.10")
+INDEX_BENCHMARK_YEARS = Decimal("4")
+
+
+def _compare_index_benchmark(
+    *, initial_equity: Decimal, final_equity: Decimal
+) -> dict[str, object]:
+    """4年間・年率10%複利のインデックス基準と比較する。
+
+    Args:
+        initial_equity: 比較開始時の資産。
+        final_equity: 評価期間終了時の資産。
+
+    Returns:
+        基準最終資産、超過資産、基準達成可否を含む辞書。
+
+    Raises:
+        ValueError: 資産が正でない場合。
+    """
+
+    if initial_equity <= 0 or final_equity < 0:
+        raise ValueError("equity values must be non-negative and initial positive")
+    benchmark_multiplier = (
+        Decimal("1") + INDEX_BENCHMARK_ANNUAL_RETURN
+    ) ** int(INDEX_BENCHMARK_YEARS)
+    benchmark_final_equity = initial_equity * benchmark_multiplier
+    return {
+        "annual_return": str(INDEX_BENCHMARK_ANNUAL_RETURN),
+        "compounding_years": str(INDEX_BENCHMARK_YEARS),
+        "cumulative_return": str(benchmark_multiplier - Decimal("1")),
+        "benchmark_final_equity": str(benchmark_final_equity),
+        "excess_equity": str(final_equity - benchmark_final_equity),
+        "beats_benchmark": final_equity >= benchmark_final_equity,
+    }
+
+
 def _read_price_frame(path: Path) -> pd.DataFrame:
     """ZOOMEX価格CSVを読み込み、2時間足の基本列を検証する。
 
@@ -140,6 +176,10 @@ def main() -> None:
         frame, funding, instrument = _load_symbol(args.data_dir, metadata, symbol)
         result = run_void_short_backtest(frame, funding, instrument, config)
         results[symbol] = result.metrics
+        results[symbol]["index_benchmark"] = _compare_index_benchmark(
+            initial_equity=config.initial_equity,
+            final_equity=Decimal(str(result.metrics["final_equity"])),
+        )
         pd.DataFrame(result.events).to_csv(
             args.output_dir / f"{symbol}-events.csv", index=False
         )
@@ -151,6 +191,34 @@ def main() -> None:
         "status": "BACKTEST_COMPLETED",
         "initial_equity": str(config.initial_equity),
         "execution_leverage": "1",
+        "index_benchmark": {
+            "annual_return": str(INDEX_BENCHMARK_ANNUAL_RETURN),
+            "compounding_years": str(INDEX_BENCHMARK_YEARS),
+            "cumulative_return": str(
+                (Decimal("1") + INDEX_BENCHMARK_ANNUAL_RETURN)
+                ** int(INDEX_BENCHMARK_YEARS)
+                - Decimal("1")
+            ),
+            "benchmark_final_equity": str(
+                config.initial_equity
+                * (Decimal("1") + INDEX_BENCHMARK_ANNUAL_RETURN)
+                ** int(INDEX_BENCHMARK_YEARS)
+            ),
+        },
+        "index_benchmark_scope": "事前登録した6銘柄すべてが個別に基準を満たすことを合格条件とする。結果を見た銘柄選択はしない。",
+        "all_symbols_beat_index_benchmark": all(
+            result["index_benchmark"]["beats_benchmark"]
+            for result in results.values()
+        ),
+        "research_status": (
+            "BACKTEST_CANDIDATE"
+            if all(
+                result["index_benchmark"]["beats_benchmark"]
+                for result in results.values()
+            )
+            else "REJECTED"
+        ),
+        "promotion_status": "NOT_ELIGIBLE",
         "liquidation_proxy_maintenance_margin_rate": str(
             config.maintenance_margin_rate
         ),
@@ -160,6 +228,7 @@ def main() -> None:
             "板・約定履歴がないためtakerスリッページは5bpの固定仮定である。",
             "清算価格はexecution leverage 1とmaintenance margin 0.5%の代理式である。",
             "銘柄間の同時運用ポートフォリオは評価していない。",
+            "インデックス基準はNISAの年率10%を4年間複利運用した46.41%で、暗号資産側の個人税率は未反映である。",
         ],
     }
     (args.output_dir / "summary.json").write_text(

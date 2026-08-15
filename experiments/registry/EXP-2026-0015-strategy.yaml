@@ -206,6 +206,19 @@ execution_status:
   shadow_started: false
   live_started: false
 
+performance_gate:
+  benchmark_name: "NISAインデックス投資"
+  benchmark_annual_return: "0.10"
+  benchmark_compounding_years: 4
+  benchmark_cumulative_return: "0.4641"
+  benchmark_tax_rate: "0"
+  crypto_tax_rate: "未設定。個人の所得状況に依存するため、税引前基準は必要条件として扱う。"
+  scope: "事前登録した6銘柄すべてを個別に判定し、後付けで銘柄を選ばない。"
+  pass_condition: "各銘柄の費用控除後最終資産 >= 初期資産 * 1.4641。"
+  failure_action: "1銘柄でも未達なら、仮想通貨投資としてインデックス超過の研究基準は不合格。"
+  result_artifact_field: "artifacts/EXP-2026-0015/summary.json:index_benchmark"
+  latest_result: "0/6銘柄達成。最高はNEARUSDTの+30.81%で、+46.41%基準を15.60 percentage points下回った。"
+
 deferred_decisions:
   - "戦略runnerで使う緊急停止・時間切れの具体的な基準約定価格"
   - "shadowで観測した板・約定データによるスリッページと部分約定仮定の更新"
