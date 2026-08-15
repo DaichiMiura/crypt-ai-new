@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
-from decimal import Decimal, ROUND_CEILING
+from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from enum import StrEnum
 
 import pandas as pd
@@ -23,6 +23,9 @@ VOID_SHORT_FIBONACCI_RATIOS = (
     Decimal("0.618"),
     Decimal("1.0"),
 )
+VOID_SHORT_SIZING_REFERENCE_LEVERAGE = Decimal("20")
+VOID_SHORT_LOT_DIVISOR = Decimal("100")
+VOID_SHORT_EXECUTION_LEVERAGE = Decimal("1")
 
 
 class VoidShortSetupState(StrEnum):
@@ -48,6 +51,25 @@ class VoidShortLimitLevel:
     ratio: Decimal
     raw_price: Decimal
     limit_price: Decimal
+
+
+@dataclass(frozen=True)
+class VoidShortSizedLimit:
+    """1ロットの数量を割り当てた売り指値候補。
+
+    Attributes:
+        ratio: フィボナッチ・エクステンション比率。
+        limit_price: tick size適用済みの売り指値価格。
+        quantity: qty stepへ切り下げた注文数量。
+        notional: ``limit_price * quantity``で求めた想定元本。
+        lot_count: 初期実験で固定するロット数。
+    """
+
+    ratio: Decimal
+    limit_price: Decimal
+    quantity: Decimal
+    notional: Decimal
+    lot_count: int = 1
 
 
 @dataclass(frozen=True)
@@ -518,3 +540,79 @@ def partition_touched_void_short_levels(
     touched = tuple(level for level in levels if bar_high >= level.limit_price)
     pending = tuple(level for level in levels if bar_high < level.limit_price)
     return touched, pending
+
+
+def size_void_short_limit_levels(
+    levels: tuple[VoidShortLimitLevel, ...],
+    *,
+    initial_equity: Decimal,
+    current_equity: Decimal,
+    qty_step: Decimal,
+    min_order_qty: Decimal,
+    min_order_notional: Decimal,
+) -> tuple[VoidShortSizedLimit, ...]:
+    """VOID式の1ロットを各フィボナッチ水準へ割り当てる。
+
+    基準資産は``min(initial_equity, current_equity)``とし、その20倍を100で
+    割った20%を1ロットの想定元本にする。利益後の増額、除外水準からの
+    再配分、ココモ法による複数ロット化は行わない。
+
+    Args:
+        levels: 市場価格より上に残ったフィボナッチ指値候補。
+        initial_equity: 実験開始時の基準資産。
+        current_equity: セットアップ作成時点の現在資産。
+        qty_step: ZOOMEX銘柄仕様の数量刻み。
+        min_order_qty: ZOOMEX銘柄仕様の最小注文数量。
+        min_order_notional: 初期実験で使う最小想定元本。
+
+    Returns:
+        最小数量・想定元本を満たす1ロットの指値候補。
+
+    Raises:
+        ValueError: 入力値が非正・非有限、比率が未登録・重複、候補数が4を
+            超える、または指値価格が非正・非有限の場合。
+    """
+
+    numeric_values = {
+        "initial_equity": initial_equity,
+        "current_equity": current_equity,
+        "qty_step": qty_step,
+        "min_order_qty": min_order_qty,
+        "min_order_notional": min_order_notional,
+    }
+    for name, value in numeric_values.items():
+        if not value.is_finite() or value <= 0:
+            raise ValueError(f"{name} must be positive and finite")
+    if len(levels) > len(VOID_SHORT_FIBONACCI_RATIOS):
+        raise ValueError("levels must not exceed four candidates")
+    ratios = tuple(level.ratio for level in levels)
+    if len(set(ratios)) != len(ratios):
+        raise ValueError("level ratios must not contain duplicates")
+    if any(ratio not in VOID_SHORT_FIBONACCI_RATIOS for ratio in ratios):
+        raise ValueError("level ratio is not preregistered")
+
+    reference_equity = min(initial_equity, current_equity)
+    lot_notional = (
+        reference_equity
+        * VOID_SHORT_SIZING_REFERENCE_LEVERAGE
+        / VOID_SHORT_LOT_DIVISOR
+    )
+    sized_levels: list[VoidShortSizedLimit] = []
+    for level in levels:
+        if not level.limit_price.is_finite() or level.limit_price <= 0:
+            raise ValueError("limit_price must be positive and finite")
+        raw_quantity = lot_notional / level.limit_price
+        steps = (raw_quantity / qty_step).to_integral_value(rounding=ROUND_FLOOR)
+        quantity = steps * qty_step
+        notional = quantity * level.limit_price
+        if quantity < min_order_qty or notional < min_order_notional:
+            continue
+        sized_levels.append(
+            VoidShortSizedLimit(
+                ratio=level.ratio,
+                limit_price=level.limit_price,
+                quantity=quantity,
+                notional=notional,
+            )
+        )
+    return tuple(sized_levels)

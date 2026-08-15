@@ -25,6 +25,10 @@ implementation_steps:
     name: "fibonacci_limit_levels"
     status: "implemented"
     scope: "3アンカーから4つのフィボナッチ売り指値候補を作り、市場価格以下を除外する。数量と約定会計は未実装。"
+  - number: 6
+    name: "position_sizing"
+    status: "implemented"
+    scope: "VOID式の余力20倍÷100を1ロットとし、各有効水準へ1ロットを割り当てる。ココモ増額は行わない。"
 
 basic_policy:
   timeframe_minutes: 120
@@ -102,7 +106,25 @@ fibonacci_limit_policy:
     - "SMA200 >= SMA400"
     - "データまたは状態が不明"
     - "作成後168本経過"
-  quantity_and_fill_accounting: "未実装。次の段階で固定する。"
+  fill_accounting: "未実装。次の段階で固定する。"
+
+position_sizing_policy:
+  reference_equity: "min(initial_equity, current_equity)"
+  sizing_reference_leverage: "20"
+  lot_divisor: "100"
+  one_lot_notional: "reference_equity * 20 / 100"
+  example: "初期資産・現在資産ともに100000円相当なら1ロット20000円相当。"
+  lots_per_active_level: 1
+  maximum_active_levels: 4
+  maximum_gross_notional_ratio: "0.8"
+  execution_leverage: "1"
+  profit_growth: false
+  loss_response: "現在資産が初期資産を下回った場合は1ロットも縮小する。"
+  removed_level_redistribution: false
+  quantity_rounding: "ZOOMEX銘柄仕様のqtyStepへ切り下げる。"
+  below_exchange_minimum: "候補を破棄する。"
+  cocomo_progression: "初回実験では使用しない。別実験候補として保留する。"
+  portfolio_scope: "6銘柄を個別に検証し、同時運用ポートフォリオは作らない。"
 
 execution_status:
   strategy_runner_exists: false
@@ -112,7 +134,6 @@ execution_status:
   live_started: false
 
 deferred_decisions:
-  - "ポジションサイズとココモ法の扱い"
   - "利確、損切り、清算余裕の具体値"
 
 provenance:

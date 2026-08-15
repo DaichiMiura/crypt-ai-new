@@ -7,6 +7,8 @@ import pytest
 from crypt_ai.void_short import (
     VOID_SHORT_CORE_POLICY,
     VOID_SHORT_FIBONACCI_RATIOS,
+    VOID_SHORT_EXECUTION_LEVERAGE,
+    VOID_SHORT_SIZING_REFERENCE_LEVERAGE,
     VOID_SHORT_SYMBOLS,
     VoidShortCorePolicy,
     VoidShortSetupState,
@@ -15,6 +17,7 @@ from crypt_ai.void_short import (
     pending_void_short_limits_must_cancel,
     prepare_void_short_entry_setup,
     prepare_void_short_trend_regime,
+    size_void_short_limit_levels,
 )
 
 
@@ -341,3 +344,99 @@ def test_fibonacci_levels_are_touched_independently():
         Decimal("0.618"),
         Decimal("1.0"),
     )
+
+
+def test_position_size_uses_twenty_percent_equity_per_level_without_profit_growth():
+    """利益後も初期資産の20%を超えて1ロットを増額しないことをテストする。"""
+    levels = build_void_short_fibonacci_levels(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        current_price=Decimal("112"),
+        tick_size=Decimal("0.1"),
+    )
+
+    sized = size_void_short_limit_levels(
+        levels,
+        initial_equity=Decimal("100000"),
+        current_equity=Decimal("120000"),
+        qty_step=Decimal("0.001"),
+        min_order_qty=Decimal("0.001"),
+        min_order_notional=Decimal("5"),
+    )
+
+    assert VOID_SHORT_SIZING_REFERENCE_LEVERAGE == Decimal("20")
+    assert VOID_SHORT_EXECUTION_LEVERAGE == Decimal("1")
+    assert len(sized) == 4
+    assert all(level.lot_count == 1 for level in sized)
+    assert all(level.notional <= Decimal("20000") for level in sized)
+    assert sum(level.notional for level in sized) <= Decimal("80000")
+
+
+def test_position_size_shrinks_after_equity_loss():
+    """現在資産が減少したら1ロットも20%へ縮小することをテストする。"""
+    levels = build_void_short_fibonacci_levels(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        current_price=Decimal("118"),
+        tick_size=Decimal("0.1"),
+    )
+
+    sized = size_void_short_limit_levels(
+        levels,
+        initial_equity=Decimal("100000"),
+        current_equity=Decimal("50000"),
+        qty_step=Decimal("0.001"),
+        min_order_qty=Decimal("0.001"),
+        min_order_notional=Decimal("5"),
+    )
+
+    assert len(sized) == 2
+    assert all(level.notional <= Decimal("10000") for level in sized)
+    assert sum(level.notional for level in sized) <= Decimal("20000")
+
+
+def test_position_size_does_not_redistribute_removed_levels():
+    """除外された指値のロットを残った水準へ再配分しないことをテストする。"""
+    levels = build_void_short_fibonacci_levels(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        current_price=Decimal("118"),
+        tick_size=Decimal("0.1"),
+    )
+
+    sized = size_void_short_limit_levels(
+        levels,
+        initial_equity=Decimal("100000"),
+        current_equity=Decimal("100000"),
+        qty_step=Decimal("0.001"),
+        min_order_qty=Decimal("0.001"),
+        min_order_notional=Decimal("5"),
+    )
+
+    assert len(sized) == 2
+    assert all(level.notional <= Decimal("20000") for level in sized)
+    assert sum(level.notional for level in sized) <= Decimal("40000")
+
+
+def test_position_size_rounds_quantity_down_and_rejects_exchange_minimums():
+    """数量を切り下げ、取引所最小条件を満たさない候補を破棄することをテストする。"""
+    levels = build_void_short_fibonacci_levels(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        current_price=Decimal("112"),
+        tick_size=Decimal("0.1"),
+    )
+    sized = size_void_short_limit_levels(
+        levels,
+        initial_equity=Decimal("100"),
+        current_equity=Decimal("100"),
+        qty_step=Decimal("0.1"),
+        min_order_qty=Decimal("1"),
+        min_order_notional=Decimal("10"),
+    )
+
+    assert sized == ()
