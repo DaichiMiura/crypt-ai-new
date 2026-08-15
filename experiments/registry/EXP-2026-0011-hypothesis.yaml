@@ -1,0 +1,99 @@
+schema_version: 1
+experiment_id: "EXP-2026-0011"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0008のSMA200付きDonchianロングを、エントリー時の20日実現ボラティリティに応じて年率40%目標・レバレッジなしで縮小すると、全額投資より収益の大部分を維持しながら最大ドローダウンを安定して抑えられる。"
+  economic_rationale: "短期の実現ボラティリティには持続性があり、高ボラティリティ時に同じ金額を投入すると一取引あたりの損失額が大きくなる。売買方向は変えず、エントリー時の資金配分だけを小さくすれば、ショート固有の借入・funding・清算を導入せずに損失額を抑えられる可能性がある。"
+  parent_experiment_ids:
+    - "EXP-2026-0008"
+    - "EXP-2026-0010"
+  expected_failure_modes:
+    - "高ボラティリティの強い上昇トレンドで投資比率を落とし、利益を過度に失う。"
+    - "20日実現ボラティリティが急変に追随できず、損失直前の投資比率を十分に下げられない。"
+    - "年率40%という目標値がBTC単一銘柄に適さず、単なる恒常的な低投資比率になる。"
+    - "既存の過去データを用いるため、結果は独立したforward evidenceにならない。"
+
+methodology:
+  input: "DATA-2026-0003の補間済みUTC日足BTCUSDTを使用する。"
+  base_strategy: "EXP-2026-0008のentry_window=55、exit_window=20、regime_window=200、close > SMA200の新規entry条件、次日始値約定を変更しない。"
+  volatility_estimator: "日次close-to-close単純リターンの過去20日母標準偏差をsqrt(365)倍した年率実現ボラティリティ。日tのcloseまでで計算し、日t+1の始値にだけ使用する。"
+  sizing_rule: "新規entry時の投資比率をmin(1.0, 0.40 / annualized_volatility_20d)とする。レバレッジは使わず、残額は現金で保持する。"
+  holding_rule: "entry時に決めた投資比率と数量をDonchian 20日exitまで固定し、保有中は日次リバランスしない。exit後の次回entryで再計算する。"
+  execution: "確定日足のシグナルと投資比率を1日遅延し、次日始値で売買する。entry・exitに既存CostModelを適用する。"
+  evaluation_type: "retrospective position-sizing diagnostic。2021〜2025年は既に観測済みであり、pristine OOSとは呼ばない。"
+  annual_windows:
+    - "2021-01-01T00:00:00Z/2021-12-31T23:59:59Z"
+    - "2022-01-01T00:00:00Z/2022-12-31T23:59:59Z"
+    - "2023-01-01T00:00:00Z/2023-12-31T23:59:59Z"
+    - "2024-01-01T00:00:00Z/2024-12-31T23:59:59Z"
+    - "2025-01-01T00:00:00Z/2025-12-31T23:59:59Z"
+  warmup_and_state: "2020-01-01からの全履歴でDonchian、SMA200、20日実現ボラティリティを計算する。各年は初期資金1,000 USDT相当にリセットし、年初に保有シグナルがある場合は前年のentry時に固定された投資比率で年初始値から新規保有として扱う。"
+  period_end: "年末の未決済longは強制決済せず、終値mark-to-marketし、position_at_endを記録する。"
+  no_trade_conditions:
+    - "日足の欠損・重複がある場合は評価を拒否する。"
+    - "Donchian、SMA200、または20日実現ボラティリティの履歴が不足するentryは許可しない。"
+    - "実現ボラティリティが0以下または非有限の場合はentryを許可しない。"
+    - "合成日足上の約定は別集計する。"
+
+data:
+  source: "Binance Public Data monthly/daily archives"
+  snapshot_id: "DATA-2026-0003"
+  research_venue: "Binance Global Spot price proxy"
+  target_venue: "Binance Japan Spot"
+  symbol: "BTCUSDT"
+  timeframe: "1d UTC"
+  known_limitations:
+    - "Global proxyはBinance Japanの価格basis、流動性、約定、注文制約の正本ではない。"
+    - "線形補間された15日足を含む。補間日上の約定は別集計する。"
+    - "単一銘柄・既観測期間であり、文献の複数資産ポートフォリオ結果を再現する実験ではない。"
+
+evaluation:
+  primary_metric: "base feeでvolatility-scaledの最大DDがfull-sizeより改善した暦年数と改善幅中央値。"
+  secondary_metrics:
+    - "full-sizeとvolatility-scaledの年次CAGR、最終資産、最大DD"
+    - "5年の独立1,000 USDTバケットを合算した最終資産維持率"
+    - "full-sizeが損失だった年にscaledが損失額を悪化させた年数"
+    - "entry投資比率の件数、中央値、最小値、最大値"
+    - "closed round trips、総手数料、合成日足上の約定、年末position"
+    - "base・adverse・stress費用ケースでの方向性"
+  candidate_criteria:
+    - "base feeで5年中3年以上、scaledの最大DDがfull-sizeより改善する。"
+    - "base feeで最大DD改善幅中央値が3 percentage points以上である。"
+    - "base feeで5年合算最終資産がfull-sizeの90%以上である。"
+    - "base feeでfull-sizeが損失だったすべての年に、scaledの最終資産がfull-size以上である。"
+    - "5年合計で1.0未満のentry投資比率が5件以上あり、実際にサイズ調整を評価できる。"
+  rejection_criteria:
+    - "未来情報、同一終値約定、投資比率または現金会計の不整合が見つかる。"
+    - "最大DD改善年が2年未満、または改善幅中央値が非正である。"
+    - "5年合算最終資産がfull-sizeの80%未満である。"
+    - "full-sizeが損失だった年の損失額をscaledが悪化させる。"
+    - "1.0未満のentry投資比率が0件で、サイズ調整を評価できない。"
+  promotion_rule: "候補基準を満たしても、既観測データのためPASSED_RETROSPECTIVE_VALIDATIONまでとし、未観測forwardを通るまでpaperへ昇格させない。"
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  fee_sensitivity_cases:
+    - "片道0.001 (base)"
+    - "片道0.0015 (adverse)"
+    - "片道0.002 (stress)"
+  spread_assumption: "entryとexitの往復0.0005で固定する。"
+  slippage_assumption: "各fill片道0.0005で固定する。"
+
+references:
+  - title: "Volatility Managed Portfolios"
+    url: "https://www.nber.org/papers/w22208"
+    relevance: "直近実現ボラティリティが高いときにリスク量を落とすという仮説の出発点。"
+  - title: "Time series momentum and volatility scaling"
+    url: "https://www.sciencedirect.com/science/article/pii/S1386418116301379"
+    relevance: "モメンタム成績とボラティリティスケーリングを分離して評価する必要性を示す反証的な参考文献。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0008"
+    - "EXP-2026-0010"
+  preregistration_commit: "このファイルを追加するコミットで売買条件、volatility window、target、上限、保持方法、比較基準を結果確認前に固定する。"

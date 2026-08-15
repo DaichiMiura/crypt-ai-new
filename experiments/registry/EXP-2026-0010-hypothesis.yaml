@@ -1,0 +1,83 @@
+schema_version: 1
+experiment_id: "EXP-2026-0010"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0008のSMA200付きDonchianロングに、鏡像のSMA200付きDonchianショートを追加すると、ロング単独より下落局面の最大ドローダウンを抑え、費用控除後の損益特性を改善できる。"
+  economic_rationale: "ロング専用戦略は長期下降局面で現金化するだけだが、下落トレンドをショートで捉えられれば、損失回避だけでなく下落局面のリターン源泉になる可能性がある。SMA200を上下のレジーム判定に使い、短期の反発を逆張りしない。"
+  parent_experiment_ids:
+    - "EXP-2026-0008"
+  expected_failure_modes:
+    - "ショートの鏡像条件が下落の終盤で発火し、反発で損失になる。"
+    - "ショートのborrow/funding、mark price、liquidationを価格proxyだけでは再現できない。"
+    - "ロングとショートの切替で回転率と費用が増え、単独戦略を下回る。"
+    - "現物データに基づく合成ショートが、Binance Japanのmargin/futuresで実行できない。"
+
+methodology:
+  input: "DATA-2026-0003の補間済みUTC日足BTCUSDTを価格proxyとして使用する。"
+  strategy_freeze: "entry_window=55、exit_window=20、regime_window=200、次日始値約定、レバレッジ1倍相当、同時に1ポジションだけを許可する。"
+  long_leg: "close > SMA200のときだけDonchian 55日高値ブレイクでlong entry。Donchian 20日安値割れでexit。"
+  short_leg: "close < SMA200のときだけDonchian 55日安値ブレイクでshort entry。Donchian 20日高値超えでcover。"
+  combined_rule: "flat時にlongまたはshortの新規シグナルを受ける。両方が同時に成立する場合は取引せず記録する。保有中は反対シグナルを無視し、現在の20日exit/coverで一度flatに戻る。"
+  execution: "確定日足のシグナルを次日始値へ遅延する。synthetic shortは価格proxy上の決定論的会計であり、margin/futuresの約定証拠ではない。"
+  evaluation_type: "retrospective price-only short diagnostic。2021〜2025年は既存データで観測済みであり、pristine OOSや実行venueの検証とは呼ばない。"
+  annual_windows:
+    - "2021-01-01T00:00:00Z/2021-12-31T23:59:59Z"
+    - "2022-01-01T00:00:00Z/2022-12-31T23:59:59Z"
+    - "2023-01-01T00:00:00Z/2023-12-31T23:59:59Z"
+    - "2024-01-01T00:00:00Z/2024-12-31T23:59:59Z"
+    - "2025-01-01T00:00:00Z/2025-12-31T23:59:59Z"
+  warmup_and_state: "2020-01-01からの全履歴で55日・20日チャネルとSMA200を計算する。各年は初期資金1,000 USDT相当にリセットし、年初のdesired_positionを次日始値会計へ渡す。"
+  period_end: "年末のlongまたはshort未決済状態は強制決済せず、終値mark-to-marketし、position_at_endを記録する。"
+  no_trade_conditions:
+    - "日足の欠損・重複がある場合は評価を拒否する。"
+    - "チャネルまたはSMA200の履歴が不足する場合はentryを許可しない。"
+    - "合成日足上のシグナルと約定は別集計する。"
+
+data:
+  source: "Binance Public Data monthly/daily archives"
+  snapshot_id: "DATA-2026-0003"
+  research_venue: "Binance Global Spot price proxy"
+  target_venue: "Binance Japan margin/futures（利用可能商品とAPIを別途確認）"
+  symbol: "BTCUSDT"
+  timeframe: "1d UTC"
+  known_limitations:
+    - "spot価格から合成したshortであり、borrow/funding、mark/index price、maintenance margin、liquidationを含まない。"
+    - "Binance Japanでmargin/futuresの対象商品、API、手数料、借入条件が利用できるとは仮定しない。"
+    - "Global proxyはBinance Japanのbasis、流動性、約定、清算条件の正本ではない。"
+
+evaluation:
+  primary_metric: "base feeでcombinedの最大DDがlong単独より改善した暦年数と改善幅中央値。"
+  secondary_metrics:
+    - "long-only、short-only、combinedの年次CAGR、最終資産、最大DD"
+    - "short-onlyとcombinedのclosed round trips、勝率、期待値、回転率"
+    - "long/short別の手数料、合成行上の約定、年末position"
+    - "base・adverse・stress費用ケースでの方向性"
+  candidate_criteria:
+    - "base feeで5年中3年以上、combinedの最大DDがlong-only以上である。"
+    - "base feeでcombinedの最大DD改善幅中央値が正である。"
+    - "base feeで5年中2年以上、combinedのCAGRがlong-only以上である。"
+    - "5年合計のshort-only closed round tripsが5件以上ある。"
+  rejection_criteria:
+    - "未来情報、同一終値約定、position会計の不整合が見つかる。"
+    - "combinedの最大DD改善年が2年未満、または改善幅中央値が非正である。"
+    - "short-onlyのclosed round tripsが0件で、ショートの評価ができない。"
+  promotion_rule: "候補基準を満たしても、margin/futures venue仕様、borrow/funding、清算、Japan calibrationの証拠がない限りpaper・shadow・liveへ昇格させない。"
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  fee_sensitivity_cases:
+    - "片道0.001 (base; funding/borrowは未算入)"
+    - "片道0.0015 (adverse; funding/borrowは未算入)"
+    - "片道0.002 (stress; funding/borrowは未算入)"
+  spread_assumption: "long/shortのentry、exit、coverすべて往復0.0005で固定する。"
+  slippage_assumption: "各fill片道0.0005で固定する。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0008"
+  preregistration_commit: "このファイルを追加するコミットでlong、short、combinedの条件と合成shortの限界を結果確認前に固定する。"
