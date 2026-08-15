@@ -1,0 +1,93 @@
+schema_version: 1
+experiment_id: "EXP-2026-0002"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0001で確認された31時間の内部欠損を事前に定義した線形補間で埋めても、BTCの1時間SMAクロスは費用控除後に買い持ちベースラインを上回る。"
+  economic_rationale: "欠損は全期間の約0.059%で短い内部区間に分散しているため、連続系列を必要とするSMA計算への影響が限定的である可能性を検証する。ただし、合成値は実測値ではなく、補間による見かけの優位性を否定できない。"
+  parent_experiment_id: "EXP-2026-0001"
+  expected_failure_modes:
+    - "補間されたcloseがSMAのクロス時点を作り、実測データでは存在しない売買を発生させる。"
+    - "補間されたopenが次バー約定価格として使われ、約定可能性やボラティリティを過小評価する。"
+    - "Global proxyとBinance Japanのpair、板、流動性の差で結果が再現しない。"
+
+methodology:
+  setup: "DATA-2026-0001のBinance Global Spot BTCUSDT・1時間足を入力とし、内部欠損だけを時刻に対する線形補間で埋める。"
+  interpolation_policy:
+    - "補間対象は期間の端ではない31時間の内部欠損に限定する。"
+    - "open/high/low/close、volume、quote volume、trade count、taker buy volumeを前後の観測値から時間線形補間する。"
+    - "合成行のhighはopenとclose以上、lowはopenとclose以下になるように補正する。観測済み行は変更しない。"
+    - "合成行へis_interpolated=trueを付け、合成行を使ったシグナルと約定を結果に記録する。"
+  signal_rule: "確定済み終値から20本SMAと50本SMAを計算し、20本SMAが50本SMAを上抜けた場合に次バー始値で現物ロングを建てる。"
+  exit_rule: "20本SMAが50本SMAを下抜けた場合、次バー始値で全量決済する。"
+  no_trade_conditions:
+    - "補間後も欠損または重複があれば実行しない。"
+    - "補間対象が内部欠損以外であれば実行しない。"
+    - "費用、spread、slippage、数量制約を計算できない場合は約定を成立させない。"
+  simplicity_rationale: "補間ルールを固定し、探索やパラメータ調整を行わず、元実験との差分を欠損処理だけに限定する。"
+
+scope:
+  exchanges:
+    - "Binance Global Spot (research proxy)"
+    - "Binance Japan Spot (target venue; shadow only)"
+  research_venue: "Binance Global Spot"
+  execution_venue: "Binance Japan Spot"
+  symbols:
+    - "BTCUSDT"
+  quote_assets:
+    - "USDT"
+  pair_mapping: "Global BTCUSDTをJapan側target pairと同一価格とは扱わない。"
+  timeframe: "1h"
+  start_utc: "2020-01-01T00:00:00Z"
+  end_utc: "2025-12-31T23:59:59Z"
+  decision_time_information:
+    - "確定済み1時間足の終値だけでSMAを計算する。"
+    - "同じ終値で約定せず、次バー始値を約定候補とする。"
+    - "Globalの結果をBinance Japanのlive収益予測として扱わない。"
+
+data:
+  raw_snapshot_id: "DATA-2026-0001"
+  snapshot_id: "DATA-2026-0002"
+  source: "Binance Public Data monthly/daily archives"
+  timezone: "UTC"
+  synthetic_data_policy: "合成行を実測値と混同しない。合成行の件数、時刻、生成規則、出力ハッシュをmanifestへ記録する。"
+
+evaluation:
+  baseline: "同じ期間・同じ初期資金・同じ費用モデルでBTCUSDTを買い持ちする。"
+  primary_metric: "予約したOOS期間の費用控除後CAGR"
+  secondary_metrics:
+    - "費用控除後の総収益と買い持ちとの差"
+    - "最大ドローダウン、取引数、回転率、勝率、期待値"
+    - "合成行で発生したシグナル数と約定数"
+    - "fee、spread、slippageが総損益に占める割合"
+  rejection_criteria:
+    - "補間後に欠損、重複、NaN、負の価格または負の出来高が残る。"
+    - "合成行の扱いが記録できない、または事前登録した規則と異なる。"
+    - "OOSで費用控除後の期待値が非正、または買い持ちを下回る。"
+    - "合成行を除外した感度確認と結論が大きく異なり、その差を説明できない。"
+    - "Global proxy上の結果をBinance Japanで再現できる根拠がない。"
+  reserved_out_of_sample: "2025-01-01T00:00:00Z/2025-12-31T23:59:59Z"
+  maximum_variants: 1
+  random_seed: 0
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.001"
+  taker_fee: "0.001"
+  fee_sensitivity_cases:
+    - "maker/taker 0.001 / 0.001 (base assumption)"
+    - "maker/taker 0.0015 / 0.0015 (adverse case)"
+    - "maker/taker 0.002 / 0.002 (stress case)"
+  spread_assumption: "往復0.0005をbaseとし、sensitivityで0.0000と0.0010を併記する。"
+  slippage_assumption: "片道0.0005をbaseとし、sensitivityで0.0000と0.0010を併記する。"
+  liquidity_constraints: "現物・レバレッジなし・初期資金1,000 USDT相当。最小数量、tick size、丸めは検証結果に明記する。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0001"
+  references:
+    - "https://github.com/binance/binance-public-data"
+    - "https://developers.binance.com/en/docs/products/spot/rest-api"
+  preregistration_commit: "このファイルを追加するコミットで固定し、結果を見た後に補間規則・期間・費用条件を変更しない。"
