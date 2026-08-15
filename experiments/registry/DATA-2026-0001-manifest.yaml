@@ -1,0 +1,59 @@
+schema_version: 1
+snapshot_id: "DATA-2026-0001"
+created_at_utc: "2026-08-15T05:45:14Z"
+
+source:
+  provider: "Binance Public Data"
+  exchange: "Binance Global"
+  dataset_name: "Spot monthly klines"
+  license: "取得時点の提供条件を確認し、再配布条件を記録する。"
+  retrieval_uri: "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1h/"
+  retrieved_at_utc: ""
+
+venue:
+  role: "research_proxy"
+  market_type: "spot"
+  symbol: "BTCUSDT"
+  base_asset: "BTC"
+  quote_asset: "USDT"
+  proxy_for_exchange: "Binance Japan"
+  proxy_for_symbol: "未確定。Japan側target pairをshadow開始前に登録する。"
+  pair_mapping_method: "未確定。異なるquote assetを同一価格とは扱わず、必要な変換系列とbasis riskを記録する。"
+  venue_constraints_snapshot: "取得前。exchangeInfo相当のtick size、最小数量、注文種別を保存する。"
+
+coverage:
+  symbols:
+    - "BTCUSDT"
+  start_utc: "2020-01-01T00:00:00Z"
+  end_utc: "2025-12-31T23:59:59Z"
+  timezone: "UTC"
+  event_time_definition: "Kline open timeをイベント時刻とし、確定時刻より前の値を使わない。"
+  receive_time_definition: "履歴ファイルでは利用不可。取得時刻とファイルの対象期間を別記録する。"
+  ingest_time_definition: "ローカル取り込み完了時刻をUTCで記録する。"
+
+integrity:
+  raw_hash: "取得後にSHA-256を記録する。"
+  transform_commit: "取得後に記録する。"
+  transform_parameters:
+    timestamp_unit: "検査後にmillisecondsまたはmicrosecondsを確定する。"
+    timezone_conversion: "UTC"
+    duplicate_policy: "重複を自動削除せず、件数と理由を記録する。"
+  output_hash: "変換後に記録する。"
+  missing_intervals: []
+  duplicate_count: 0
+  corrections: []
+
+cost_assumptions:
+  fee_schedule_uri: "https://www.binance.com/en/fee/schedule"
+  fee_schedule_retrieved_at_utc: ""
+  maker_rate: "0.001"
+  taker_rate: "0.001"
+  fee_asset: "未確定"
+  discount_or_promotion: "なしを仮定せず、適用条件を確認する。"
+  spread_model: "EXP-2026-0001のbase/sensitivity条件を使用する。"
+  slippage_model: "EXP-2026-0001のbase/sensitivity条件を使用する。"
+
+limitations:
+  - "Binance Globalの履歴データであり、Binance Japanの板、spread、約定、手数料の正本ではない。"
+  - "Japan側のtarget pairとquote assetは未確定である。"
+  - "raw_hash、取得時刻、変換commit、output_hashはダウンロード後に追記する。"
