@@ -1,4 +1,4 @@
-"""EXP-2026-0001のデータ整形、シグナル、決定論的会計を提供する。"""
+"""実験で共有するKline整形、シグナル、決定論的会計を提供する。"""
 
 from __future__ import annotations
 
@@ -24,6 +24,8 @@ KLINE_COLUMNS = [
     "taker_buy_quote_asset_volume",
     "ignore",
 ]
+INTERPOLATED_COLUMN = "is_interpolated"
+INPUT_COLUMNS = [*KLINE_COLUMNS, INTERPOLATED_COLUMN]
 
 
 @dataclass(frozen=True)
@@ -128,9 +130,16 @@ def read_kline_file(path: Path) -> pd.DataFrame:
         ValueError: 必須列を数値へ変換できない場合。
     """
 
-    frame = pd.read_csv(path, header=None, names=KLINE_COLUMNS)
+    frame = pd.read_csv(path, header=None, names=INPUT_COLUMNS)
     frame["open_time"] = pd.to_numeric(frame["open_time"], errors="coerce")
     frame = frame[frame["open_time"].notna()].copy()
+    frame[INTERPOLATED_COLUMN] = (
+        frame[INTERPOLATED_COLUMN]
+        .fillna(False)
+        .astype(str)
+        .str.lower()
+        .isin(["1", "true", "yes"])
+    )
     for column in ["open", "high", "low", "close", "volume"]:
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
         if frame[column].isna().any():
@@ -180,6 +189,9 @@ def inspect_hourly_data(frame: pd.DataFrame) -> dict[str, object]:
         ((gaps / expected).round().astype("int64") - 1).clip(lower=0).sum()
     )
     duplicate_count = int(timestamps.duplicated().sum())
+    interpolated = frame.get(
+        INTERPOLATED_COLUMN, pd.Series(False, index=frame.index)
+    ).fillna(False).astype(bool)
     return {
         "rows": int(len(frame)),
         "start_utc": timestamps.iloc[0].isoformat() if len(timestamps) else None,
@@ -187,7 +199,103 @@ def inspect_hourly_data(frame: pd.DataFrame) -> dict[str, object]:
         "duplicate_count": duplicate_count,
         "missing_segments": missing_segments,
         "missing_intervals": missing_intervals,
+        "interpolated_rows": int(interpolated.sum()),
+        "interpolated_ratio": float(interpolated.mean()) if len(frame) else 0.0,
     }
+
+
+def interpolate_missing_hourly_data(frame: pd.DataFrame) -> pd.DataFrame:
+    """内部欠損の1時間足を時間線形補間し、合成行を明示する。
+
+    `open`、`high`、`low`、`close`、出来高関連列を時刻に対して線形補間する。
+    合成行のhigh/lowはOHLCの順序を壊さないように補正し、観測済みの行は
+    変更しない。これは取引所の実測値ではないため、戻り値の
+    `is_interpolated`で合成行を追跡できる。
+
+    Args:
+        frame: `event_time`を持つ、重複のない1時間足データ。
+
+    Returns:
+        欠損を埋めたデータフレーム。合成行には`is_interpolated=True`を付ける。
+
+    Raises:
+        ValueError: 欠損が期間の端にある、必須列が不足する、または補間後にNaNが残る場合。
+    """
+
+    required = {"event_time", *KLINE_COLUMNS}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"missing interpolation columns: {sorted(missing)}")
+    source = frame.sort_values("event_time").copy()
+    if source["event_time"].duplicated().any():
+        raise ValueError("cannot interpolate duplicate event times")
+    source[INTERPOLATED_COLUMN] = source.get(
+        INTERPOLATED_COLUMN, pd.Series(False, index=source.index)
+    ).fillna(False).astype(bool)
+    source = source.set_index("event_time")
+    expected = pd.date_range(
+        source.index.min(), source.index.max(), freq="h", tz="UTC"
+    )
+    expected.name = "event_time"
+    missing_times = expected.difference(source.index)
+    if not len(missing_times):
+        return source.reset_index()
+    if missing_times[0] <= expected[0] or missing_times[-1] >= expected[-1]:
+        raise ValueError("linear interpolation requires internal gaps only")
+
+    expanded = source.reindex(expected)
+    synthetic = expanded["open"].isna()
+    numeric_columns = [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "quote_asset_volume",
+        "number_of_trades",
+        "taker_buy_base_asset_volume",
+        "taker_buy_quote_asset_volume",
+    ]
+    observed_values = {
+        column: expanded[column].copy()
+        for column in [*numeric_columns, "open_time", "close_time", "ignore"]
+    }
+    for column in numeric_columns:
+        expanded[column] = pd.to_numeric(expanded[column], errors="coerce").interpolate(
+            method="time", limit_area="inside"
+        )
+    if expanded[numeric_columns].isna().any().any():
+        raise ValueError("linear interpolation left numeric NaN values")
+
+    synthetic_indices = expanded.index[synthetic]
+    expanded.loc[synthetic_indices, "high"] = expanded.loc[
+        synthetic_indices, ["high", "open", "close"]
+    ].max(axis=1)
+    expanded.loc[synthetic_indices, "low"] = expanded.loc[
+        synthetic_indices, ["low", "open", "close"]
+    ].min(axis=1)
+    nonnegative_columns = [
+        "volume",
+        "quote_asset_volume",
+        "number_of_trades",
+        "taker_buy_base_asset_volume",
+        "taker_buy_quote_asset_volume",
+    ]
+    expanded.loc[synthetic_indices, nonnegative_columns] = expanded.loc[
+        synthetic_indices, nonnegative_columns
+    ].clip(lower=0)
+    expanded.loc[synthetic_indices, "number_of_trades"] = expanded.loc[
+        synthetic_indices, "number_of_trades"
+    ].round()
+    timestamps_ms = expanded.index.astype("int64") // 1_000_000
+    expanded["open_time"] = timestamps_ms
+    expanded["close_time"] = timestamps_ms + 3_599_999
+    expanded["ignore"] = expanded["ignore"].fillna(0)
+    observed_indices = expanded.index[~synthetic]
+    for column, original in observed_values.items():
+        expanded.loc[observed_indices, column] = original.loc[observed_indices]
+    expanded[INTERPOLATED_COLUMN] = synthetic
+    return expanded.reset_index()
 
 
 def prepare_signals(frame: pd.DataFrame, fast_window: int = 20, slow_window: int = 50) -> pd.DataFrame:
@@ -278,6 +386,9 @@ def run_backtest(
                     "execution_price": str(execution_price),
                     "quantity": str(quantity),
                     "fee": str(fee),
+                    INTERPOLATED_COLUMN: bool(
+                        getattr(row, INTERPOLATED_COLUMN, False)
+                    ),
                 }
             )
         elif desired == 0 and quantity > 0:
@@ -295,6 +406,9 @@ def run_backtest(
                     "execution_price": str(execution_price),
                     "quantity": str(sold_quantity),
                     "fee": str(fee),
+                    INTERPOLATED_COLUMN: bool(
+                        getattr(row, INTERPOLATED_COLUMN, False)
+                    ),
                 }
             )
         close = _decimal(row.close)
@@ -306,9 +420,64 @@ def run_backtest(
                 "quantity": str(quantity),
                 "mark_price": str(close),
                 "equity": str(equity),
+                INTERPOLATED_COLUMN: bool(
+                    getattr(row, INTERPOLATED_COLUMN, False)
+                ),
             }
         )
     return pd.DataFrame(equity_rows), pd.DataFrame(trade_rows)
+
+
+def run_buy_and_hold(
+    frame: pd.DataFrame,
+    cost_model: CostModel,
+    initial_cash: Decimal = Decimal("1000"),
+) -> pd.DataFrame:
+    """同一期間・同一費用モデルの現物買い持ち曲線を作る。
+
+    Args:
+        frame: `event_time`、`open`、`close`列を含む時系列データ。
+        cost_model: 買い付け時のfee、spread、slippageの仮定。
+        initial_cash: 初期のpaper現金残高。
+
+    Returns:
+        初バー始値で買い、各バー終値で評価した損益曲線。
+
+    Raises:
+        ValueError: 入力が空、必須列が不足する、または初期資金が正でない場合。
+    """
+
+    required = {"event_time", "open", "close"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"missing buy-and-hold columns: {sorted(missing)}")
+    if frame.empty:
+        raise ValueError("buy-and-hold frame must not be empty")
+    if initial_cash <= 0:
+        raise ValueError("initial_cash must be positive")
+    first_open = _decimal(frame.iloc[0]["open"])
+    if first_open <= 0:
+        raise ValueError("open price must be positive")
+    fee = initial_cash * cost_model.fee_rate
+    quantity = (initial_cash - fee) / cost_model.buy_price(first_open)
+    rows: list[dict[str, object]] = []
+    for row in frame.itertuples(index=False):
+        close = _decimal(row.close)
+        if close <= 0:
+            raise ValueError("close price must be positive")
+        rows.append(
+            {
+                "event_time": row.event_time,
+                "cash": "0",
+                "quantity": str(quantity),
+                "mark_price": str(close),
+                "equity": str(quantity * close),
+                INTERPOLATED_COLUMN: bool(
+                    getattr(row, INTERPOLATED_COLUMN, False)
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def summarize_equity(equity_curve: pd.DataFrame) -> dict[str, float | int | None]:

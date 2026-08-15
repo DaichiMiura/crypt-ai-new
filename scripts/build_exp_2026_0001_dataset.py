@@ -15,7 +15,7 @@ repo_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(repo_root / "src"))
 sys.path.insert(0, str(repo_root))
 
-from crypt_ai.exp_2026_0001 import (  # noqa: E402
+from crypt_ai.research import (  # noqa: E402
     KLINE_COLUMNS,
     inspect_hourly_data,
     load_kline_files,

@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from crypt_ai.exp_2026_0001 import (
+from crypt_ai.research import (
     CostModel,
     inspect_hourly_data,
     load_kline_files,
