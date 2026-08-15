@@ -1,0 +1,33 @@
+# Paper-only configuration. These are account-wide hard ceilings, not strategy allocations.
+# It must never be passed to a live exchange adapter.
+schema_version: 1
+environment: paper
+live_trading_enabled: false
+
+allowed_exchanges: [paper]
+allowed_accounts: [paper]
+allowed_symbols: [BTC_JPY]
+allowed_order_types: [market, limit]
+allowed_products: [spot]
+allow_short: false
+
+limits:
+  # The effective value is min(global limit, selected strategy limit).
+  max_order_notional: 10000
+  max_symbol_position_notional: 30000
+  max_total_position_notional: 30000
+  max_leverage: 1
+  max_orders_per_minute: 10
+  max_daily_loss: 1000
+  max_drawdown: 3000
+
+market_data:
+  max_age_seconds: 5
+  max_price_deviation_bps: 500
+
+safety:
+  kill_switch_engaged: false
+  reject_on_unknown_state: true
+  reject_on_reconciliation_failure: true
+  reject_on_risk_engine_failure: true
+  cancel_open_orders_on_shutdown: true
