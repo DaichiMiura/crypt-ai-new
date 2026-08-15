@@ -7,6 +7,8 @@ from crypt_ai.void_short import (
     VOID_SHORT_CORE_POLICY,
     VOID_SHORT_SYMBOLS,
     VoidShortCorePolicy,
+    VoidShortSetupState,
+    prepare_void_short_entry_setup,
     prepare_void_short_trend_regime,
 )
 
@@ -22,6 +24,19 @@ def _trend_frame(close: list[float]) -> pd.DataFrame:
             "is_interpolated": [False] * len(close),
         }
     )
+
+
+def _entry_setup_frame() -> pd.DataFrame:
+    """エントリー準備状態の遷移を作れる2時間足を作る。"""
+    close = [200.0] * 200 + [100.0] * 200 + [100.0, 106.0, 102.0, 105.0]
+    frame = _trend_frame(close)
+    frame["high"] = frame["close"] + 1.0
+    frame["low"] = frame["close"] - 1.0
+    frame.loc[400, ["high", "low"]] = [101.0, 99.0]
+    frame.loc[401, ["high", "low"]] = [107.0, 105.0]
+    frame.loc[402, ["high", "low"]] = [107.0, 101.0]
+    frame.loc[403, ["high", "low"]] = [106.0, 101.0]
+    return frame
 
 
 def test_core_policy_fixes_two_hour_bars_and_fourteen_days():
@@ -159,3 +174,55 @@ def test_trend_regime_rejects_unusable_data(mutation, message):
 
     with pytest.raises(ValueError, match=message):
         prepare_void_short_trend_regime(frame)
+
+
+def test_entry_setup_requires_rally_pullback_and_rebound_in_order():
+    """2 ATR上昇、1 ATR下落、0.5 ATR反発の順で準備完了することをテストする。"""
+    result = prepare_void_short_entry_setup(_entry_setup_frame())
+
+    assert result.loc[400, "entry_setup_state_at_close"] == VoidShortSetupState.WAIT_RALLY
+    assert result.loc[401, "entry_setup_state_at_close"] == VoidShortSetupState.WAIT_PULLBACK
+    assert result.loc[402, "entry_setup_state_at_close"] == VoidShortSetupState.WAIT_REBOUND
+    assert result.loc[403, "entry_setup_state_at_close"] == VoidShortSetupState.READY
+    assert bool(result.loc[403, "entry_setup_ready_at_close"]) is True
+    assert bool(result.loc[403, "entry_setup_ready_for_bar"]) is False
+
+
+def test_entry_setup_becomes_available_on_next_bar():
+    """準備完了イベントと価格アンカーを次のバーへ遅延することをテストする。"""
+    frame = _entry_setup_frame()
+    next_row = frame.iloc[[-1]].copy()
+    next_row["event_time"] += timedelta(hours=2)
+    next_row[["close", "high", "low"]] = [104.0, 105.0, 103.0]
+    result = prepare_void_short_entry_setup(pd.concat([frame, next_row], ignore_index=True))
+
+    assert bool(result.loc[404, "entry_setup_ready_for_bar"]) is True
+    assert result.loc[404, "rally_start_price_for_bar"] == 99.0
+    assert result.loc[404, "rally_peak_price_for_bar"] == 107.0
+    assert result.loc[404, "rebound_low_price_for_bar"] == 101.0
+    assert (
+        result.loc[404, "rally_start_time_for_bar"]
+        < result.loc[404, "rally_peak_time_for_bar"]
+        < result.loc[404, "rebound_low_time_for_bar"]
+    )
+
+
+def test_entry_setup_resets_when_downtrend_is_absent():
+    """下落トレンドでなければ準備状態をNO_TRADEへ戻すことをテストする。"""
+    frame = _trend_frame([100.0] * 401)
+    frame["high"] = frame["close"] + 1.0
+    frame["low"] = frame["close"] - 1.0
+
+    result = prepare_void_short_entry_setup(frame)
+
+    assert set(result["entry_setup_state_at_close"]) == {VoidShortSetupState.NO_TRADE}
+    assert not result["entry_setup_ready_at_close"].any()
+
+
+def test_entry_setup_rejects_invalid_ohlc_relationship():
+    """終値が高値を上回る不正なOHLCを拒否することをテストする。"""
+    frame = _entry_setup_frame()
+    frame.loc[403, "high"] = 100.0
+
+    with pytest.raises(ValueError, match="relationship"):
+        prepare_void_short_entry_setup(frame)

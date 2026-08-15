@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
+from enum import StrEnum
 
 import pandas as pd
 
@@ -11,6 +12,20 @@ import pandas as pd
 VOID_SHORT_SYMBOLS = frozenset(
     {"LINKUSDT", "UNIUSDT", "ADAUSDT", "AVAXUSDT", "NEARUSDT", "AAVEUSDT"}
 )
+VOID_SHORT_ATR_BARS = 14
+VOID_SHORT_RALLY_ATR = 2.0
+VOID_SHORT_PULLBACK_ATR = 1.0
+VOID_SHORT_REBOUND_ATR = 0.5
+
+
+class VoidShortSetupState(StrEnum):
+    """VOID式ショートのエントリー準備状態。"""
+
+    NO_TRADE = "NO_TRADE"
+    WAIT_RALLY = "WAIT_RALLY"
+    WAIT_PULLBACK = "WAIT_PULLBACK"
+    WAIT_REBOUND = "WAIT_REBOUND"
+    READY = "READY"
 
 
 @dataclass(frozen=True)
@@ -220,4 +235,146 @@ def prepare_void_short_trend_regime(frame: pd.DataFrame) -> pd.DataFrame:
     result["downtrend_regime_for_bar"] = result[
         "downtrend_regime_at_close"
     ].shift(1, fill_value=False)
+    return result
+
+
+def prepare_void_short_entry_setup(frame: pd.DataFrame) -> pd.DataFrame:
+    """下落トレンド中の上昇・下落・反発を順番に検出する。
+
+    下落トレンド開始後の最安値から2 ATR上昇し、その後の最高値から1 ATR
+    下落し、さらにその後の最安値から0.5 ATR反発した場合だけ準備完了とする。
+    準備完了イベントと3つの価格アンカーは次のバーから利用可能にする。
+
+    Args:
+        frame: ``event_time``、OHLC、``is_interpolated``を持つ2時間足。
+
+    Returns:
+        ATR、準備状態、遷移イベント、価格アンカーを追加したDataFrame。
+
+    Raises:
+        ValueError: 高値・安値が不足する、数値でない、非正、またはOHLCの
+            大小関係が不正な場合。共通の時系列検査はトレンド判定に従う。
+    """
+
+    missing_columns = {"high", "low"} - set(frame.columns)
+    if missing_columns:
+        raise ValueError(f"missing columns: {sorted(missing_columns)}")
+    result = prepare_void_short_trend_regime(frame)
+
+    for column in ("high", "low"):
+        values = pd.to_numeric(result[column], errors="coerce")
+        if values.isna().any() or not values.gt(0).all():
+            raise ValueError(f"{column} must contain positive numeric values")
+        result[column] = values
+    if not (
+        (result["low"] <= result["close"])
+        & (result["close"] <= result["high"])
+        & (result["low"] <= result["high"])
+    ).all():
+        raise ValueError("OHLC price relationship is invalid")
+
+    previous_close = result["close"].shift(1)
+    true_range = pd.concat(
+        [
+            result["high"] - result["low"],
+            (result["high"] - previous_close).abs(),
+            (result["low"] - previous_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    result["atr14"] = true_range.rolling(
+        window=VOID_SHORT_ATR_BARS,
+        min_periods=VOID_SHORT_ATR_BARS,
+    ).mean()
+
+    states: list[str] = []
+    ready_events: list[bool] = []
+    rally_start_prices: list[float | None] = []
+    rally_peak_prices: list[float | None] = []
+    rebound_low_prices: list[float | None] = []
+    rally_start_times: list[pd.Timestamp | None] = []
+    rally_peak_times: list[pd.Timestamp | None] = []
+    rebound_low_times: list[pd.Timestamp | None] = []
+    state = VoidShortSetupState.NO_TRADE
+    rally_start_price: float | None = None
+    rally_peak_price: float | None = None
+    rebound_low_price: float | None = None
+    rally_start_time: pd.Timestamp | None = None
+    rally_peak_time: pd.Timestamp | None = None
+    rebound_low_time: pd.Timestamp | None = None
+
+    for row in result.itertuples(index=False):
+        regime_ready = bool(row.downtrend_regime_at_close) and pd.notna(row.atr14)
+        ready_event = False
+        if not regime_ready:
+            state = VoidShortSetupState.NO_TRADE
+            rally_start_price = None
+            rally_peak_price = None
+            rebound_low_price = None
+            rally_start_time = None
+            rally_peak_time = None
+            rebound_low_time = None
+        elif state == VoidShortSetupState.NO_TRADE:
+            state = VoidShortSetupState.WAIT_RALLY
+            rally_start_price = float(row.low)
+            rally_start_time = row.event_time
+        elif state == VoidShortSetupState.WAIT_RALLY:
+            if float(row.low) < rally_start_price:
+                rally_start_price = float(row.low)
+                rally_start_time = row.event_time
+            if float(row.close) - rally_start_price >= VOID_SHORT_RALLY_ATR * float(
+                row.atr14
+            ):
+                state = VoidShortSetupState.WAIT_PULLBACK
+                rally_peak_price = float(row.high)
+                rally_peak_time = row.event_time
+        elif state == VoidShortSetupState.WAIT_PULLBACK:
+            if float(row.high) > rally_peak_price:
+                rally_peak_price = float(row.high)
+                rally_peak_time = row.event_time
+            if rally_peak_price - float(row.close) >= VOID_SHORT_PULLBACK_ATR * float(
+                row.atr14
+            ):
+                state = VoidShortSetupState.WAIT_REBOUND
+                rebound_low_price = float(row.low)
+                rebound_low_time = row.event_time
+        elif state == VoidShortSetupState.WAIT_REBOUND:
+            if float(row.low) < rebound_low_price:
+                rebound_low_price = float(row.low)
+                rebound_low_time = row.event_time
+            if float(row.close) - rebound_low_price >= VOID_SHORT_REBOUND_ATR * float(
+                row.atr14
+            ):
+                state = VoidShortSetupState.READY
+                ready_event = True
+
+        states.append(state.value)
+        ready_events.append(ready_event)
+        rally_start_prices.append(rally_start_price)
+        rally_peak_prices.append(rally_peak_price)
+        rebound_low_prices.append(rebound_low_price)
+        rally_start_times.append(rally_start_time)
+        rally_peak_times.append(rally_peak_time)
+        rebound_low_times.append(rebound_low_time)
+
+    result["entry_setup_state_at_close"] = states
+    result["entry_setup_ready_at_close"] = ready_events
+    result["rally_start_price_at_close"] = rally_start_prices
+    result["rally_peak_price_at_close"] = rally_peak_prices
+    result["rebound_low_price_at_close"] = rebound_low_prices
+    result["rally_start_time_at_close"] = rally_start_times
+    result["rally_peak_time_at_close"] = rally_peak_times
+    result["rebound_low_time_at_close"] = rebound_low_times
+    result["entry_setup_ready_for_bar"] = result[
+        "entry_setup_ready_at_close"
+    ].shift(1, fill_value=False)
+    for column in (
+        "rally_start_price_at_close",
+        "rally_peak_price_at_close",
+        "rebound_low_price_at_close",
+        "rally_start_time_at_close",
+        "rally_peak_time_at_close",
+        "rebound_low_time_at_close",
+    ):
+        result[column.replace("_at_close", "_for_bar")] = result[column].shift(1)
     return result

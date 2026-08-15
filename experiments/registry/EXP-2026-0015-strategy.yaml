@@ -17,6 +17,10 @@ implementation_steps:
     name: "downtrend_regime"
     status: "implemented"
     scope: "確定した2時間足のSMA200がSMA400を下回る場合だけ、次バーのショート検討を許可する。"
+  - number: 4
+    name: "entry_preparation"
+    status: "implemented"
+    scope: "下落トレンド開始後の安値から2 ATR上昇、高値から1 ATR下落、安値から0.5 ATR反発の順で準備完了とする。"
 
 basic_policy:
   timeframe_minutes: 120
@@ -59,6 +63,22 @@ trend_policy:
     - "補間行"
     - "非正または非数値の終値"
 
+entry_preparation_policy:
+  atr_bars: 14
+  rally:
+    anchor: "下落トレンド開始後の最安値"
+    confirmation: "確定終値がアンカーから2 ATR以上上昇"
+  pullback:
+    anchor: "上昇確認後の最高値"
+    confirmation: "確定終値がアンカーから1 ATR以上下落"
+  rebound:
+    anchor: "下落確認後の最安値"
+    confirmation: "確定終値がアンカーから0.5 ATR以上反発"
+  required_order: "rally -> pullback -> rebound"
+  regime_invalidation: "SMA200 >= SMA400または状態不明で全アンカーを破棄する。"
+  availability: "準備完了イベントと3アンカーの価格・時刻は次の2時間足から利用する。"
+  order_generation: "この段階では注文を生成しない。"
+
 execution_status:
   strategy_runner_exists: false
   backtest_started: false
@@ -67,7 +87,6 @@ execution_status:
   live_started: false
 
 deferred_decisions:
-  - "上昇、利確売り、初回下落、リバウンドの機械的定義"
   - "フィボナッチ指値と部分約定"
   - "ポジションサイズとココモ法の扱い"
   - "利確、損切り、清算余裕の具体値"
