@@ -57,6 +57,7 @@ required_files=(
   experiments/registry/EXP-2026-0014-hypothesis.yaml
   experiments/registry/EXP-2026-0014-validation.md
   experiments/registry/EXP-2026-0015-hypothesis.yaml
+  experiments/registry/EXP-2026-0015-strategy.yaml
   experiments/registry/DATA-2026-0005-manifest.yaml
   experiments/approvals/EXP-2026-0012-paper.yaml
   scripts/download_binance_global_data.py
@@ -85,6 +86,7 @@ required_files=(
   scripts/run_paper_daily.sh
   src/crypt_ai/paper.py
   src/crypt_ai/research.py
+  src/crypt_ai/void_short.py
   templates/hypothesis.yaml
   templates/data-manifest.yaml
   templates/validation-report.md

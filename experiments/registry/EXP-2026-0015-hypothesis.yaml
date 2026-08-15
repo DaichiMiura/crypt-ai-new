@@ -38,6 +38,8 @@ methodology:
     - "OHLC、mark price、index price、Fundingの時刻整合性が確認できない場合は実験を開始しない。"
     - "補間した価格行は作らず、欠損は拒否する。"
   maximum_variants: 1
+  strategy_specification: "experiments/registry/EXP-2026-0015-strategy.yaml"
+  implementation_status: "基本方針だけを実装済み。実験runnerと売買ロジックは未実装・未実行。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -84,3 +86,7 @@ provenance:
   parent_experiment_ids:
     - "EXP-2026-0014"
   preregistration_commit: "このファイルを追加するコミットで、銘柄、商品、データ範囲、取得対象、未実施ゲートを結果確認前に固定する。"
+  amendments:
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "実験実施前にVOID式ショートの基本方針を段階的に形式化するため。"
+      change: "2時間足、ショート専用、指値専用、確定足、NO_TRADE既定、同一バー通常決済禁止、最大保有168本を固定した。"
