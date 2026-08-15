@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
+from decimal import Decimal, ROUND_CEILING
 from enum import StrEnum
 
 import pandas as pd
@@ -16,6 +17,12 @@ VOID_SHORT_ATR_BARS = 14
 VOID_SHORT_RALLY_ATR = 2.0
 VOID_SHORT_PULLBACK_ATR = 1.0
 VOID_SHORT_REBOUND_ATR = 0.5
+VOID_SHORT_FIBONACCI_RATIOS = (
+    Decimal("0.236"),
+    Decimal("0.382"),
+    Decimal("0.618"),
+    Decimal("1.0"),
+)
 
 
 class VoidShortSetupState(StrEnum):
@@ -26,6 +33,21 @@ class VoidShortSetupState(StrEnum):
     WAIT_PULLBACK = "WAIT_PULLBACK"
     WAIT_REBOUND = "WAIT_REBOUND"
     READY = "READY"
+
+
+@dataclass(frozen=True)
+class VoidShortLimitLevel:
+    """数量決定前のフィボナッチ売り指値候補。
+
+    Attributes:
+        ratio: フィボナッチ・エクステンション比率。
+        raw_price: tick size適用前の理論価格。
+        limit_price: tick sizeへ切り上げた売り指値価格。
+    """
+
+    ratio: Decimal
+    raw_price: Decimal
+    limit_price: Decimal
 
 
 @dataclass(frozen=True)
@@ -378,3 +400,121 @@ def prepare_void_short_entry_setup(frame: pd.DataFrame) -> pd.DataFrame:
     ):
         result[column.replace("_at_close", "_for_bar")] = result[column].shift(1)
     return result
+
+
+def build_void_short_fibonacci_levels(
+    *,
+    rally_start_price: Decimal,
+    rally_peak_price: Decimal,
+    rebound_low_price: Decimal,
+    current_price: Decimal,
+    tick_size: Decimal,
+) -> tuple[VoidShortLimitLevel, ...]:
+    """3アンカーから市場価格より上の売り指値候補を作る。
+
+    売り指値は``rebound_low + (rally_peak - rally_start) * ratio``で求め、
+    注文が現在価格以下にならないようtick sizeへ切り上げる。現在価格以下の
+    候補は個別に破棄し、全候補が破棄された場合は空tupleを返す。
+
+    Args:
+        rally_start_price: 上昇開始地点の下ヒゲ価格。
+        rally_peak_price: 上昇後の高値の上ヒゲ価格。
+        rebound_low_price: 最初の下落後のリバウンド起点価格。
+        current_price: 指値を作成する時点の市場価格。
+        tick_size: ZOOMEX銘柄仕様の価格刻み。
+
+    Returns:
+        比率順の有効な売り指値候補。数量は含まない。
+
+    Raises:
+        ValueError: 価格・tick sizeが非正、非有限、または3アンカーの順序が
+            ``rally_start < rebound_low < rally_peak``を満たさない場合。
+    """
+
+    values = {
+        "rally_start_price": rally_start_price,
+        "rally_peak_price": rally_peak_price,
+        "rebound_low_price": rebound_low_price,
+        "current_price": current_price,
+        "tick_size": tick_size,
+    }
+    for name, value in values.items():
+        if not value.is_finite() or value <= 0:
+            raise ValueError(f"{name} must be positive and finite")
+    if not rally_start_price < rebound_low_price < rally_peak_price:
+        raise ValueError(
+            "anchors must satisfy rally_start < rebound_low < rally_peak"
+        )
+
+    price_range = rally_peak_price - rally_start_price
+    levels: list[VoidShortLimitLevel] = []
+    for ratio in VOID_SHORT_FIBONACCI_RATIOS:
+        raw_price = rebound_low_price + price_range * ratio
+        ticks = (raw_price / tick_size).to_integral_value(rounding=ROUND_CEILING)
+        limit_price = ticks * tick_size
+        if limit_price <= current_price:
+            continue
+        levels.append(
+            VoidShortLimitLevel(
+                ratio=ratio,
+                raw_price=raw_price,
+                limit_price=limit_price,
+            )
+        )
+    return tuple(levels)
+
+
+def pending_void_short_limits_must_cancel(
+    *,
+    pending_bars: int,
+    downtrend_regime: bool,
+    state_known: bool,
+) -> bool:
+    """未約定フィボナッチ指値を取り消すべきか判定する。
+
+    Args:
+        pending_bars: 指値作成後に完了した2時間足の本数。
+        downtrend_regime: 現在もSMA200がSMA400を下回るか。
+        state_known: データとトレンド状態が正常に確定しているか。
+
+    Returns:
+        状態不明、トレンド無効、または168本経過なら``True``。
+
+    Raises:
+        ValueError: 待機バー数が負の場合。
+    """
+
+    if pending_bars < 0:
+        raise ValueError("pending_bars must be non-negative")
+    return (
+        not state_known
+        or not downtrend_regime
+        or pending_bars >= VOID_SHORT_CORE_POLICY.max_holding_bars
+    )
+
+
+def partition_touched_void_short_levels(
+    levels: tuple[VoidShortLimitLevel, ...],
+    *,
+    bar_high: Decimal,
+) -> tuple[tuple[VoidShortLimitLevel, ...], tuple[VoidShortLimitLevel, ...]]:
+    """2時間足の高値に触れた指値候補と未到達候補を分ける。
+
+    本関数は数量や約定価格を決めず、各候補を独立に到達判定するだけである。
+
+    Args:
+        levels: 有効な売り指値候補。
+        bar_high: 判定対象の確定2時間足高値。
+
+    Returns:
+        ``(到達候補, 未到達候補)``のtuple。
+
+    Raises:
+        ValueError: 高値が非正または非有限の場合。
+    """
+
+    if not bar_high.is_finite() or bar_high <= 0:
+        raise ValueError("bar_high must be positive and finite")
+    touched = tuple(level for level in levels if bar_high >= level.limit_price)
+    pending = tuple(level for level in levels if bar_high < level.limit_price)
+    return touched, pending

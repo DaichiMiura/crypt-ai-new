@@ -1,13 +1,18 @@
 from datetime import timedelta
+from decimal import Decimal
 
 import pandas as pd
 import pytest
 
 from crypt_ai.void_short import (
     VOID_SHORT_CORE_POLICY,
+    VOID_SHORT_FIBONACCI_RATIOS,
     VOID_SHORT_SYMBOLS,
     VoidShortCorePolicy,
     VoidShortSetupState,
+    build_void_short_fibonacci_levels,
+    partition_touched_void_short_levels,
+    pending_void_short_limits_must_cancel,
     prepare_void_short_entry_setup,
     prepare_void_short_trend_regime,
 )
@@ -226,3 +231,113 @@ def test_entry_setup_rejects_invalid_ohlc_relationship():
 
     with pytest.raises(ValueError, match="relationship"):
         prepare_void_short_entry_setup(frame)
+
+
+def test_fibonacci_levels_use_fixed_ratios_and_round_sell_prices_up():
+    """固定比率の理論価格をtick sizeへ切り上げることをテストする。"""
+    levels = build_void_short_fibonacci_levels(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        current_price=Decimal("112"),
+        tick_size=Decimal("0.1"),
+    )
+
+    assert tuple(level.ratio for level in levels) == VOID_SHORT_FIBONACCI_RATIOS
+    assert tuple(level.raw_price for level in levels) == (
+        Decimal("114.720"),
+        Decimal("117.640"),
+        Decimal("122.360"),
+        Decimal("130.0"),
+    )
+    assert tuple(level.limit_price for level in levels) == (
+        Decimal("114.8"),
+        Decimal("117.7"),
+        Decimal("122.4"),
+        Decimal("130.0"),
+    )
+
+
+def test_fibonacci_levels_discard_marketable_sell_limits():
+    """現在価格以下の売り指値を個別に破棄することをテストする。"""
+    levels = build_void_short_fibonacci_levels(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        current_price=Decimal("118"),
+        tick_size=Decimal("0.1"),
+    )
+
+    assert tuple(level.ratio for level in levels) == (
+        Decimal("0.618"),
+        Decimal("1.0"),
+    )
+
+
+def test_fibonacci_levels_return_empty_when_all_are_marketable():
+    """全指値が現在価格以下ならNO_TRADE相当の空結果にすることをテストする。"""
+    levels = build_void_short_fibonacci_levels(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        current_price=Decimal("131"),
+        tick_size=Decimal("0.1"),
+    )
+
+    assert levels == ()
+
+
+def test_fibonacci_levels_reject_invalid_anchor_order():
+    """3アンカーの価格順序が不正なら指値を作らないことをテストする。"""
+    with pytest.raises(ValueError, match="anchors"):
+        build_void_short_fibonacci_levels(
+            rally_start_price=Decimal("100"),
+            rally_peak_price=Decimal("120"),
+            rebound_low_price=Decimal("121"),
+            current_price=Decimal("110"),
+            tick_size=Decimal("0.1"),
+        )
+
+
+def test_pending_fibonacci_limits_expire_at_bar_168():
+    """未約定指値が167本では有効で168本目に失効することをテストする。"""
+    assert pending_void_short_limits_must_cancel(
+        pending_bars=167, downtrend_regime=True, state_known=True
+    ) is False
+    assert pending_void_short_limits_must_cancel(
+        pending_bars=168, downtrend_regime=True, state_known=True
+    ) is True
+
+
+def test_pending_fibonacci_limits_cancel_on_unknown_or_invalid_regime():
+    """状態不明またはSMA条件無効で未約定指値を取り消すことをテストする。"""
+    assert pending_void_short_limits_must_cancel(
+        pending_bars=1, downtrend_regime=False, state_known=True
+    ) is True
+    assert pending_void_short_limits_must_cancel(
+        pending_bars=1, downtrend_regime=True, state_known=False
+    ) is True
+
+
+def test_fibonacci_levels_are_touched_independently():
+    """高値に到達した指値だけを独立して抽出することをテストする。"""
+    levels = build_void_short_fibonacci_levels(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        current_price=Decimal("112"),
+        tick_size=Decimal("0.1"),
+    )
+
+    touched, pending = partition_touched_void_short_levels(
+        levels, bar_high=Decimal("118")
+    )
+
+    assert tuple(level.ratio for level in touched) == (
+        Decimal("0.236"),
+        Decimal("0.382"),
+    )
+    assert tuple(level.ratio for level in pending) == (
+        Decimal("0.618"),
+        Decimal("1.0"),
+    )

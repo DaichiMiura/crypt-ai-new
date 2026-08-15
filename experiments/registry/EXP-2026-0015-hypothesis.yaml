@@ -39,7 +39,7 @@ methodology:
     - "補間した価格行は作らず、欠損は拒否する。"
   maximum_variants: 1
   strategy_specification: "experiments/registry/EXP-2026-0015-strategy.yaml"
-  implementation_status: "基本方針、固定6銘柄、SMA下落トレンド判定、ATRによるエントリー準備まで実装済み。実験runner、指値、約定、決済ロジックは未実装・未実行。"
+  implementation_status: "基本方針、固定6銘柄、SMA判定、ATRエントリー準備、フィボナッチ指値価格まで実装済み。実験runner、数量、約定会計、決済は未実装・未実行。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -96,3 +96,6 @@ provenance:
     - amended_at_utc: "2026-08-15T00:00:00Z"
       reason: "元記事の裁量的な上昇・下落・反発を初回実験用の単一ルールへ形式化するため。"
       change: "ATR14を使い、2 ATR上昇、1 ATR下落、0.5 ATR反発の順で準備完了とし、次バーから利用する。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "元記事のフィボナッチ分割指値を、成行化を防ぐ決定論的な価格候補へ形式化するため。"
+      change: "0.236、0.382、0.618、1.0の価格をtick sizeへ切り上げ、現在価格以下を除外し、168本またはSMA無効で未約定候補を取り消す。"

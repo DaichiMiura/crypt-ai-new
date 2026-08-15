@@ -21,6 +21,10 @@ implementation_steps:
     name: "entry_preparation"
     status: "implemented"
     scope: "下落トレンド開始後の安値から2 ATR上昇、高値から1 ATR下落、安値から0.5 ATR反発の順で準備完了とする。"
+  - number: 5
+    name: "fibonacci_limit_levels"
+    status: "implemented"
+    scope: "3アンカーから4つのフィボナッチ売り指値候補を作り、市場価格以下を除外する。数量と約定会計は未実装。"
 
 basic_policy:
   timeframe_minutes: 120
@@ -79,6 +83,27 @@ entry_preparation_policy:
   availability: "準備完了イベントと3アンカーの価格・時刻は次の2時間足から利用する。"
   order_generation: "この段階では注文を生成しない。"
 
+fibonacci_limit_policy:
+  formula: "rebound_low + (rally_peak - rally_start) * ratio"
+  ratios:
+    - "0.236"
+    - "0.382"
+    - "0.618"
+    - "1.0"
+  anchor_order: "rally_start < rebound_low < rally_peak"
+  tick_rounding: "ZOOMEX銘柄仕様のtick sizeへ売り指値を切り上げる。"
+  activation_reference:
+    backtest: "準備完了が利用可能になる次の2時間足のtrade open"
+    shadow: "指値作成時点のbest bid。shadow実装時に固定する。"
+  marketable_level: "現在価格以下の候補だけを破棄する。全候補破棄ならNO_TRADE。"
+  independent_touch: "各候補は2時間足highへの到達を独立に判定する。"
+  pending_expiry_bars: 168
+  cancellation:
+    - "SMA200 >= SMA400"
+    - "データまたは状態が不明"
+    - "作成後168本経過"
+  quantity_and_fill_accounting: "未実装。次の段階で固定する。"
+
 execution_status:
   strategy_runner_exists: false
   backtest_started: false
@@ -87,7 +112,6 @@ execution_status:
   live_started: false
 
 deferred_decisions:
-  - "フィボナッチ指値と部分約定"
   - "ポジションサイズとココモ法の扱い"
   - "利確、損切り、清算余裕の具体値"
 
