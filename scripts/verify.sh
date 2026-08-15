@@ -54,6 +54,7 @@ required_files=(
   experiments/registry/EXP-2026-0012-validation.md
   experiments/registry/EXP-2026-0013-hypothesis.yaml
   experiments/registry/EXP-2026-0013-validation.md
+  experiments/registry/EXP-2026-0014-hypothesis.yaml
   experiments/approvals/EXP-2026-0012-paper.yaml
   scripts/download_binance_global_data.py
   scripts/download_binance_btcjpy_daily.py

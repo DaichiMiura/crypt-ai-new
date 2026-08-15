@@ -1,0 +1,86 @@
+schema_version: 1
+experiment_id: "EXP-2026-0014"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0012のSMA200付きDonchian entry＋20日ATR 3倍trailing exitは、BTC以外のETH・SOL・XRPでも、同じ固定パラメータのままDonchian 20日安値exitより最大DDを安定して抑え、収益の大部分を維持する。"
+  economic_rationale: "ATRは価格水準ではなく各銘柄の変動幅に追随するため、銘柄ごとにボラティリティ水準が違っても同じ倍率で出口距離を規格化できる可能性がある。"
+  parent_experiment_ids:
+    - "EXP-2026-0012"
+  symbols:
+    - "ETHUSDT"
+    - "SOLUSDT"
+    - "XRPUSDT"
+  symbol_selection_rule: "2026-08-15時点のBinance公開exchangeInfoでJPY現物取引中で、BTC以外の主要銘柄として事前に固定した3銘柄。結果を見て追加・削除しない。"
+  expected_failure_modes:
+    - "アルトコインの急変動で3 ATRが近すぎ、トレンド途中の退出が増える。"
+    - "銘柄ごとの上場時期・価格basis・流動性差で共通パラメータが機能しない。"
+    - "SOLなど履歴が短く、共通評価期間の取引数が少ない。"
+    - "複数銘柄でもBTCと同じ相場局面に依存し、一般化を示さない。"
+
+methodology:
+  input: "Binance Global SpotのUSDT建て日足proxyをETHUSDT・SOLUSDT・XRPUSDTについて取得する。"
+  evaluation_window: "全銘柄共通で2022-01-01〜2025-12-31 UTC。2020-01-01から指標warm-upを行う。"
+  strategy_freeze: "EXP-2026-0012のentry_window=55、baseline_exit_window=20、regime_window=200、atr_window=20、SMA、atr_multiplier=3、close判定、次日始値約定、ラチェット、再entry規則を変更しない。"
+  baseline: "SMA200付きDonchian 55日高値entry＋Donchian 20日安値exit。"
+  overlay: "同一entry＋実保有後の最高値から20日単純平均ATRの3倍を引いた切り下げないstop。close < stopの次日始値で退出する。"
+  annual_evaluation: "各銘柄・各年を初期資金1,000 USDT相当へリセットし、年末未決済は終値mark-to-marketする。銘柄間で資金を共有せず、合算は補助指標とする。"
+  evaluation_type: "pre-registered cross-asset retrospective generalization diagnostic。2022〜2025年は既存BTC実験とは別銘柄だが、同期間の市場環境を共有するため独立OOSとは呼ばない。"
+  no_trade_conditions:
+    - "欠損・重複・UTC日次gapがある銘柄は評価を拒否する。"
+    - "SMA200、Donchian、ATRのwarm-upが不足する期間のentryは許可しない。"
+    - "合成行は使用せず、補間が必要な銘柄は評価を拒否する。"
+  maximum_variants: 1
+
+data:
+  source: "Binance Public Data REST API / Binance Global Spot proxy"
+  research_venue: "Binance Global Spot"
+  target_venue: "Binance Japan Spot"
+  symbols:
+    - "ETHUSDT"
+    - "SOLUSDT"
+    - "XRPUSDT"
+  timeframe: "1d UTC"
+  known_limitations:
+    - "USDT proxyはBinance JapanのJPY価格basis、spread、流動性、約定制約の正本ではない。"
+    - "銘柄選定時点の取引可否と履歴の存在を固定するが、将来の上場状態を保証しない。"
+    - "共通期間は4年であり、単一銘柄・少数取引の偶然を完全には除けない。"
+
+evaluation:
+  primary_metric: "銘柄別のATR max DD改善年数、改善幅中央値、最終資産維持率。"
+  secondary_metrics:
+    - "銘柄・年別のCAGR、最大DD、最終資産、buy-and-holdとの差"
+    - "ATR exit発火、closed round trips、勝率、平均損失、期待値、総手数料"
+    - "base・adverse・stress費用ケースの方向性"
+    - "3銘柄を同額独立運用した補助的な合算最終資産"
+  per_symbol_candidate_criteria:
+    - "4年中2年以上でATR max DDがbaselineより改善する。"
+    - "4年のDD改善幅中央値が正である。"
+    - "4年合算最終資産がbaselineの90%以上である。"
+    - "ATR exitが4年合計3件以上ある。"
+  generalized_candidate_rule: "3銘柄中2銘柄以上がper_symbol_candidate_criteriaを満たす。"
+  rejection_criteria:
+    - "未来参照、同日stop約定、stop低下、会計不整合、またはデータ品質不備。"
+    - "3銘柄中2銘柄以上でDD改善幅中央値が非正である。"
+    - "3銘柄中2銘柄以上で合算最終資産維持率が80%未満である。"
+    - "3銘柄中2銘柄以上でATR exitが3件未満である。"
+  inconclusive_conditions:
+    - "candidateとrejectionのどちらも満たさない。"
+    - "取引数が少なく、銘柄別比較の証拠が不足する。"
+  promotion_rule: "候補でも過去proxyの一般化診断に留め、paper対象銘柄の追加は銘柄別の人間承認とJPYデータ校正を別途行う。"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  fee_sensitivity_cases:
+    - "片道0.001 (base)"
+    - "片道0.0015 (adverse)"
+    - "片道0.002 (stress)"
+  spread_assumption: "往復0.0005で固定する。"
+  slippage_assumption: "片道0.0005で固定する。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0012"
+  preregistration_commit: "このファイルを追加するコミットで銘柄、期間、固定パラメータ、候補・棄却条件を結果確認前に固定する。"
