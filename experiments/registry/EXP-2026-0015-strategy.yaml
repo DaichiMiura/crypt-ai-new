@@ -33,6 +33,10 @@ implementation_steps:
     name: "take_profit"
     status: "implemented"
     scope: "上昇値幅の0.382と0.618リトレースメントで、ショート建玉を50%・残量に分けて利確する。"
+  - number: 8
+    name: "stop_loss"
+    status: "implemented"
+    scope: "1.618到達後の最高値から1 ATR押し戻したら通常損切りし、2.618または清算価格到達を即時処理する。"
 
 basic_policy:
   timeframe_minutes: 120
@@ -146,6 +150,24 @@ take_profit_policy:
   automatic_reentry: false
   net_profit_check: "手数料・Fundingを含む約定会計の段階で追加する。"
 
+stop_loss_policy:
+  extension_formula: "rebound_low + (rally_peak - rally_start) * ratio"
+  normal_stop:
+    arm_ratio: "1.618"
+    peak_tracking: "1.618到達後のmark price高値を更新する。"
+    trigger: "監視開始より後の確定足が最高値から1 ATR以上下落して終了。"
+    execution: "次の2時間足で残建玉をreduce-only決済する。"
+    same_bar_trigger: false
+  emergency_stop:
+    ratio: "2.618"
+    price_source: "mark price high"
+    execution: "押し戻しを待たず、残建玉をreduce-only緊急決済する。"
+  liquidation:
+    price_source: "mark price high"
+    priority: "同一バーで清算価格へ到達した場合は戦略損切りより先に清算として記録する。"
+  time_exit: "約定後168本の既存ルールを併用する。"
+  sma_invalidation: "保有建玉は即時決済せず、未約定の新規指値だけを取り消す。"
+
 execution_status:
   strategy_runner_exists: false
   backtest_started: false
@@ -154,7 +176,7 @@ execution_status:
   live_started: false
 
 deferred_decisions:
-  - "損切り、清算余裕の具体値"
+  - "手数料、Funding、スプレッド、スリッページ、部分約定、清算を含む約定会計"
 
 provenance:
   source_document: "VOID式ショート記事の購入済みPDF"

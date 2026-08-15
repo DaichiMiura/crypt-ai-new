@@ -12,9 +12,13 @@ from crypt_ai.void_short import (
     VOID_SHORT_TAKE_PROFIT_RATIOS,
     VOID_SHORT_SYMBOLS,
     VoidShortCorePolicy,
+    VoidShortAdverseState,
     VoidShortSetupState,
+    VoidShortStopDecision,
+    build_void_short_stop_plan,
     build_void_short_fibonacci_levels,
     build_void_short_take_profits,
+    evaluate_void_short_stop_bar,
     partition_touched_void_short_levels,
     pending_void_short_limits_must_cancel,
     prepare_void_short_entry_setup,
@@ -527,3 +531,104 @@ def test_take_profits_reject_quantity_outside_qty_step():
             tick_size=Decimal("0.1"),
             qty_step=Decimal("0.001"),
         )
+
+
+def test_stop_plan_uses_1618_and_2618_extensions():
+    """通常監視と緊急停止を1.618・2.618で作ることをテストする。"""
+    plan = build_void_short_stop_plan(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        tick_size=Decimal("0.1"),
+    )
+
+    assert plan.arm_price == Decimal("142.4")
+    assert plan.emergency_price == Decimal("162.4")
+
+
+def test_stop_arms_without_same_bar_normal_exit():
+    """1.618到達バーでは押し戻しても通常損切りしないことをテストする。"""
+    plan = build_void_short_stop_plan(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        tick_size=Decimal("0.1"),
+    )
+
+    result = evaluate_void_short_stop_bar(
+        plan=plan,
+        state=VoidShortAdverseState(),
+        mark_high=Decimal("145"),
+        mark_close=Decimal("140"),
+        atr=Decimal("2"),
+        liquidation_price=Decimal("190"),
+    )
+
+    assert result.decision == VoidShortStopDecision.HOLD
+    assert result.state.armed is True
+    assert result.state.peak_mark_price == Decimal("145")
+
+
+def test_stop_exits_after_one_atr_pullback_on_later_bar():
+    """監視開始後の最高値から1 ATR下落して通常損切りすることをテストする。"""
+    plan = build_void_short_stop_plan(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        tick_size=Decimal("0.1"),
+    )
+    state = VoidShortAdverseState(armed=True, peak_mark_price=Decimal("145"))
+
+    result = evaluate_void_short_stop_bar(
+        plan=plan,
+        state=state,
+        mark_high=Decimal("147"),
+        mark_close=Decimal("144"),
+        atr=Decimal("2"),
+        liquidation_price=Decimal("190"),
+    )
+
+    assert result.decision == VoidShortStopDecision.NORMAL_STOP_NEXT_BAR
+    assert result.state.peak_mark_price == Decimal("147")
+
+
+def test_stop_emergency_exit_does_not_wait_for_pullback():
+    """2.618到達時は押し戻しを待たず緊急停止することをテストする。"""
+    plan = build_void_short_stop_plan(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        tick_size=Decimal("0.1"),
+    )
+
+    result = evaluate_void_short_stop_bar(
+        plan=plan,
+        state=VoidShortAdverseState(),
+        mark_high=Decimal("163"),
+        mark_close=Decimal("162"),
+        atr=Decimal("2"),
+        liquidation_price=Decimal("190"),
+    )
+
+    assert result.decision == VoidShortStopDecision.EMERGENCY_STOP
+
+
+def test_stop_records_liquidation_before_strategy_exit():
+    """同一バーで清算価格へ達した場合は清算を優先することをテストする。"""
+    plan = build_void_short_stop_plan(
+        rally_start_price=Decimal("100"),
+        rally_peak_price=Decimal("120"),
+        rebound_low_price=Decimal("110"),
+        tick_size=Decimal("0.1"),
+    )
+
+    result = evaluate_void_short_stop_bar(
+        plan=plan,
+        state=VoidShortAdverseState(armed=True, peak_mark_price=Decimal("150")),
+        mark_high=Decimal("170"),
+        mark_close=Decimal("160"),
+        atr=Decimal("2"),
+        liquidation_price=Decimal("165"),
+    )
+
+    assert result.decision == VoidShortStopDecision.LIQUIDATION

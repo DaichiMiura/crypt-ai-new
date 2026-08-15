@@ -39,7 +39,7 @@ methodology:
     - "補間した価格行は作らず、欠損は拒否する。"
   maximum_variants: 1
   strategy_specification: "experiments/registry/EXP-2026-0015-strategy.yaml"
-  implementation_status: "基本方針、固定6銘柄、SMA判定、ATR準備、フィボナッチ指値、固定1ロット、2段階利確まで実装済み。実験runner、約定会計、損切りは未実装・未実行。"
+  implementation_status: "基本方針から損切りまでの戦略ルールを実装済み。実験runnerと約定・費用・Funding・清算会計は未実装・未実行。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -105,3 +105,6 @@ provenance:
     - amended_at_utc: "2026-08-15T00:00:00Z"
       reason: "元記事の利確候補を、数量丸めを含む決定論的な2段階決済へ形式化するため。"
       change: "0.382で50%、0.618で丸め残量を含む残りを利確し、ショート平均建値以上の候補を除外する。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "元記事の押し戻し損切りを残しながら、無制限の逆行と清算を明示的に扱うため。"
+      change: "1.618到達後の最高mark priceから1 ATR下落で次バー通常損切り、2.618で緊急停止、清算価格到達を最優先に固定した。"

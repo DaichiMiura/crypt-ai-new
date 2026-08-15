@@ -27,6 +27,8 @@ VOID_SHORT_SIZING_REFERENCE_LEVERAGE = Decimal("20")
 VOID_SHORT_LOT_DIVISOR = Decimal("100")
 VOID_SHORT_EXECUTION_LEVERAGE = Decimal("1")
 VOID_SHORT_TAKE_PROFIT_RATIOS = (Decimal("0.382"), Decimal("0.618"))
+VOID_SHORT_STOP_ARM_RATIO = Decimal("1.618")
+VOID_SHORT_EMERGENCY_STOP_RATIO = Decimal("2.618")
 
 
 class VoidShortSetupState(StrEnum):
@@ -88,6 +90,71 @@ class VoidShortTakeProfit:
     raw_price: Decimal
     limit_price: Decimal
     quantity: Decimal
+
+
+@dataclass(frozen=True)
+class VoidShortStopPlan:
+    """ショート建玉の通常・緊急損切り価格。
+
+    Attributes:
+        arm_price: 押し戻し監視を開始する1.618エクステンション価格。
+        emergency_price: 即時緊急決済する2.618エクステンション価格。
+    """
+
+    arm_price: Decimal
+    emergency_price: Decimal
+
+
+@dataclass(frozen=True)
+class VoidShortAdverseState:
+    """1.618到達後の不利方向最高値を保持する状態。
+
+    Attributes:
+        armed: 通常損切りの押し戻し監視中か。
+        peak_mark_price: 監視開始後のmark price最高値。
+    """
+
+    armed: bool = False
+    peak_mark_price: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        """監視状態と最高値の整合性を検査する。
+
+        Raises:
+            ValueError: 未監視なのに最高値がある、または監視中の最高値が
+                非正・非有限・未設定の場合。
+        """
+
+        if not self.armed and self.peak_mark_price is not None:
+            raise ValueError("unarmed state must not have peak_mark_price")
+        if self.armed and (
+            self.peak_mark_price is None
+            or not self.peak_mark_price.is_finite()
+            or self.peak_mark_price <= 0
+        ):
+            raise ValueError("armed state requires positive finite peak_mark_price")
+
+
+class VoidShortStopDecision(StrEnum):
+    """損切り評価が要求する決済種別。"""
+
+    HOLD = "HOLD"
+    NORMAL_STOP_NEXT_BAR = "NORMAL_STOP_NEXT_BAR"
+    EMERGENCY_STOP = "EMERGENCY_STOP"
+    LIQUIDATION = "LIQUIDATION"
+
+
+@dataclass(frozen=True)
+class VoidShortStopEvaluation:
+    """1本のmark price足に対する損切り評価結果。
+
+    Attributes:
+        state: 次のバーへ引き継ぐ不利方向監視状態。
+        decision: このバーで確定した決済要求。
+    """
+
+    state: VoidShortAdverseState
+    decision: VoidShortStopDecision
 
 
 @dataclass(frozen=True)
@@ -717,4 +784,149 @@ def build_void_short_take_profits(
         for (ratio, raw_price, limit_price), quantity in zip(
             valid_prices, quantities, strict=True
         )
+    )
+
+
+def build_void_short_stop_plan(
+    *,
+    rally_start_price: Decimal,
+    rally_peak_price: Decimal,
+    rebound_low_price: Decimal,
+    tick_size: Decimal,
+) -> VoidShortStopPlan:
+    """1.618と2.618エクステンションの損切り価格を作る。
+
+    Args:
+        rally_start_price: 上昇開始地点の下ヒゲ価格。
+        rally_peak_price: 上昇後の高値の上ヒゲ価格。
+        rebound_low_price: 最初の下落後のリバウンド起点価格。
+        tick_size: ZOOMEX銘柄仕様の価格刻み。
+
+    Returns:
+        tick sizeへ切り上げた通常監視開始価格と緊急停止価格。
+
+    Raises:
+        ValueError: 入力が非正・非有限、または3アンカーの順序が不正な場合。
+    """
+
+    values = {
+        "rally_start_price": rally_start_price,
+        "rally_peak_price": rally_peak_price,
+        "rebound_low_price": rebound_low_price,
+        "tick_size": tick_size,
+    }
+    for name, value in values.items():
+        if not value.is_finite() or value <= 0:
+            raise ValueError(f"{name} must be positive and finite")
+    if not rally_start_price < rebound_low_price < rally_peak_price:
+        raise ValueError(
+            "anchors must satisfy rally_start < rebound_low < rally_peak"
+        )
+
+    price_range = rally_peak_price - rally_start_price
+
+    def extension_price(ratio: Decimal) -> Decimal:
+        """指定比率の価格をtick sizeへ切り上げる。
+
+        Args:
+            ratio: フィボナッチ・エクステンション比率。
+
+        Returns:
+            有効な価格刻みに切り上げた価格。
+        """
+
+        raw_price = rebound_low_price + price_range * ratio
+        ticks = (raw_price / tick_size).to_integral_value(rounding=ROUND_CEILING)
+        return ticks * tick_size
+
+    return VoidShortStopPlan(
+        arm_price=extension_price(VOID_SHORT_STOP_ARM_RATIO),
+        emergency_price=extension_price(VOID_SHORT_EMERGENCY_STOP_RATIO),
+    )
+
+
+def evaluate_void_short_stop_bar(
+    *,
+    plan: VoidShortStopPlan,
+    state: VoidShortAdverseState,
+    mark_high: Decimal,
+    mark_close: Decimal,
+    atr: Decimal,
+    liquidation_price: Decimal,
+) -> VoidShortStopEvaluation:
+    """確定したmark price足で通常・緊急損切りを評価する。
+
+    清算価格到達を最優先し、次に2.618緊急停止を判定する。1.618へ初めて
+    到達したバーでは通常損切りを行わず、次バー以降に最高値から1 ATR以上
+    下落して終えた場合だけ、次バーのreduce-only決済を要求する。
+
+    Args:
+        plan: 1.618と2.618の損切り価格。
+        state: 前バーから引き継いだ監視状態。
+        mark_high: 現在の確定2時間足mark price高値。
+        mark_close: 現在の確定2時間足mark price終値。
+        atr: trade価格から計算した現在のATR14。
+        liquidation_price: 現在のショート建玉清算価格。
+
+    Returns:
+        次バーへ引き継ぐ状態と決済要求。
+
+    Raises:
+        ValueError: 価格・ATRが非正・非有限、mark終値が高値を上回る、または
+            損切り計画の価格順序が不正な場合。
+    """
+
+    values = {
+        "arm_price": plan.arm_price,
+        "emergency_price": plan.emergency_price,
+        "mark_high": mark_high,
+        "mark_close": mark_close,
+        "atr": atr,
+        "liquidation_price": liquidation_price,
+    }
+    for name, value in values.items():
+        if not value.is_finite() or value <= 0:
+            raise ValueError(f"{name} must be positive and finite")
+    if plan.emergency_price <= plan.arm_price:
+        raise ValueError("emergency_price must be above arm_price")
+    if mark_close > mark_high:
+        raise ValueError("mark_close must not exceed mark_high")
+
+    if mark_high >= liquidation_price:
+        return VoidShortStopEvaluation(
+            state=state,
+            decision=VoidShortStopDecision.LIQUIDATION,
+        )
+    if mark_high >= plan.emergency_price:
+        return VoidShortStopEvaluation(
+            state=state,
+            decision=VoidShortStopDecision.EMERGENCY_STOP,
+        )
+    if not state.armed:
+        if mark_high >= plan.arm_price:
+            return VoidShortStopEvaluation(
+                state=VoidShortAdverseState(
+                    armed=True,
+                    peak_mark_price=mark_high,
+                ),
+                decision=VoidShortStopDecision.HOLD,
+            )
+        return VoidShortStopEvaluation(
+            state=state,
+            decision=VoidShortStopDecision.HOLD,
+        )
+
+    peak_mark_price = max(state.peak_mark_price, mark_high)
+    next_state = VoidShortAdverseState(
+        armed=True,
+        peak_mark_price=peak_mark_price,
+    )
+    if mark_close <= peak_mark_price - atr:
+        return VoidShortStopEvaluation(
+            state=next_state,
+            decision=VoidShortStopDecision.NORMAL_STOP_NEXT_BAR,
+        )
+    return VoidShortStopEvaluation(
+        state=next_state,
+        decision=VoidShortStopDecision.HOLD,
     )
