@@ -46,7 +46,7 @@ methodology:
   execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
 
 evaluation:
-  status: "PREREGISTERED"
+  status: "COMPLETED_DIAGNOSTIC"
   primary_metric: "balanced_short_compoundedとbalanced_short_fixedの費用・Funding控除後最終資産差。"
   secondary_metrics:
     - "6銘柄の中央値・合算の最終資産差、最大DD差、年率換算リターン"
@@ -56,6 +56,7 @@ evaluation:
   benchmark_rule: "インデックス基準未達でも複利と固定ロットの差分は報告するが、基準未達を収益候補合格とは扱わない。"
   promotion_rule: "共通データ上の診断だけではpaper・shadow・liveへ昇格しない。"
   result_artifact: "artifacts/EXP-2026-0024/summary.json"
+  result_summary: "balanced_short_compoundedはbalanced_short_fixedに対して6銘柄中3銘柄で最終資産が改善したが、中央値は-0.5824 USDT、合算は+1.3226 USDTに留まった。最大DDは1銘柄だけ改善し5銘柄で悪化し、中央値の最大DD差は-0.001159（約0.116ポイント悪化）だった。ショートスリーブの最大想定元本差は中央値+33.0172 USDT、清算件数差は0だった。long_onlyに対しては複利variantも6銘柄すべてで最終資産が改善したが、最大DDは5銘柄のみ改善し、6銘柄ともインデックス基準1,464.10 USDTには届かなかった。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -71,8 +72,8 @@ data:
 
 execution_status:
   preregistered: true
-  runner_exists: false
-  backtest_started: false
+  runner_exists: true
+  backtest_started: true
   backtest_result_artifact: "artifacts/EXP-2026-0024/summary.json"
   paper_started: false
   shadow_started: false
