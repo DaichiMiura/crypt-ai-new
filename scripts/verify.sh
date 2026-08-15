@@ -45,6 +45,7 @@ required_files=(
   experiments/registry/EXP-2026-0009-hypothesis.yaml
   experiments/registry/EXP-2026-0009-validation.md
   experiments/registry/EXP-2026-0010-hypothesis.yaml
+  experiments/registry/EXP-2026-0010-validation.md
   scripts/download_binance_global_data.py
   scripts/build_exp_2026_0001_dataset.py
   scripts/build_exp_2026_0002_dataset.py
@@ -59,6 +60,7 @@ required_files=(
   scripts/run_exp_2026_0005.py
   scripts/run_exp_2026_0006.py
   scripts/run_exp_2026_0007.py
+  scripts/run_exp_2026_0010.py
   src/crypt_ai/research.py
   templates/hypothesis.yaml
   templates/data-manifest.yaml

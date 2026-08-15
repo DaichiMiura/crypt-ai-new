@@ -11,10 +11,12 @@ from crypt_ai.research import (
     interpolate_missing_hourly_data,
     prepare_bollinger_mean_reversion_signals,
     prepare_donchian_bollinger_exit_signals,
+    prepare_donchian_long_short_regime_signals,
     prepare_donchian_regime_filter_signals,
     prepare_donchian_signals,
     prepare_signals,
     run_backtest,
+    run_long_short_backtest,
 )
 
 
@@ -206,6 +208,59 @@ def test_prepare_donchian_regime_filter_allows_breakout_above_long_sma():
     assert bool(result.loc[200, "entry_signal"]) is True
     assert result.loc[200, "desired_position"] == 0
     assert result.loc[200, "signal_position"] == 1
+
+
+def test_prepare_long_short_signals_detects_short_breakout_below_long_sma():
+    """長期SMAを下回るDonchian安値割れをshort entryへ遅延することをテストする。"""
+    timestamps = pd.date_range(
+        "2026-01-01T00:00:00Z", periods=201, freq="D", tz="UTC"
+    )
+    close = [300] * 145 + [100] * 55 + [90]
+    frame = pd.DataFrame(
+        {
+            "event_time": timestamps,
+            "open": close,
+            "high": [value + 1 for value in close],
+            "low": [value - 1 for value in close],
+            "close": close,
+        }
+    )
+
+    result = prepare_donchian_long_short_regime_signals(
+        frame, entry_window=55, exit_window=20, regime_window=200
+    )
+
+    assert bool(result.loc[200, "short_entry_signal"]) is True
+    assert result.loc[200, "short_signal_position"] == -1
+    assert result.loc[200, "signal_position"] == -1
+    assert result.loc[200, "desired_position"] == 0
+
+
+def test_run_long_short_backtest_accounts_for_short_cover():
+    """short売却と買い戻しの損益および手数料を計上することをテストする。"""
+    frame = pd.DataFrame(
+        {
+            "event_time": pd.date_range(
+                "2026-01-01", periods=3, freq="D", tz="UTC"
+            ),
+            "open": [100, 80, 80],
+            "close": [100, 80, 80],
+            "desired_position": [-1, -1, 0],
+        }
+    )
+
+    equity, trades = run_long_short_backtest(
+        frame,
+        CostModel(
+            fee_rate=Decimal("0.001"),
+            round_trip_spread=Decimal("0"),
+            slippage_per_fill=Decimal("0"),
+        ),
+        initial_cash=Decimal("1000"),
+    )
+
+    assert list(trades["side"]) == ["SELL_SHORT", "BUY_TO_COVER"]
+    assert float(equity.iloc[-1]["equity"]) > 1000
 
 
 def test_prepare_bollinger_signals_delays_entry_and_exit_to_next_day():

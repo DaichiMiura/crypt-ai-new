@@ -538,6 +538,138 @@ def prepare_donchian_regime_filter_signals(
     return result
 
 
+def prepare_donchian_long_short_regime_signals(
+    frame: pd.DataFrame,
+    entry_window: int = 55,
+    exit_window: int = 20,
+    regime_window: int = 200,
+) -> pd.DataFrame:
+    """Donchianのlong・short鏡像シグナルと単一ポジション状態を作る。
+
+    longは過去`entry_window`本の高値突破かつcloseがSMA200を上回る場合に建て、
+    過去`exit_window`本の安値割れで決済する。shortは過去`entry_window`本の安値
+    割れかつcloseがSMA200を下回る場合に建て、過去`exit_window`本の高値突破で
+    買い戻す。long・shortの単独状態と、同時に一つだけ保有するcombined状態を
+    別々に出力する。確定足の状態は次日始値へ遅延させる。
+
+    Args:
+        frame: `event_time`、`open`、`high`、`low`、`close`列を含む日足データ。
+        entry_window: long/shortのentryに使う過去バー数。
+        exit_window: long/shortのexitに使う過去バー数。
+        regime_window: long/shortのSMAレジーム判定に使う日足本数。
+
+    Returns:
+        long・short・combinedの状態、チャネル、レジーム判定、次日用positionを
+        追加したデータ。shortのpositionは`-1`で表す。
+
+    Raises:
+        ValueError: 必須列が不足する、またはwindowが正でない場合。
+    """
+
+    required = {"event_time", "open", "high", "low", "close"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"missing long/short Donchian columns: {sorted(missing)}")
+    if entry_window <= 0 or exit_window <= 0 or regime_window <= 0:
+        raise ValueError("windows must be positive")
+    if entry_window <= exit_window:
+        raise ValueError("entry_window must be greater than exit_window")
+
+    result = frame.sort_values("event_time").reset_index(drop=True).copy()
+    result["long_entry_level"] = result["high"].rolling(entry_window).max().shift(1)
+    result["long_exit_level"] = result["low"].rolling(exit_window).min().shift(1)
+    result["short_entry_level"] = result["low"].rolling(entry_window).min().shift(1)
+    result["short_exit_level"] = result["high"].rolling(exit_window).max().shift(1)
+    result["regime_sma"] = result["close"].rolling(regime_window).mean()
+    result["long_regime_ok"] = result["close"] > result["regime_sma"]
+    result["short_regime_ok"] = result["close"] < result["regime_sma"]
+
+    long_positions: list[int] = []
+    short_positions: list[int] = []
+    combined_positions: list[int] = []
+    long_entries: list[bool] = []
+    long_exits: list[bool] = []
+    short_entries: list[bool] = []
+    short_exits: list[bool] = []
+    combined_conflicts: list[bool] = []
+    long_position = 0
+    short_position = 0
+    combined_position = 0
+    for row in result.itertuples(index=False):
+        long_entry = (
+            long_position == 0
+            and pd.notna(row.long_entry_level)
+            and row.close > row.long_entry_level
+            and bool(row.long_regime_ok)
+        )
+        long_exit = (
+            long_position == 1
+            and pd.notna(row.long_exit_level)
+            and row.close < row.long_exit_level
+        )
+        short_entry = (
+            short_position == 0
+            and pd.notna(row.short_entry_level)
+            and row.close < row.short_entry_level
+            and bool(row.short_regime_ok)
+        )
+        short_exit = (
+            short_position == -1
+            and pd.notna(row.short_exit_level)
+            and row.close > row.short_exit_level
+        )
+        if long_entry:
+            long_position = 1
+        elif long_exit:
+            long_position = 0
+        if short_entry:
+            short_position = -1
+        elif short_exit:
+            short_position = 0
+
+        conflict = False
+        if combined_position == 1:
+            if long_exit:
+                combined_position = 0
+        elif combined_position == -1:
+            if short_exit:
+                combined_position = 0
+        elif long_entry and short_entry:
+            conflict = True
+        elif long_entry:
+            combined_position = 1
+        elif short_entry:
+            combined_position = -1
+
+        long_positions.append(long_position)
+        short_positions.append(short_position)
+        combined_positions.append(combined_position)
+        long_entries.append(long_entry)
+        long_exits.append(long_exit)
+        short_entries.append(short_entry)
+        short_exits.append(short_exit)
+        combined_conflicts.append(conflict)
+
+    result["long_signal_position"] = long_positions
+    result["short_signal_position"] = short_positions
+    result["signal_position"] = combined_positions
+    result["long_entry_signal"] = long_entries
+    result["long_exit_signal"] = long_exits
+    result["short_entry_signal"] = short_entries
+    result["short_exit_signal"] = short_exits
+    result["combined_conflict"] = combined_conflicts
+    result["desired_long_position"] = (
+        result["long_signal_position"].shift(1, fill_value=0).astype(int)
+    )
+    result["desired_short_position"] = (
+        result["short_signal_position"].shift(1, fill_value=0).astype(int)
+    )
+    result["desired_position"] = (
+        result["signal_position"].shift(1, fill_value=0).astype(int)
+    )
+    return result
+
+
 def prepare_bollinger_mean_reversion_signals(
     frame: pd.DataFrame,
     window: int = 20,
@@ -791,6 +923,165 @@ def run_backtest(
                 INTERPOLATED_COLUMN: bool(
                     getattr(row, INTERPOLATED_COLUMN, False)
                 ),
+            }
+        )
+    return pd.DataFrame(equity_rows), pd.DataFrame(trade_rows)
+
+
+def run_long_short_backtest(
+    frame: pd.DataFrame,
+    cost_model: CostModel,
+    initial_cash: Decimal = Decimal("1000"),
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """long・short・flatの次日始値ポジションを決定論的に会計する。
+
+    shortは初期現金と同額のnotionalを借りて売る合成モデルとし、売却代金を
+    現金へ加え、mark-to-market時にshort数量を負債として差し引く。借入金利、
+    funding、mark/index価格差、maintenance margin、liquidationは扱わないため、
+    margin/futuresの約定証拠ではなく、価格方向と会計の研究用診断に限る。
+
+    Args:
+        frame: `desired_position`が`-1`（short）、`0`（flat）、`1`（long）のデータ。
+        cost_model: 各entry、exit、coverに適用するfee、spread、slippageの仮定。
+        initial_cash: 初期のpaper担保相当資金。
+
+    Returns:
+        `(equity_curve, trades)`の組。short entryは`SELL_SHORT`、買い戻しは
+        `BUY_TO_COVER`として記録する。
+
+    Raises:
+        ValueError: 必須列不足、未知のposition、負の現金、または不正な価格の場合。
+    """
+
+    required = {"event_time", "open", "close", "desired_position"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"missing long/short backtest columns: {sorted(missing)}")
+    if initial_cash <= 0:
+        raise ValueError("initial_cash must be positive")
+    cash = initial_cash
+    long_quantity = Decimal("0")
+    short_quantity = Decimal("0")
+    equity_rows: list[dict[str, object]] = []
+    trade_rows: list[dict[str, object]] = []
+
+    def close_long(row: object, raw_open: Decimal) -> None:
+        """long数量を売却して現金化する。
+
+        Args:
+            row: 約定時刻と補間日フラグを持つ入力行。
+            raw_open: 約定前の始値。
+        """
+
+        nonlocal cash, long_quantity
+        execution_price = cost_model.sell_price(raw_open)
+        sold_quantity = long_quantity
+        gross = sold_quantity * execution_price
+        fee = gross * cost_model.fee_rate
+        cash += gross - fee
+        long_quantity = Decimal("0")
+        trade_rows.append(
+            {
+                "event_time": row.event_time,
+                "side": "SELL",
+                "raw_price": str(raw_open),
+                "execution_price": str(execution_price),
+                "quantity": str(sold_quantity),
+                "fee": str(fee),
+                INTERPOLATED_COLUMN: bool(getattr(row, INTERPOLATED_COLUMN, False)),
+            }
+        )
+
+    def close_short(row: object, raw_open: Decimal) -> None:
+        """short数量を買い戻して負債を解消する。
+
+        Args:
+            row: 約定時刻と補間日フラグを持つ入力行。
+            raw_open: 約定前の始値。
+        """
+
+        nonlocal cash, short_quantity
+        execution_price = cost_model.buy_price(raw_open)
+        covered_quantity = short_quantity
+        gross = covered_quantity * execution_price
+        fee = gross * cost_model.fee_rate
+        cash -= gross + fee
+        short_quantity = Decimal("0")
+        trade_rows.append(
+            {
+                "event_time": row.event_time,
+                "side": "BUY_TO_COVER",
+                "raw_price": str(raw_open),
+                "execution_price": str(execution_price),
+                "quantity": str(covered_quantity),
+                "fee": str(fee),
+                INTERPOLATED_COLUMN: bool(getattr(row, INTERPOLATED_COLUMN, False)),
+            }
+        )
+
+    for row in frame.itertuples(index=False):
+        desired = int(row.desired_position)
+        if desired not in (-1, 0, 1):
+            raise ValueError(f"unknown desired_position: {desired}")
+        raw_open = _decimal(row.open)
+        if raw_open <= 0:
+            raise ValueError("open price must be positive")
+
+        if desired != 1 and long_quantity > 0:
+            close_long(row, raw_open)
+        if desired != -1 and short_quantity > 0:
+            close_short(row, raw_open)
+        if desired == 1 and long_quantity == 0 and short_quantity == 0:
+            execution_price = cost_model.buy_price(raw_open)
+            fee = cash * cost_model.fee_rate
+            long_quantity = (cash - fee) / execution_price
+            cash = Decimal("0")
+            trade_rows.append(
+                {
+                    "event_time": row.event_time,
+                    "side": "BUY",
+                    "raw_price": str(raw_open),
+                    "execution_price": str(execution_price),
+                    "quantity": str(long_quantity),
+                    "fee": str(fee),
+                    INTERPOLATED_COLUMN: bool(
+                        getattr(row, INTERPOLATED_COLUMN, False)
+                    ),
+                }
+            )
+        elif desired == -1 and long_quantity == 0 and short_quantity == 0:
+            execution_price = cost_model.sell_price(raw_open)
+            short_quantity = cash / execution_price
+            gross = short_quantity * execution_price
+            fee = gross * cost_model.fee_rate
+            cash += gross - fee
+            trade_rows.append(
+                {
+                    "event_time": row.event_time,
+                    "side": "SELL_SHORT",
+                    "raw_price": str(raw_open),
+                    "execution_price": str(execution_price),
+                    "quantity": str(short_quantity),
+                    "fee": str(fee),
+                    INTERPOLATED_COLUMN: bool(
+                        getattr(row, INTERPOLATED_COLUMN, False)
+                    ),
+                }
+            )
+
+        close = _decimal(row.close)
+        equity = cash + long_quantity * close - short_quantity * close
+        if equity < 0:
+            raise ValueError("synthetic long/short equity became negative")
+        equity_rows.append(
+            {
+                "event_time": row.event_time,
+                "cash": str(cash),
+                "long_quantity": str(long_quantity),
+                "short_quantity": str(short_quantity),
+                "mark_price": str(close),
+                "equity": str(equity),
+                INTERPOLATED_COLUMN: bool(getattr(row, INTERPOLATED_COLUMN, False)),
             }
         )
     return pd.DataFrame(equity_rows), pd.DataFrame(trade_rows)
