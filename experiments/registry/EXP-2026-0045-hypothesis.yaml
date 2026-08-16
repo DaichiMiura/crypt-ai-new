@@ -1,0 +1,90 @@
+schema_version: 1
+experiment_id: "EXP-2026-0045"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "preregistered"
+
+hypothesis:
+  statement: "EXP-2026-0042の売買シグナルを固定し、初回100 USDTから下落時に100 USDTずつ最大4回買い増すと、反発時の平均取得価格を下げ、固定200 USDTより最終資産またはreturn/DD比を改善できる可能性がある。"
+  economic_rationale: "相対モメンタム上位の銘柄は短期的な押し目の後に順位優位へ回帰する可能性がある。一括投入せず下落時だけ段階投入する一方、4位退出と最大5ロットで弱い銘柄への無制限な資金集中を防ぐ。"
+  parent_experiment_ids:
+    - "EXP-2026-0042"
+    - "EXP-2026-0044"
+
+methodology:
+  input: "EXP-2026-0015のZOOMEX linear perpetual 2時間足とFunding履歴。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  frozen_strategy: "EXP-2026-0042の4銘柄、30日相対モメンタム、7日rebalance、正の中央値regime、上位2、保有中4位転落の次足退出、base resetまで再entry禁止を変更しない。"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+  arms:
+    fixed_200:
+      sizing: "EXP-2026-0042と同じ初回200 USDT固定。保有中の買い増しなし。"
+    fibonacci_fixed_percent:
+      sizing: "初回100 USDT。初回約定価格から2.36%、3.82%、6.18%、10.00%下落を各バーのlowで初めて確認した次足openに100 USDTを1ロット追加する。"
+      max_lots_per_symbol: 5
+    fibonacci_atr:
+      sizing: "初回100 USDT。初回entry判断時点までの20日ATR（2時間足240本）を固定し、初回約定価格から1.000、1.618、2.618、4.236 ATR下落を各バーのlowで初めて確認した次足openに100 USDTを1ロット追加する。"
+      max_lots_per_symbol: 5
+  execution_order:
+    - "Funding、基礎シグナルによる全量退出、前バーで発火した買い増し、初回entryの順に同一時刻openで処理する。"
+    - "同じバーで複数段階へ到達しても、次足では到達済み段階を1ロットずつまとめて追加する。ただし利用可能cashを超える分は拒否する。"
+    - "買い増し判定には確定済みバーのlowだけを使い、同じバーの情報で同じバーopenへ約定させない。"
+    - "基礎シグナルが0になった場合は未約定の買い増しを破棄し、全ロットを次足openで退出する。"
+    - "補間バーでは初回entryも買い増しtriggerも認めない。"
+  atr_definition: "true rangeの単純移動平均240本。entry実行足より前の確定足までで計算し、建玉中は固定する。"
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+    funding: "正のFundingはlongが支払い、負のFundingは受け取る。各買い増し後の全数量へ適用する。"
+  capital:
+    initial_equity: "1000"
+    lot_notional: "100"
+    max_concurrent_positions: 2
+    max_lots_per_symbol: 5
+    max_total_gross_notional: "1000"
+    short_enabled: false
+    compounding: false
+    leverage: false
+  no_parameter_sweep: true
+  execution_gate: "研究比較のみ。現在稼働中のEXP-2026-0042 paper/shadow設定は変更しない。"
+
+evaluation:
+  status: "PENDING"
+  primary_metrics:
+    - "費用・Funding控除後の最終equity"
+    - "最大ドローダウン"
+    - "return_rate / abs(max_drawdown)"
+  secondary_metrics:
+    - "年別損益、初回entry数、追加ロット数、買い増し後の損失退出数、最大gross/equity比、手数料、Funding、cash不足拒否数"
+    - "4年間・年率10%複利基準1464.10 USDTとの差"
+  decision_rule:
+    candidate: "固定200より最終equityが高く、最大DDが固定200の絶対値以下で、return/DD比も固定200以上なら研究候補とする。"
+    tie_breaker: "両フィボナッチarmが候補ならreturn/DD比が高い方を優先する。"
+  promotion_rule: "過去データ比較だけではpaper/shadow設定を変更しない。"
+  result_artifact: "artifacts/EXP-2026-0045/summary.json"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: false
+  backtest_started: false
+  backtest_completed: false
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  preregistration_commit: "結果確認前に3arm、買い増し段階、次足約定、最大5ロット、固定100 USDT、採否条件を固定する。"
