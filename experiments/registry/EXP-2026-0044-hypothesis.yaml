@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0044"
 created_at_utc: "2026-08-16T00:00:00Z"
 owner_role: "research"
-status: "registered"
+status: "completed"
 
 hypothesis:
   statement: "EXP-2026-0042の売買シグナルを固定し、entry時の現在equityに比例して1銘柄の資金枠を決めると、固定200 USDTより複利が働き、20%枠では同程度のリスクで最終資産を改善できる可能性がある。50%枠では最大2銘柄へ全資産を配分する提案の収益・ドローダウンを確認する。"
@@ -55,7 +55,7 @@ methodology:
   execution_gate: "研究比較のみ。現在稼働中のEXP-2026-0042 paper/shadow設定は変更しない。"
 
 evaluation:
-  status: "PENDING"
+  status: "KEEP_FIXED_200"
   primary_metrics:
     - "費用・Funding控除後の最終equity"
     - "最大ドローダウン"
@@ -68,6 +68,7 @@ evaluation:
     equity_50pct_per_slot: "20%枠より最終equityが高く、return/DD比も20%枠以上なら全額配分候補とする。"
   promotion_rule: "過去データ比較だけではpaper/shadow設定を変更しない。"
   result_artifact: "artifacts/EXP-2026-0044/summary.json"
+  result_summary: "Fundingを発生時刻open評価へ修正した固定200は最終1589.37 USDT・最大DD -27.01%。20%枠は1488.18 USDT・最大DD -18.45%でDDを改善したが最終資産が固定を下回り、18件のgross上限拒否があった。50%枠は1993.15 USDT・最大DD -41.72%、return/DD比2.38で、20%枠の2.65を下回った。両candidate条件が不成立のため現行paper/shadowは変更しない。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -80,9 +81,9 @@ data:
 
 execution_status:
   preregistered: true
-  runner_exists: false
-  backtest_started: false
-  backtest_completed: false
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
   paper_started: false
   shadow_started: false
   live_started: false

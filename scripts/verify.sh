@@ -86,10 +86,12 @@ required_files=(
   experiments/registry/EXP-2026-0041-hypothesis.yaml
   experiments/registry/EXP-2026-0042-hypothesis.yaml
   experiments/registry/EXP-2026-0043-hypothesis.yaml
+  experiments/registry/EXP-2026-0044-hypothesis.yaml
   experiments/validation/EXP-2026-0040-validation.md
   experiments/validation/EXP-2026-0041-validation.md
   experiments/validation/EXP-2026-0042-validation.md
   experiments/validation/EXP-2026-0043-validation.md
+  experiments/validation/EXP-2026-0044-validation.md
   experiments/validation/EXP-2026-0035-drawdown-diagnostic.md
   experiments/registry/EXP-2026-0030-hypothesis.yaml
   experiments/registry/EXP-2026-0030-validation.md
@@ -131,6 +133,7 @@ required_files=(
   scripts/run_exp_2026_0041.py
   scripts/run_exp_2026_0042.py
   scripts/run_exp_2026_0043.py
+  scripts/run_exp_2026_0044.py
   scripts/capture_exp_2026_0042_paper_shadow.py
   scripts/run_exp_2026_0042_paper_shadow_cycle.sh
   scripts/diagnose_exp_2026_0035_drawdown.py
@@ -159,6 +162,7 @@ required_files=(
   tests/scripts/test_run_exp_2026_0041.py
   tests/scripts/test_run_exp_2026_0042.py
   tests/scripts/test_run_exp_2026_0043.py
+  tests/scripts/test_run_exp_2026_0044.py
   tests/scripts/test_capture_exp_2026_0042_paper_shadow.py
   tests/scripts/test_diagnose_exp_2026_0035_drawdown.py
   tests/scripts/test_download_zoomex_exp_2026_0032_spot_data.py
