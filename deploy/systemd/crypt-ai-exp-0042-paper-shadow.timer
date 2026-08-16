@@ -1,0 +1,11 @@
+[Unit]
+Description=Run crypt-ai EXP-2026-0042 after every completed 2-hour UTC bar
+
+[Timer]
+OnCalendar=*-*-* 00/2:05:00 UTC
+Persistent=true
+AccuracySec=30s
+Unit=crypt-ai-exp-0042-paper-shadow.service
+
+[Install]
+WantedBy=timers.target

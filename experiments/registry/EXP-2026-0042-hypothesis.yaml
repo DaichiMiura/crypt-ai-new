@@ -1,0 +1,83 @@
+schema_version: 1
+experiment_id: "EXP-2026-0042"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0035のtop2保有中に、30日相対モメンタム順位が4銘柄中最下位まで転落した銘柄だけを次足で退出すると、利益源を維持しながら最大ドローダウンを改善できる可能性がある。"
+  economic_rationale: "相対モメンタムで選んだ銘柄が保有中にユニバース最下位まで落ちることは、選定理由が明確に崩れた状態である。価格損失幅ではなく元の仮説の失効を退出根拠にする。"
+  parent_experiment_ids:
+    - "EXP-2026-0035"
+    - "EXP-2026-0035-drawdown-diagnostic"
+    - "EXP-2026-0041"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015のZOOMEX linear perpetual trade 2時間足とFunding履歴。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  base_strategy: "EXP-2026-0035の4銘柄、30日相対モメンタム、7日rebalance、正の中央値regime、上位2銘柄。"
+  arms:
+    base_4_top2: "EXP-2026-0035を変更せず再現する。"
+    live_rank_last_exit: "保有中だけ毎2時間足の30日リターンを4銘柄で再順位付けし、保有銘柄が4位なら次足始値で退出する。"
+  exit_rule:
+    live_rank_calculation: "各確定足close / 360本前close - 1。降順、同率は銘柄名昇順。"
+    trigger: "base desired positionが1の保有銘柄のlive rank == 4。"
+    execution: "triggerを観測した次の2時間足始値。trigger足自身では退出しない。"
+    reentry: "退出後はbase desired positionが一度0になるまで再entryしない。次の独立したbase entryから再許可する。"
+    rank_threshold_search: false
+  capital_allocation:
+    initial_equity: "1000"
+    reserve_cash: "200"
+    lot_notional: "200"
+    per_symbol_max_notional: "200"
+    max_long_gross_notional: "400"
+    max_concurrent_positions: 2
+    compounding: false
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+    funding: "正のFundingはlongが支払い、負のFundingは受け取る。"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "4銘柄の価格、時刻、Funding、360本warm-upを検証できない場合は拒否する。"
+    - "live rankが計算不能な足ではtriggerしない。"
+    - "補間足では新規entryしない。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "ROBUSTNESS_VALIDATED"
+  primary_metric: "live_rank_last_exitとbase_4_top2の最大DD差および最終equity差。"
+  secondary_metrics:
+    - "最下位転落trigger数、取引数、手数料、Funding、保有率"
+    - "4年間・年率10%複利インデックス基準1464.10 USDTとの差"
+  decision_rule: "最大DDを5ポイント以上改善し、最終equityがbaseの95%以上かつ1464.10 USDT以上ならBACKTEST_CANDIDATEとする。それ以外はREJECTEDとする。"
+  promotion_rule: "単一過去期間の結果だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0042/summary.json"
+  result_summary: "baseは最終1475.46 USDT・最大DD -41.54%、最下位転落退出は最終1589.42 USDT・最大DD -27.01%だった。最終資産は113.96 USDT増え、DDは14.53ポイント改善した。EXP-2026-0043の期間・銘柄・2倍費用検証も全条件を満たしたためROBUSTNESS_VALIDATEDとした。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  paper_started: true
+  shadow_started: true
+  live_started: false
+
+provenance:
+  preregistration_commit: "結果確認前に4銘柄top2、毎足30日順位、4位trigger、次足退出、再entry抑止、固定200 USDTロット、採否条件を固定する。"

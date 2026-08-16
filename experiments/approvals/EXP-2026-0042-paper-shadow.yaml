@@ -1,0 +1,19 @@
+schema_version: 1
+experiment_id: EXP-2026-0042
+decision: PAPER_SHADOW_APPROVED
+approved_at_utc: "2026-08-16T00:00:00Z"
+approved_by: human_ceo
+approval_basis:
+  research_status: ROBUSTNESS_VALIDATED
+  robustness_experiment: EXP-2026-0043
+  validation_report: experiments/validation/EXP-2026-0043-validation.md
+  rationale: "固定仕様が期間・銘柄・2倍費用の条件を満たしたため、資金を使わないpaper/shadowで実時間証拠を蓄積する。"
+scope:
+  environments: [paper, shadow]
+  strategy_config: config/strategies/exp-2026-0042-paper-shadow.yaml
+  initial_equity_usdt: "1000"
+  real_orders_allowed: false
+  exchange_credentials_allowed: false
+excluded: [live, authenticated_order_api, real_funds, automatic_strategy_changes, automatic_capital_increase]
+rollback:
+  action: "runnerを停止し、state・snapshot・ledgerを保持して設定statusをhaltedへ変更する。"

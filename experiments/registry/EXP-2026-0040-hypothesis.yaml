@@ -1,0 +1,91 @@
+schema_version: 1
+experiment_id: "EXP-2026-0040"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0035の相対モメンタム対象を4銘柄から、同じ選定時点に固定済みの6銘柄へ広げると、特定銘柄への依存を減らしながら最終資産または最大ドローダウンを改善できる可能性がある。"
+  economic_rationale: "候補銘柄が増えると、同じ上位2銘柄選択でも相対的に強い銘柄を選べる機会が増える。上位3銘柄armでは保有先を増やす分散効果も確認する。"
+  parent_experiment_ids:
+    - "EXP-2026-0035"
+    - "EXP-2026-0039"
+    - "EXP-2026-0015"
+  base_symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+  expanded_symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015のZOOMEX linear perpetual trade 2時間足とFunding履歴。6銘柄は同実験で2026-08-15時点の流動性と履歴により固定済み。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  ranking:
+    lookback_bars: 360
+    rebalance_bars: 84
+    order: "30日単純リターン降順、同率は銘柄名昇順。確定足の選定を次足始値へ遅延する。"
+    market_regime: "各armのユニバースにおける30日リターン中央値が0以下なら、次回リバランスまで現金保持する。"
+  arms:
+    cash_control: "全額現金保持。"
+    base_4_top2: "EXP-2026-0035と同じ4銘柄から上位2銘柄へ各200 USDT。"
+    expanded_6_top2: "6銘柄から上位2銘柄へ各200 USDT。baseと同じ最大gross 400 USDT。"
+    expanded_6_top3: "6銘柄から上位3銘柄へ各200 USDT。最大gross 600 USDT。"
+  capital_allocation:
+    initial_equity: "1000"
+    reserve_cash: "200"
+    lot_notional: "200"
+    per_symbol_max_notional: "200"
+    base_4_top2_cap: "400"
+    expanded_6_top2_cap: "400"
+    expanded_6_top3_cap: "600"
+    compounding: false
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+    funding: "正のFundingはlongが支払い、負のFundingは受け取る。"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "全銘柄のウォームアップ、評価期間、2時間足時刻、価格、Fundingを検証できない場合は拒否する。"
+    - "市場regimeが非正、ランキング未計算、または補間足の場合は新規entryしない。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "REJECTED"
+  primary_metric: "expanded_6_top2とbase_4_top2の最終equity・最大DD差。"
+  secondary_metrics:
+    - "expanded_6_top3の最終equity、最大DD、平均gross、銘柄別entry件数"
+    - "4年間・年率10%複利インデックス基準1464.10 USDTとの差"
+    - "手数料、Funding、取引件数、現金保持率"
+  decision_rule: "expanded_6_top2がbase_4_top2より最終equityを維持または改善し、最大DDを改善すれば拡張を採用候補とする。top3は投資額が異なるため独立した参考armとし、top2の採否根拠にしない。"
+  promotion_rule: "単一過去期間の結果だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0040/summary.json"
+  result_summary: "同額のbase_4_top2は最終1475.46 USDT・最大DD -41.54%、expanded_6_top2は1193.52 USDT・最大DD -45.26%だった。最終資産が281.94 USDT低下し最大DDも3.72ポイント悪化したため、6銘柄拡張を不採用とした。参考top3も最終1347.77 USDT・最大DD -49.15%で基準未達だった。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  preregistration_commit: "結果確認前に6銘柄、30日lookback、7日rebalance、上位2・3、中央値regime、固定200 USDTロットと判定規則を固定する。"

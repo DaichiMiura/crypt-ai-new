@@ -1,0 +1,73 @@
+schema_version: 1
+experiment_id: "EXP-2026-0021"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "SMA200 < SMA400を現在足だけで判定するEXP-2026-0015に対し、直近12本の確定2時間足で連続して成立する場合だけ注文を許可すると、横ばい・転換直後の不適切なショートを減らし、最大DDを改善できる可能性がある。"
+  economic_rationale: "VOID資料はデッドクロスを繰り返す不明確な相場ではショートせず、下降トレンドが継続している銘柄だけを選ぶよう示している。現在の実装はSMA200 < SMA400を単一時点で判定しているため、24時間の持続確認を追加する。"
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0020"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  control: "SMA200 < SMA400を現在の確定足だけで判定する固定ロット・通常損切り1.0 ATR版。"
+  variant: "SMA200 < SMA400が現在を含む直近12本の確定2時間足すべてで成立する場合だけ、次足の新規セットアップを許可する。固定ロット、1.0 ATR通常損切り、1.618監視開始、2.618緊急停止、14日時間切れ、利確、費用は変更しない。"
+  persistence_bars: 12
+  persistence_duration: "24時間"
+  maximum_variants: 1
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "controlとvariantで入力データ、銘柄、期間、費用モデルが一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED_DIAGNOSTIC"
+  primary_metric: "variantとcontrolの銘柄別・中央値・合算の費用控除後最終資産差。"
+  secondary_metrics:
+    - "最大DD差、エントリー数、最大建玉数量、最大建玉想定元本の差"
+    - "通常損切り・緊急停止・清算・時間切れ・利確の件数と損益差"
+    - "NISAインデックス4年複利+46.41%基準への到達可否"
+  diagnostic_rule: "variantがcontrolを上回る銘柄数、最大DDが改善する銘柄数、取引数の減少、清算件数を同時に報告する。"
+  benchmark_rule: "インデックス基準未達でも、持続下降トレンド条件による差分診断は報告する。"
+  promotion_rule: "この比較結果だけではpaper・shadow・liveへ昇格しない。取引数の過度な減少または最大DDの悪化がある場合は不採用とする。"
+  result_artifact: "artifacts/EXP-2026-0021/summary.json"
+  result_summary: "12本・24時間の持続下降トレンドvariantは6銘柄中2銘柄で最終資産が改善したが、中央値は-37.56 USDT、合算は-230.46 USDTだった。最大DDは6銘柄すべてで悪化し、清算はcontrol・variantとも発生しなかった。6銘柄とも4年間のインデックス基準1,464.10 USDTには届かなかったため、不採用とする。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  execution_model: "2時間足OHLCの高値接触で全量約定。バー内の複数水準の順序は判定不能であり、結果解釈の制約とする。"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0021/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0020"
+  preregistration_commit: "このファイルを追加するコミットで、直近12本・24時間の持続下降トレンドという単一variantと比較指標を結果確認前に固定する。"

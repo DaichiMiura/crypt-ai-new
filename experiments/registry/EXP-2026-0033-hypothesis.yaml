@@ -1,0 +1,105 @@
+schema_version: 1
+experiment_id: "EXP-2026-0033"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0023で比較的バランスが良かった2時間足ロング戦略へ、EXP-2026-0032の現物ロング・無期限先物ショートのベーシス・ヘッジを固定配分で加えると、ロング単独より最大ドローダウンを抑えられる可能性がある。"
+  economic_rationale: "方向性ロングの価格エクスポージャーを、同一銘柄の現物long・無期限perpetual shortペアで部分的に中和し、ベーシス収束とFundingを補助的な収益源にする。ヘッジ枠の増加が収益を損なう可能性も同時に検証する。"
+  parent_experiment_ids:
+    - "EXP-2026-0023"
+    - "EXP-2026-0032"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015のZOOMEX linear perpetual trade/mark/Fundingと、EXP-2026-0032のZOOMEX spot trade Kline。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  warmup_window: "ロングは既存EXP-0023と同じ2400本以上、ベーシスは400本をシグナル計算のウォームアップに使う。"
+  long_strategy: "EXP-0012由来の2時間足換算ロング。Donchian entry 660本、baseline exit 240本、regime 2400本、ATR 240本、ATR倍率3.0。確定足シグナルを次足始値へ遅延する。"
+  basis_strategy: "perp mark / spot close - 1が+0.50%以上で現物long・同額perpetual shortを開始し、+0.10%以下または360本経過で同時決済する。"
+  capital_allocation:
+    initial_equity: "1000"
+    reserve_cash: "200"
+    deployable_equity: "800"
+    long_allocation: "各armのdeployable_equityからbasis_budgetを差し引き、4銘柄へ均等配分する。"
+    basis_budgets:
+      long_only: "0"
+      hedge_5pct: "50（初期資産の5%）"
+      hedge_10pct: "100（初期資産の10%）"
+      hedge_20pct: "200（初期資産の20%）"
+    pair_notional_per_leg: "24（費用込みで各armのbasis_budget内に収めるための固定値）"
+    max_concurrent_pairs:
+      long_only: 0
+      hedge_5pct: 1
+      hedge_10pct: 2
+      hedge_20pct: 4
+    compounding: false
+    cross_sleeve_reallocation: false
+  costs:
+    spot_fee_rate: "0.001"
+    perp_fee_rate: "0.0006"
+    spot_round_trip_spread: "0.001"
+    perp_round_trip_spread: "0.001"
+    spot_slippage_per_fill: "0.0005"
+    perp_slippage_per_fill: "0.0005"
+    long_perp_cost_model: "EXP-2026-0023と同じZOOMEX taker fee 0.0006、taker slippage 0.0005。"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "ロング4銘柄の共通時刻、現物・先物・mark・Fundingの共通期間、銘柄対応が検証できない場合は拒否する。"
+    - "補間行、欠損、重複、内部gap、正でない価格、非有限Fundingがある場合は拒否する。"
+    - "ロングスリーブとbasisスリーブ間で利益・損失を再配分しない。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "REGISTERED"
+  primary_metric: "初期資産1000 USDTからの最終equityと最大DD。"
+  secondary_metrics:
+    - "long_onlyとの差分、basis pair損益、Funding受払、手数料、最大総想定元本"
+    - "4年間の年率10%複利インデックス基準1464.10 USDTとの差"
+    - "ロング各銘柄の寄与、basis entry/exit件数、配分拒否数"
+  diagnostic_rule: "ヘッジarmはlong_onlyと最終equity・最大DD・費用・Fundingを併記する。最大DDが改善しても費用控除後の収益性と再現性がなければ採用しない。"
+  promotion_rule: "単一期間の統合バックテストだけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0033/summary.json"
+  result_summary: "4銘柄均等配分のlong_onlyは最終equity936.39 USDT・最大DD-6.361%。basis枠5%、10%、20%はそれぞれ940.22、944.15、952.10 USDTで、long_onlyより最終equityと最大DDが改善した。ただし全armが1464.10 USDTのインデックス基準を下回り、basis単独の損益は費用差引後に小幅マイナスのため、追加検証候補に留める。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX spot and linear USDT perpetual"
+  target_venue: "ZOOMEX spot and linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    spot: "data/processed/EXP-2026-0032/{SYMBOL}/spot-2h.csv"
+    perpetual_trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    perpetual_mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    spot_metadata: "var/exp-2026-0032-spot-data.json"
+    perpetual_metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  spot_data_acquired: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+references:
+  - title: "EXP-2026-0023 validation report"
+    url: "../validation/EXP-2026-0023-validation.md"
+    relevance: "2時間足換算ロングと固定ショートの比較、およびロング単独を基準にした評価。"
+  - title: "EXP-2026-0032 validation report"
+    url: "../validation/EXP-2026-0032-validation.md"
+    relevance: "ZOOMEX現物long・perpetual shortのベーシス収束会計と費用仮定。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0023"
+    - "EXP-2026-0032"
+  preregistration_commit: "この仮説ファイルを結果確認前に追加し、4銘柄、ロング条件、basis閾値、資金配分arm、費用を固定する。"

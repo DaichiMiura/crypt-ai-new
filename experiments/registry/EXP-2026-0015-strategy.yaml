@@ -1,0 +1,228 @@
+schema_version: 1
+experiment_id: "EXP-2026-0015"
+strategy_version: "void-short-core-v0.1"
+created_at_utc: "2026-08-15T00:00:00Z"
+status: "formalizing"
+
+implementation_steps:
+  - number: 1
+    name: "basic_policy"
+    status: "implemented"
+    scope: "時間足、方向、注文種別、判定不能時の拒否、最大保有期間を固定する。"
+  - number: 2
+    name: "symbol_selection"
+    status: "implemented"
+    scope: "事前登録した6銘柄だけを固定許可し、動的な追加・削除・入替えを行わない。"
+  - number: 3
+    name: "downtrend_regime"
+    status: "implemented"
+    scope: "確定した2時間足のSMA200がSMA400を下回る場合だけ、次バーのショート検討を許可する。"
+  - number: 4
+    name: "entry_preparation"
+    status: "implemented"
+    scope: "下落トレンド開始後の安値から2 ATR上昇、高値から1 ATR下落、安値から0.5 ATR反発の順で準備完了とする。"
+  - number: 5
+    name: "fibonacci_limit_levels"
+    status: "implemented"
+    scope: "3アンカーから4つのフィボナッチ売り指値候補を作り、市場価格以下を除外する。数量と約定会計は未実装。"
+  - number: 6
+    name: "position_sizing"
+    status: "implemented"
+    scope: "VOID式の余力20倍÷100を1ロットとし、各有効水準へ1ロットを割り当てる。ココモ増額は行わない。"
+  - number: 7
+    name: "take_profit"
+    status: "implemented"
+    scope: "上昇値幅の0.382と0.618リトレースメントで、ショート建玉を50%・残量に分けて利確する。"
+  - number: 8
+    name: "stop_loss"
+    status: "implemented"
+    scope: "1.618到達後の最高値から1 ATR押し戻したら通常損切りし、2.618または清算価格到達を即時処理する。"
+  - number: 9
+    name: "execution_accounting"
+    status: "implemented"
+    scope: "maker・taker手数料、不利なtakerスリッページ、Funding受払、全量約定仮定を建玉台帳へ反映する。"
+  - number: 10
+    name: "backtest_runner"
+    status: "implemented"
+    scope: "登録済みZOOMEXデータを時系列に処理し、6銘柄を個別評価して監査イベントと評価額を保存する。"
+
+basic_policy:
+  timeframe_minutes: 120
+  direction: "short_only"
+  entry_order_types:
+    - "limit"
+  market_entry_allowed: false
+  signal_input: "closed_bars_only"
+  unknown_or_incomplete_state: "NO_TRADE"
+  same_bar_normal_exit_allowed: false
+  max_holding_bars: 168
+  max_holding_days: 14
+  time_exit_rule: "約定後に完了した2時間足が168本へ達した時点で、損益にかかわらず時間切れ決済を要求する。"
+  live_trading_enabled: false
+
+symbol_policy:
+  allowed_symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+  all_other_symbols: "NO_TRADE"
+  symbol_normalization: "完全一致。大文字化や空白除去による暗黙の補正はしない。"
+  dynamic_turnover_ranking: false
+  runtime_addition_or_replacement: false
+
+trend_policy:
+  price_source: "trade close"
+  fast_sma_bars: 200
+  slow_sma_bars: 400
+  downtrend_condition: "SMA200 < SMA400"
+  equality: "NO_TRADE"
+  insufficient_warmup: "NO_TRADE"
+  signal_availability: "確定足で計算し、次の2時間足から利用する。"
+  cross_count_filter: "初回実験では使用しない。別実験候補として保留する。"
+  rejected_input:
+    - "2時間足の内部欠損または重複"
+    - "補間行"
+    - "非正または非数値の終値"
+
+entry_preparation_policy:
+  atr_bars: 14
+  rally:
+    anchor: "下落トレンド開始後の最安値"
+    confirmation: "確定終値がアンカーから2 ATR以上上昇"
+  pullback:
+    anchor: "上昇確認後の最高値"
+    confirmation: "確定終値がアンカーから1 ATR以上下落"
+  rebound:
+    anchor: "下落確認後の最安値"
+    confirmation: "確定終値がアンカーから0.5 ATR以上反発"
+  required_order: "rally -> pullback -> rebound"
+  regime_invalidation: "SMA200 >= SMA400または状態不明で全アンカーを破棄する。"
+  availability: "準備完了イベントと3アンカーの価格・時刻は次の2時間足から利用する。"
+  order_generation: "この段階では注文を生成しない。"
+
+fibonacci_limit_policy:
+  formula: "rebound_low + (rally_peak - rally_start) * ratio"
+  ratios:
+    - "0.236"
+    - "0.382"
+    - "0.618"
+    - "1.0"
+  anchor_order: "rally_start < rebound_low < rally_peak"
+  tick_rounding: "ZOOMEX銘柄仕様のtick sizeへ売り指値を切り上げる。"
+  activation_reference:
+    backtest: "準備完了が利用可能になる次の2時間足のtrade open"
+    shadow: "指値作成時点のbest bid。shadow実装時に固定する。"
+  marketable_level: "現在価格以下の候補だけを破棄する。全候補破棄ならNO_TRADE。"
+  independent_touch: "各候補は2時間足highへの到達を独立に判定する。"
+  pending_expiry_bars: 168
+  cancellation:
+    - "SMA200 >= SMA400"
+    - "データまたは状態が不明"
+    - "作成後168本経過"
+  fill_accounting: "2時間足highが売り指値へ触れた場合、板数量を復元できないため全量maker約定とする。部分約定はshadow段階で実測する。"
+
+position_sizing_policy:
+  reference_equity: "min(initial_equity, current_equity)"
+  sizing_reference_leverage: "20"
+  lot_divisor: "100"
+  one_lot_notional: "reference_equity * 20 / 100"
+  example: "初期資産・現在資産ともに100000円相当なら1ロット20000円相当。"
+  lots_per_active_level: 1
+  maximum_active_levels: 4
+  maximum_gross_notional_ratio: "0.8"
+  execution_leverage: "1"
+  profit_growth: false
+  loss_response: "現在資産が初期資産を下回った場合は1ロットも縮小する。"
+  removed_level_redistribution: false
+  quantity_rounding: "ZOOMEX銘柄仕様のqtyStepへ切り下げる。"
+  below_exchange_minimum: "候補を破棄する。"
+  cocomo_progression: "初回実験では使用しない。別実験候補として保留する。"
+  portfolio_scope: "6銘柄を個別に検証し、同時運用ポートフォリオは作らない。"
+
+take_profit_policy:
+  formula: "rally_peak - (rally_peak - rally_start) * ratio"
+  ratios:
+    - "0.382"
+    - "0.618"
+  allocation:
+    first_target: "qtyStepへ切り下げた保有数量の50%"
+    second_target: "丸め残量を含む残りすべて"
+  price_rounding: "買い指値をtick sizeへ切り下げる。"
+  gross_profit_filter: "ショート平均約定価格以上の候補を除外する。"
+  shallow_target_removed: "0.618の有効候補へ全数量を割り当てる。"
+  no_valid_target: "空候補とし、エントリー可否は約定会計・損切り実装後に判定する。"
+  trailing_take_profit: false
+  automatic_reentry: false
+  net_profit_check: "手数料・Fundingを含む約定会計の段階で追加する。"
+
+stop_loss_policy:
+  extension_formula: "rebound_low + (rally_peak - rally_start) * ratio"
+  normal_stop:
+    arm_ratio: "1.618"
+    peak_tracking: "1.618到達後のmark price高値を更新する。"
+    trigger: "監視開始より後の確定足が最高値から1 ATR以上下落して終了。"
+    execution: "次の2時間足で残建玉をreduce-only決済する。"
+    same_bar_trigger: false
+  emergency_stop:
+    ratio: "2.618"
+    price_source: "mark price high"
+    execution: "押し戻しを待たず、残建玉をreduce-only緊急決済する。"
+  liquidation:
+    price_source: "mark price high"
+    priority: "同一バーで清算価格へ到達した場合は戦略損切りより先に清算として記録する。"
+  time_exit: "約定後168本の既存ルールを併用する。"
+  sma_invalidation: "保有建玉は即時決済せず、未約定の新規指値だけを取り消す。"
+
+execution_accounting:
+  contract: "通常区分のZOOMEX USDT perpetual"
+  maker_fee_rate: "0.0002"
+  taker_fee_rate: "0.0006"
+  fee_formula: "quantity * execution_price * fee_rate"
+  maker_fills:
+    - "事前に板へ置く新規売り指値"
+    - "事前に板へ置く利確買い指値"
+  taker_fills:
+    - "通常損切りの次足買戻し"
+    - "緊急停止、時間切れ、清算の買戻し"
+  taker_slippage_rate: "0.0005"
+  taker_buy_price: "reference_price * (1 + 0.0005)"
+  funding: "Funding時刻に保有するquantity * mark price * funding rate。正の率はショートの受取、負の率は支払。"
+  partial_fill: "2時間足OHLCでは板数量を復元できないため、価格接触時に全量約定とする。"
+  same_bar_ambiguity: "イベント順を復元できない場合は、清算、緊急停止、通常損切り、利確の順に不利側を優先する。"
+  liquidation: "mark priceが清算価格へ達した時点で、清算価格を基準とするtaker買戻しとして全量を閉じ、結果をLIQUIDATIONと記録する。"
+  sources:
+    fees: "https://support.zoomex.com/en-as/articles/35622700459929"
+    funding: "https://support-testnet.zoomex.com/en-us/articles/34754678102937"
+    liquidation: "https://support-testnet.zoomex.com/en-as/articles/34843945642777"
+
+execution_status:
+  strategy_runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0015/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+performance_gate:
+  benchmark_name: "NISAインデックス投資"
+  benchmark_annual_return: "0.10"
+  benchmark_compounding_years: 4
+  benchmark_cumulative_return: "0.4641"
+  benchmark_tax_rate: "0"
+  crypto_tax_rate: "未設定。個人の所得状況に依存するため、税引前基準は必要条件として扱う。"
+  scope: "事前登録した6銘柄すべてを個別に判定し、後付けで銘柄を選ばない。"
+  pass_condition: "各銘柄の費用控除後最終資産 >= 初期資産 * 1.4641。"
+  failure_action: "1銘柄でも未達なら、仮想通貨投資としてインデックス超過の研究基準は不合格。"
+  result_artifact_field: "artifacts/EXP-2026-0015/summary.json:index_benchmark"
+  latest_result: "0/6銘柄達成。最高はNEARUSDTの+30.81%で、+46.41%基準を15.60 percentage points下回った。"
+
+deferred_decisions:
+  - "戦略runnerで使う緊急停止・時間切れの具体的な基準約定価格"
+  - "shadowで観測した板・約定データによるスリッページと部分約定仮定の更新"
+
+provenance:
+  source_document: "VOID式ショート記事の購入済みPDF"
+  decision_record: "ユーザーが2026-08-15に2時間足168本、14日の強制時間切れを承認した。"

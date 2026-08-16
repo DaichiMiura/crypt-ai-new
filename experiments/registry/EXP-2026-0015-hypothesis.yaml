@@ -26,8 +26,8 @@ hypothesis:
     - "6銘柄の同期間比較が市場全体の特定局面に依存する。"
 
 methodology:
-  scope: "本コミットは銘柄・商品・データ期間の登録とデータ取得だけを行う。売買ロジックの実験runnerは作成・実行しない。"
-  execution_gate: "strategy formalization、会計仕様、リスク上限、独立検証手順を別途コミットして人間承認するまで、バックテスト・paper・shadow・liveを禁止する。"
+  scope: "登録済み6銘柄を同一ルール・同一期間で個別バックテストし、採否やpaper昇格は別途判断する。"
+  execution_gate: "予備バックテストの実行は許可するが、研究statusの確定、paper・shadow・liveへの昇格は、strategy formalization、会計仕様、リスク上限、独立検証手順の人間承認後に限る。"
   planned_strategy_components:
     - "2時間足SMA200がSMA400を下回る下落トレンド判定。"
     - "急落への飛び乗りではなく反発後に入る、VOID式の考え方を決定論的な条件へ分解する。"
@@ -38,6 +38,8 @@ methodology:
     - "OHLC、mark price、index price、Fundingの時刻整合性が確認できない場合は実験を開始しない。"
     - "補間した価格行は作らず、欠損は拒否する。"
   maximum_variants: 1
+  strategy_specification: "experiments/registry/EXP-2026-0015-strategy.yaml"
+  implementation_status: "基本方針から損切り、約定・手数料・Funding会計、個別銘柄runnerまで実装済み。清算価格は0.5% maintenance marginの代理式。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -76,11 +78,59 @@ data:
     - "日本居住者のZOOMEX利用可否・法令・税務の確認は本研究登録では完了しておらず、実取引を承認しない。"
 
 evaluation:
-  status: "not_started"
-  primary_metric: "未登録。strategy formalizationコミットで、下落局面の損失、最大DD、清算余裕、費用控除後損益を固定する。"
-  promotion_rule: "データ取得完了は研究開始・paper・shadow・liveの承認を意味しない。"
+  status: "BENCHMARK_REJECTED"
+  research_status: "REJECTED"
+  promotion_status: "NOT_ELIGIBLE"
+  primary_metric: "銘柄別の費用控除後最終資産が、NISAインデックスの4年間複利基準+46.41%を全銘柄で上回るかを判定する。"
+  benchmark:
+    name: "NISAインデックス投資"
+    annual_return: "0.10"
+    compounding_years: 4
+    cumulative_return: "0.4641"
+    tax_rate: "0"
+    crypto_tax: "個人の所得状況に依存するため未設定。税引前で基準未達なら即不合格。"
+    pass_scope: "事前登録6銘柄すべて"
+    pass_condition: "各銘柄の費用控除後最終資産 >= 初期資産 * 1.4641"
+  result_artifact: "artifacts/EXP-2026-0015/summary.json"
+  result_summary: "6銘柄中0銘柄が4年間+46.41%基準を達成。最高はNEARUSDTの+30.81%で、基準未達。"
+  result_artifact: "artifacts/EXP-2026-0015/summary.json"
+  promotion_rule: "予備バックテスト結果だけではpaper・shadow・liveを承認しない。代理清算式・固定スリッページの感度分析と独立レビューが必要。"
 
 provenance:
   parent_experiment_ids:
     - "EXP-2026-0014"
   preregistration_commit: "このファイルを追加するコミットで、銘柄、商品、データ範囲、取得対象、未実施ゲートを結果確認前に固定する。"
+  amendments:
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "実験実施前にVOID式ショートの基本方針を段階的に形式化するため。"
+      change: "2時間足、ショート専用、指値専用、確定足、NO_TRADE既定、同一バー通常決済禁止、最大保有168本を固定した。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "実験実施前に元記事の下落トレンド条件を形式化するため。"
+      change: "確定した2時間足でSMA200 < SMA400の場合だけ、次バーのショート検討を許可する。交差回数フィルターは使用しない。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "元記事の裁量的な上昇・下落・反発を初回実験用の単一ルールへ形式化するため。"
+      change: "ATR14を使い、2 ATR上昇、1 ATR下落、0.5 ATR反発の順で準備完了とし、次バーから利用する。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "元記事のフィボナッチ分割指値を、成行化を防ぐ決定論的な価格候補へ形式化するため。"
+      change: "0.236、0.382、0.618、1.0の価格をtick sizeへ切り上げ、現在価格以下を除外し、168本またはSMA無効で未約定候補を取り消す。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "VOID式のロット計算を維持しつつ、初回実験から損失追随のココモ増額を分離するため。"
+      change: "min(初期資産, 現在資産)の20倍を100で割った20%を1ロットとし、各有効水準へ1ロット、最大0.8倍、実行レバレッジ1倍に固定した。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "元記事の利確候補を、数量丸めを含む決定論的な2段階決済へ形式化するため。"
+      change: "0.382で50%、0.618で丸め残量を含む残りを利確し、ショート平均建値以上の候補を除外する。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "元記事の押し戻し損切りを残しながら、無制限の逆行と清算を明示的に扱うため。"
+      change: "1.618到達後の最高mark priceから1 ATR下落で次バー通常損切り、2.618で緊急停止、清算価格到達を最優先に固定した。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "バックテスト前にZOOMEX USDT無期限の約定費用を再現可能に固定するため。"
+      change: "maker 0.02%、taker 0.06%、taker 5bpスリッページ、実Funding履歴、価格接触時全量約定、不明な同一足は不利側優先とした。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "登録済み仕様をrunnerへ接続し、初回の予備バックテストを再現可能にするため。"
+      change: "2022-02-01から2025-12-31までの6銘柄を個別評価し、約定・Funding・mark評価額・監査イベントを成果物へ保存した。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "予備バックテストの実装確認と、独立検証・昇格判定を分離するため。"
+      change: "runnerの実行自体は許可するが、独立検証と昇格判定は別工程とする。"
+    - amended_at_utc: "2026-08-15T00:00:00Z"
+      reason: "NISAインデックス投資を機会費用の事前登録基準へ追加し、結果を判定するため。"
+      change: "年率10%を4年間複利運用した+46.41%を全6銘柄へ適用し、0/6銘柄達成のためresearch_statusをREJECTEDとした。"

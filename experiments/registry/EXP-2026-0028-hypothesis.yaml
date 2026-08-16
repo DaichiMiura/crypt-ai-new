@@ -1,0 +1,87 @@
+schema_version: 1
+experiment_id: "EXP-2026-0028"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0027で単独ショートの最終資産と最大DDが改善した6 ATR下落ブレイク型ショートは、ロング750 USDTと組み合わせた場合に、long-onlyおよび既存ショート併用よりポートフォリオの最大DDを抑えながら資産を維持または改善できる可能性がある。"
+  economic_rationale: "ショートを独立した収益源ではなく下落局面のヘッジとして使う。6 ATRは早期ストップを減らす一方で最大想定元本が増えるため、銘柄別ショート損益ではなく、ロングとの合算評価額で判断する。"
+  parent_experiment_ids:
+    - "EXP-2026-0023"
+    - "EXP-2026-0025"
+    - "EXP-2026-0027"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  long_sleeve: "EXP-2026-0023と同一のEXP-0012時間換算ロングを750 USDTで実行する。"
+  short_sleeves:
+    void_balanced: "EXP-0017相当のVOID式、通常損切り1.5 ATR、250 USDT。"
+    breakout_3atr: "EXP-0025相当の下落ブレイク、固定3 ATRストップ、250 USDT。"
+    breakout_6atr: "EXP-0027相当の下落ブレイク、固定6 ATRストップ、250 USDT。"
+  arms:
+    long_only: "ロング1000 USDT。"
+    long_plus_void_balanced: "ロング750 + VOID式ショート250。"
+    long_plus_breakout_3atr: "ロング750 + 下落ブレイク3 ATRショート250。"
+    long_plus_breakout_6atr: "ロング750 + 下落ブレイク6 ATRショート250。"
+  capital_allocation:
+    initial_equity: "1000"
+    long_sleeve: "0.75"
+    short_sleeve: "0.25"
+    short_entry_gross_notional: "200 USDT (20% of portfolio initial equity)"
+    compounding: false
+    cross_sleeve_reallocation: false
+  maximum_variants: 3
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "4 armで入力データ、期間、銘柄、ロング、費用、初期総資産が一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED_DIAGNOSTIC"
+  primary_metric: "各armのポートフォリオ最終資産と最大DD。"
+  secondary_metrics:
+    - "6 ATR armとlong-only、VOID式、3 ATR armの銘柄別・中央値・合算差"
+    - "ロング・ショートのentry、退出、Funding、手数料、最大想定元本"
+    - "インデックス4年複利+46.41%基準の達成可否"
+  diagnostic_rule: "6 ATR armがlong-onlyおよび他ショートarmに対して最終資産または最大DDを改善する銘柄数を同時に報告する。"
+  benchmark_rule: "インデックス基準未達でもヘッジ差分は報告するが、基準未達を収益候補合格とは扱わない。"
+  promotion_rule: "この共通データ比較だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0028/summary.json"
+  result_summary: "long_plus_breakout_6atrはlong_onlyに対して6銘柄中3銘柄で最終資産が改善し、中央値+13.09 USDT、合算+190.69 USDTだったが、最大DDは5銘柄で悪化し中央値-0.08396（約8.40ポイント悪化）だった。long_plus_void_balancedに対しては最終資産が3銘柄改善・3銘柄悪化、中央値-0.7555 USDT、最大DDは6銘柄すべて悪化した。long_plus_breakout_3atrに対しては最終資産5銘柄、最大DD4銘柄で改善したが、絶対的な最大DDはなお大きい。6 ATRをヘッジ候補としてpaperへ進めない。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0028/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0023"
+    - "EXP-2026-0025"
+    - "EXP-2026-0027"
+  preregistration_commit: "このファイルを追加する時点で、long-only、VOID1.5 ATR、breakout3 ATR、breakout6 ATRの4 armと比較指標を結果確認前に固定する。"

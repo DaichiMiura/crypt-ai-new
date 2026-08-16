@@ -1,0 +1,80 @@
+schema_version: 1
+experiment_id: "EXP-2026-0019"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0018の1,1,2,3ロット追加を1,1,1,2へ弱めると、フィボナッチ的な追加ショートを残しながら、最大DDの悪化を抑えられる可能性がある。"
+  economic_rationale: "EXP-2026-0018では6銘柄すべてで最大DDが悪化し、合計7ロットによるエクスポージャー増加が課題となった。追加ロットを1つだけに制限し、利益改善とリスク増加の切り分けを行う。"
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0018"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  control: "登録済みフィボナッチ水準0.236、0.382、0.618、1.0へ各1ロットを割り当てる固定実装。"
+  variant: "同じ4水準へ比率順に1,1,1,2ロットを割り当てる。合計5ロットを上限とし、通常損切り1.0 ATR、1.618監視開始、2.618緊急停止、14日時間切れ、利確、エントリー、費用を変更しない。"
+  lot_count_by_ratio:
+    "0.236": 1
+    "0.382": 1
+    "0.618": 1
+    "1.0": 2
+  max_total_lot_count: 5
+  max_gross_entry_notional: "基準資産の20%を1ロットとし、合計5ロットで最大100%。利益後も初期資産を超えて基準資産を増額しない。"
+  excluded_levels: "1.618以上は損切り監視水準のため、追加エントリーには使わない。"
+  no_reallocation: true
+  maximum_variants: 1
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "controlとvariantで入力データ、銘柄、期間、費用モデルが一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED_DIAGNOSTIC"
+  primary_metric: "variantとcontrolの銘柄別・中央値・合算の費用控除後最終資産差。"
+  secondary_metrics:
+    - "最大DD差、最大建玉数量、最大建玉想定元本の差"
+    - "通常損切り・緊急停止・清算・時間切れ・利確の件数と損益差"
+    - "NISAインデックス4年複利+46.41%基準への到達可否"
+  diagnostic_rule: "variantがcontrolを上回る銘柄数、最大DDが悪化する銘柄数、清算件数、最大想定元本を同時に報告する。"
+  benchmark_rule: "インデックス基準未達でも、ロット増加による損益・リスク差分診断は報告する。"
+  promotion_rule: "この比較結果だけではpaper・shadow・liveへ昇格しない。清算発生または最大DDの重大な悪化がある場合は不採用とする。"
+  result_artifact: "artifacts/EXP-2026-0019/summary.json"
+  result_summary: "1,1,1,2ロットvariantは6銘柄中2銘柄で最終資産が改善し、中央値は-11.00 USDT、合算は+22.50 USDTだった。最大DDは6銘柄すべてで悪化し、最大建玉想定元本は約205〜220 USDT増加した。清算は発生せず、インデックス基準を満たした銘柄もなかった。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  execution_model: "2時間足OHLCの高値接触で全量約定。バー内の複数水準の順序は判定不能であり、結果解釈の制約とする。"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0019/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0018"
+  preregistration_commit: "このファイルを追加するコミットで、1,1,1,2ロット・合計5ロット上限という単一variantと比較指標を結果確認前に固定する。"

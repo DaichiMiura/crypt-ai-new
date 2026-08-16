@@ -1,0 +1,80 @@
+schema_version: 1
+experiment_id: "EXP-2026-0029"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0023でlong-onlyを補完したVOID式ショートは、ショート資金配分を20%から5%または10%へ下げても下降局面の最大DD改善を一部維持し、最終資産のばらつきを抑えられる可能性がある。"
+  economic_rationale: "ショートのシグナルを変更せず、ヘッジ目的に必要な最小配分を探る。配分を下げることでショート単独の利益寄与は減るが、上昇相場での損失と最大DDも同時に抑えられる。"
+  parent_experiment_ids:
+    - "EXP-2026-0023"
+    - "EXP-2026-0024"
+    - "EXP-2026-0028"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  long_sleeve: "各armの初期資産からショート配分を差し引き、同じEXP-0012時間換算ロングを実行する。"
+  short_sleeve: "EXP-2026-0017相当のVOID式、通常損切り1.5 ATR、1/1/1/1ロット、複利なし。ショートスリーブ資産に対する4ロットの相対サイズはarm間で同一とする。"
+  arms:
+    long_only: "ロング1000 USDT、ショートなし。"
+    hedge_5pct: "ロング937.5 USDT、ショート62.5 USDT。ショート初期想定元本50 USDT。"
+    hedge_10pct: "ロング875 USDT、ショート125 USDT。ショート初期想定元本100 USDT。"
+    hedge_20pct: "ロング750 USDT、ショート250 USDT。ショート初期想定元本200 USDT。EXP-2026-0023相当。"
+  capital_allocation:
+    initial_equity: "1000"
+    short_sleeve_ratios: ["0", "0.05", "0.10", "0.20"]
+    compounding: false
+    cross_sleeve_reallocation: false
+  maximum_variants: 3
+  no_parameter_sweep: false
+  no_trade_conditions:
+    - "4 armで入力データ、期間、銘柄、シグナル、費用、初期総資産が一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED_DIAGNOSTIC"
+  primary_metric: "各配分armの最終資産と最大DD。"
+  secondary_metrics:
+    - "long-onlyとの差、配分増加による最終資産・DD・Funding・手数料の変化"
+    - "6銘柄の中央値・合算、インデックス4年複利+46.41%基準"
+  diagnostic_rule: "最終資産を大きく損なわず最大DDを抑える配分を候補として報告する。単一armを自動採用しない。"
+  promotion_rule: "配分比較だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0029/summary.json"
+  result_summary: "VOID式ショートの5%、10%、20%配分はlong-onlyに対してすべて6銘柄中6銘柄で最終資産と最大DDが改善した。最終資産差の中央値は5%で+11.97 USDT、10%で+23.70 USDT、20%で+47.70 USDT。最大DD差の中央値は5%で+0.00587、10%で+0.01118、20%で+0.01883だった。ショート配分を増やすほど改善幅は増えたが、20%はショート想定元本と損失寄与も最大であり、損失抑制を優先する中間候補として10%配分を記録する。全armともインデックス基準1,464.10 USDTには届かなかった。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0029/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0023"
+    - "EXP-2026-0024"
+    - "EXP-2026-0028"
+  preregistration_commit: "このファイルを追加する時点で、5%、10%、20%のショート配分と比較指標を結果確認前に固定する。"

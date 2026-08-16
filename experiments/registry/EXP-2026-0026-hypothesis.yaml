@@ -1,0 +1,75 @@
+schema_version: 1
+experiment_id: "EXP-2026-0026"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0025の下落ブレイク型ショートの悪化は、シグナルの方向性、退出規則、Funding、または固定4ロットのエクスポージャーのどこに主因があるかをトレード単位の分解で特定できる。"
+  economic_rationale: "最終資産だけでは次の改善案を選べない。退出理由別・銘柄別・保有期間別の損益を分け、シグナルが利益を生まないのか、損失制御が弱いのか、サイズが大きすぎるのかを区別する。"
+  parent_experiment_ids:
+    - "EXP-2026-0025"
+    - "EXP-2026-0023"
+    - "EXP-2026-0024"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0025と同一条件で再実行したshort_breakout_onlyの監査イベント・評価額曲線。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  trade_reconstruction: "ENTRYから次のSTOP_LOSS・SMA_EXIT・TIME_EXIT、または評価終了時OPENまでを1トレードとして対応付ける。損益はエントリー直前評価額から決済後評価額への差分、Fundingと手数料はイベントから別集計する。"
+  dimensions:
+    - "銘柄"
+    - "退出理由"
+    - "勝敗"
+    - "保有バー数"
+    - "Funding受払"
+    - "エントリー想定元本とポートフォリオ初期資産比"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "EXP-0025と同一データ、期間、シグナル、費用、4ロット条件で再現できない場合は診断を拒否する。"
+    - "ENTRYと退出イベントの対応付けが一意でない場合は診断を拒否する。"
+  execution_gate: "研究診断のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "DIAGNOSTIC_COMPLETED"
+  primary_metric: "退出理由別および銘柄別のトレード損益合計・中央値・勝率。"
+  secondary_metrics:
+    - "平均保有期間、Fundingと手数料、エントリー想定元本比、最大建玉"
+    - "固定4ロットのサイズ影響を示すトレード損益と最大DD"
+  diagnostic_rule: "損失の集中する退出理由、銘柄、保有期間帯、Funding区分を特定し、次のヘッジ型ショートで変更すべき要素を1つ以上明示する。"
+  promotion_rule: "診断結果だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0026/summary.json"
+  result_summary: "EXP-0025の下落ブレイク型ショートは212トレード（closed 211、評価終了時OPEN 1）で、closed勝率33.65%、closed損益-257.53 USDT、評価終了時OPENを含む損益-234.44 USDT、Profit Factor 0.8649だった。STOP_LOSSは127件すべて損失で合計-1,782.89 USDT、SMA_EXITは11件すべて損失で合計-122.03 USDTだった。一方、TIME_EXITは73件中71件が利益で合計+1,647.38 USDTだった。Funding合計は-4.17 USDT、手数料合計は50.73 USDT、平均エントリー想定元本は199.40 USDTだった。主因はFundingや複利ではなく、固定4ロットのままストップ損失が多発し、14日保有まで到達した利益トレードを上回ったことと診断する。"
+
+data:
+  source: "EXP-2026-0025と同一のZOOMEX Global public V3 REST API処理済みデータ"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0026/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0025"
+    - "EXP-2026-0023"
+    - "EXP-2026-0024"
+  preregistration_commit: "このファイルを追加する時点で、EXP-0025の条件を変更せずトレード単位で分解する指標を結果確認前に固定する。"

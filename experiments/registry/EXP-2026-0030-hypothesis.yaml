@@ -1,0 +1,72 @@
+schema_version: 1
+experiment_id: "EXP-2026-0030"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "資金配分層を通した複数銘柄ポートフォリオは、固定1ロットとロング・ショート枠を明示することで、銘柄単独バックテストより実運用に近い元本制約と損益を再現できる。"
+  economic_rationale: "銘柄ごとに独立した仮想口座を置く代わりに、共通equity・予備資金・銘柄上限のもとでシグナルを競合させ、分散時の注文拒否と資本利用を観測する。"
+  parent_experiment_ids:
+    - "EXP-2026-0029"
+    - "EXP-2026-0028"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade 2時間足。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  signal_strategy: "Donchian long/short regime signals; entry 660 bars, exit 240 bars, SMA regime 2400 bars。"
+  accounting: "run_allocated_portfolioによるlong/short共通会計。shortは1ロット元本を担保相当額として取り置く研究用モデル。"
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+  arms:
+    long_only: "初期equity 1000 USDT、long上限800、short上限0、合計上限800。"
+    hedge_5pct: "long上限750、short上限50、合計上限800。"
+    hedge_10pct: "long上限700、short上限100、合計上限800。"
+    hedge_20pct: "long上限600、short上限200、合計上限800。"
+  fixed_lot_notional: "50 USDT"
+  reserve_cash: "200 USDT"
+  per_symbol_max_notional: "200 USDT"
+  max_concurrent_positions: "long 6 / short 6"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "6銘柄の評価期間、2時間足時刻、データ品質が一致しない場合は拒否する。"
+    - "補間行、欠損、重複、内部gapがある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED_DIAGNOSTIC"
+  primary_metric: "配分armの最終equity、最大DD、拒否注文数。"
+  secondary_metrics:
+    - "long-onlyとの差、short実現損益、最大配分元本、ロット分散数"
+    - "4年間の年率10%複利インデックス基準1464.10 USDTとの差"
+  promotion_rule: "配分層の接続診断だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0030/summary.json"
+  result_summary: "配分層を通した共通Donchian long/short診断では、5%ショートarmがlong-onlyを最終equityで+32.51 USDT、最大DDで+0.91ポイント上回った。10%は最終equity-34.80 USDT・最大DD-2.88ポイント、20%は最終equity-94.70 USDT・最大DD-7.15ポイントとなった。全armが4年・年率10%複利の1464.10 USDT基準を下回った。これはEXP-2026-0029のVOID式ショート再現ではなく、配分層接続の診断結果である。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  backtest_result_artifact: "artifacts/EXP-2026-0030/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false

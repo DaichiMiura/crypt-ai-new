@@ -1,0 +1,88 @@
+schema_version: 1
+experiment_id: "EXP-2026-0025"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "VOID式の上昇時追加ショートとは別に、長期SMAを下回る局面でDonchian下抜けが起きた時だけ単一エントリーする下落ブレイク型ショートは、同じ6銘柄でショート単独の損失とポートフォリオ最大DDを改善できる可能性がある。"
+  economic_rationale: "上昇中の逆張り追加ショートを避け、長期的に弱い局面の下落方向へ追随する。ショートは1ポジションのみとし、エントリー後の追加建玉を禁止することで、相場の上昇バイアスによる損失の連鎖を抑える。"
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0017"
+    - "EXP-2026-0023"
+    - "EXP-2026-0024"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  signal: "2時間足の確定終値が200日SMA（2400本）を下回り、かつ直前240本（20日）の安値を下抜けた場合にショートシグナルを確定する。シグナルは次足始値で実行する。"
+  entry: "建玉がない場合だけ1回のエントリーを許可し、上昇中の追加ショートは行わない。初期ショートスリーブ250 USDTを基準に4ロット（20倍/100の1ロットを4つ、初期想定元本200 USDT）を固定サイズで発注する。"
+  exit: "エントリー時ATR（20日=240本）の3倍上方に固定ストップを置く。確定終値がSMA200を上回った場合は次足始値で手仕舞いする。最大保有期間は14日（168本）とし、超過時は次足始値で手仕舞いする。"
+  costs: "ショートの新規・決済ともZOOMEX taker費用と5bpスリッページ、Fundingを反映する。"
+  arms:
+    short_breakout_only: "新規ショートの下落ブレイク戦略を250 USDTスリーブで評価する。"
+    long_plus_short_breakout: "ロング750 USDTと下落ブレイクショート250 USDTを合算する。EXP-2026-0023と同じロングを使う。"
+    long_only: "EXP-2026-0023と同じロング単独を比較用に再実行する。"
+  capital_allocation:
+    initial_equity: "1000"
+    long_sleeve: "0.75"
+    short_sleeve: "0.25"
+    short_entry_gross_notional: "200 USDT (20% of portfolio initial equity)"
+    compounding: false
+    cross_sleeve_reallocation: false
+  maximum_variants: 1
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "3 armで入力データ、銘柄、期間、時間足、費用モデル、初期総資産が一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED_DIAGNOSTIC"
+  primary_metric: "下落ブレイクショートを固定スリーブで実行した最終資産と最大DD。"
+  secondary_metrics:
+    - "VOID式balanced_shortとの最終資産差、最大DD差、ショートentry・exit・Funding・手数料"
+    - "long_onlyに対するポートフォリオ補完性とインデックス4年複利+46.41%基準"
+    - "単一エントリーの最大想定元本、保有期間、ストップ・SMA復帰・時間切れ件数"
+  diagnostic_rule: "下落ブレイク型がVOID式balanced_shortより最終資産または最大DDを改善する銘柄数を報告する。"
+  benchmark_rule: "インデックス基準未達でも手法間の差分は報告するが、基準未達を収益候補合格とは扱わない。"
+  promotion_rule: "共通データ上の診断だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0025/summary.json"
+  result_summary: "下落ブレイク型ショートはVOID式1.5 ATRショートに対して6銘柄中1銘柄だけ最終資産が改善し、中央値-75.15 USDT、合算-444.67 USDTだった。最大DDは6銘柄すべてで悪化し、中央値の差は-0.3759（約37.59ポイント悪化）だった。ロング併用でもVOID式併用に対して最終資産は1銘柄だけ改善、最大DDは6銘柄すべて悪化した。long_onlyに対しても最終資産は2銘柄のみ改善し、最大DDは6銘柄すべて悪化した。6銘柄ともインデックス基準1,464.10 USDTには届かなかった。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  execution_model: "確定足シグナルを次足始値のtaker約定へ遅延する。ストップは2時間足高値接触時にtaker買戻しとする。バー内イベント順序は判定不能であり、不利なストップを優先する。"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0025/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0017"
+    - "EXP-2026-0023"
+    - "EXP-2026-0024"
+  preregistration_commit: "このファイルを追加するコミットで、長期SMA2400本、Donchian240本、ATR3倍ストップ、最大168本、4ロット単一エントリーという条件を結果確認前に固定する。"

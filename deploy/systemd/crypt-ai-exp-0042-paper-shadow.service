@@ -1,0 +1,14 @@
+[Unit]
+Description=crypt-ai EXP-2026-0042 paper/shadow cycle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/miura/src/crypt-ai-new
+ExecStart=/home/miura/src/crypt-ai-new/scripts/run_exp_2026_0042_paper_shadow_cycle.sh
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,43 @@
+schema_version: 1
+strategy_id: EXP-2026-0042
+strategy_version: "1.0.0-frozen"
+status: paper_shadow_approved
+environments: [paper, shadow]
+real_orders_allowed: false
+exchange_credentials_allowed: false
+venue: ZOOMEX
+product: linear_usdt_perpetual
+symbols: [LINKUSDT, UNIUSDT, AVAXUSDT, AAVEUSDT]
+timeframe_minutes: 120
+strategy:
+  momentum_lookback_bars: 360
+  rebalance_bars: 84
+  long_count: 2
+  require_positive_median: true
+  live_last_rank_exit: 4
+  exit_execution: next_bar_open
+  reentry_after_base_reset_only: true
+allocation:
+  accounting_currency: USDT
+  initial_equity: "1000"
+  reserve_cash: "200"
+  lot_notional: "200"
+  max_symbol_notional: "200"
+  max_total_gross_notional: "400"
+  max_concurrent_positions: 2
+  compounding: false
+costs:
+  fee_rate: "0.0006"
+  round_trip_spread: "0.001"
+  slippage_per_fill: "0.0005"
+  include_funding: true
+startup:
+  start_flat: true
+  backfill_orders: false
+  first_signal_action: schedule_for_next_completed_bar
+safety:
+  fail_on_incomplete_bar: true
+  fail_on_timestamp_mismatch: true
+  fail_on_missing_warmup: true
+  fail_on_unknown_signal: true
+  live_order_adapter_enabled: false

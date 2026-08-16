@@ -1,0 +1,80 @@
+schema_version: 1
+experiment_id: "EXP-2026-0018"
+created_at_utc: "2026-08-15T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "登録済みフィボナッチ売り指値へ1,1,2,3ロットを割り当てる上限付き追加ショートは、固定1ロット版より反発時の平均建値を改善し、費用控除後損益を改善できる可能性がある。"
+  economic_rationale: "価格が逆行した高い水準で追加ショートを行うと平均建値が上がり、その後の反落で損益分岐点へ戻りやすくなる可能性がある。一方、連続上昇時のエクスポージャー急増を避けるため、登録済み4水準に1,1,2,3ロットを固定し、合計7ロットを上限とする。"
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0017"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  control: "登録済みフィボナッチ水準0.236、0.382、0.618、1.0へ各1ロットを割り当てるEXP-2026-0015固定実装。"
+  variant: "同じ4水準へ比率順に1,1,2,3ロットを割り当てる。合計7ロットを上限とし、通常損切り1.0 ATR、1.618監視開始、2.618緊急停止、14日時間切れ、利確、エントリー、費用を変更しない。"
+  lot_count_by_ratio:
+    "0.236": 1
+    "0.382": 1
+    "0.618": 2
+    "1.0": 3
+  max_total_lot_count: 7
+  max_gross_entry_notional: "基準資産の20%を1ロットとし、合計7ロットで最大140%。利益後も初期資産を超えて基準資産を増額しない。"
+  excluded_levels: "1.618以上は損切り監視水準のため、追加エントリーには使わない。"
+  no_reallocation: true
+  maximum_variants: 1
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "controlとvariantで入力データ、銘柄、期間、費用モデルが一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED_DIAGNOSTIC"
+  primary_metric: "variantとcontrolの銘柄別・中央値・合算の費用控除後最終資産差。"
+  secondary_metrics:
+    - "最大DD差、最大建玉数量、最大建玉想定元本の差"
+    - "通常損切り・緊急停止・清算・時間切れ・利確の件数と損益差"
+    - "NISAインデックス4年複利+46.41%基準への到達可否"
+  diagnostic_rule: "variantがcontrolを上回る銘柄数、最大DDが悪化する銘柄数、清算件数、最大想定元本を同時に報告する。"
+  benchmark_rule: "インデックス基準未達でも、ロット増加による損益・リスク差分診断は報告する。"
+  promotion_rule: "この比較結果だけではpaper・shadow・liveへ昇格しない。清算発生または最大DDの重大な悪化がある場合は不採用とする。"
+  result_artifact: "artifacts/EXP-2026-0018/summary.json"
+  result_summary: "1,1,2,3ロットvariantは6銘柄中3銘柄で最終資産が改善し、中央値は+25.35 USDT、合算は+367.06 USDTだった。一方、最大DDは6銘柄すべてで悪化し、最大建玉想定元本は約618〜678 USDT増加した。清算は発生せず、インデックス基準を満たしたのはNEARUSDTの1銘柄のみ。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  execution_model: "2時間足OHLCの高値接触で全量約定。バー内の複数水準の順序は判定不能であり、結果解釈の制約とする。"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0018/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0015"
+    - "EXP-2026-0017"
+  preregistration_commit: "このファイルを追加するコミットで、1,1,2,3ロット・合計7ロット上限という単一variantと比較指標を結果確認前に固定する。"

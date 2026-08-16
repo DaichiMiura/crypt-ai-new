@@ -1,0 +1,85 @@
+schema_version: 1
+experiment_id: "EXP-2026-0041"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0035の4銘柄top2へ、entry時点の20日ATRから固定した3 ATR損切りを追加すると、相対モメンタムの利益を大きく失わずに最大ドローダウンを改善できる可能性がある。"
+  economic_rationale: "週次退出だけでは保有中の急反転に最大7日遅れる。銘柄ごとの通常変動幅で調整したentry基準の損切りなら、日常的な価格変動を許容しつつ急落だけを次足で退出できる。"
+  parent_experiment_ids:
+    - "EXP-2026-0035"
+    - "EXP-2026-0035-drawdown-diagnostic"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015のZOOMEX linear perpetual trade 2時間足とFunding履歴。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  base_strategy: "EXP-2026-0035の4銘柄、30日相対モメンタム、7日rebalance、正の中央値regime、上位2銘柄。"
+  arms:
+    base_4_top2: "EXP-2026-0035を変更せず再現する。"
+    entry_atr_stop: "baseと同じentry後、確定足closeがentry約定openからentry時ATR240の3倍以上下落したら、次の2時間足始値で退出する。"
+  stop_rule:
+    atr_bars: 240
+    atr_description: "2時間足240本、20日。EXP-2026-0035の既存ATRロング定数を流用する。"
+    atr_multiplier: 3.0
+    reference: "entry実行バーのopenと、その時点までの確定足で計算可能なATR。"
+    trigger: "close <= entry_open - 3 * entry_atr"
+    execution: "triggerを観測した次の2時間足始値。trigger足自身では退出しない。"
+    reentry: "stop後はbase desired positionが一度0になるまで再entryしない。次の独立したbase entryから再許可する。"
+  capital_allocation:
+    initial_equity: "1000"
+    reserve_cash: "200"
+    lot_notional: "200"
+    per_symbol_max_notional: "200"
+    max_long_gross_notional: "400"
+    max_concurrent_positions: 2
+    compounding: false
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+    funding: "正のFundingはlongが支払い、負のFundingは受け取る。"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "4銘柄の価格、時刻、Funding、ATR warm-upを検証できない場合は拒否する。"
+    - "entry時ATRが未計算または非正の場合は新規entryしない。"
+    - "補間足では新規entryしない。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "REJECTED"
+  primary_metric: "entry_atr_stopとbase_4_top2の最大DD差および最終equity差。"
+  secondary_metrics:
+    - "ATR stop発火数、回避した週次保有期間、取引数、手数料、Funding"
+    - "4年間・年率10%複利インデックス基準1464.10 USDTとの差"
+    - "最大DD区間と最悪取引の変化"
+  decision_rule: "最大DDを5ポイント以上改善し、最終equityがbaseの95%以上かつ1464.10 USDT以上ならBACKTEST_CANDIDATEとする。それ以外はREJECTEDとする。"
+  promotion_rule: "単一過去期間の結果だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0041/summary.json"
+  result_summary: "baseは最終1475.46 USDT・最大DD -41.54%、ATR stopは最終894.11 USDT・最大DD -34.91%だった。DDは6.64ポイント改善したが、77取引中59回発火し、最終資産維持率60.60%、インデックス基準未達となったため不採用とした。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  preregistration_commit: "結果確認前に4銘柄top2、ATR240、3倍、次足退出、再entry抑止、固定200 USDTロット、採否条件を固定する。"
