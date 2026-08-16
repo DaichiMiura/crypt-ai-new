@@ -326,7 +326,12 @@ def _apply_funding(
             )
             if funding_time <= last_time or funding_time > latest_close_time:
                 continue
-            price_rows = frames[symbol][frames[symbol]["event_time"] == funding_time]
+            # Klineのevent_timeは足の開始時刻だが、Fundingは足の終了時刻に
+            # 発生する。したがって、Funding時刻を含む直前の確定足終値で評価する。
+            price_rows = frames[symbol][
+                (frames[symbol]["event_time"] < funding_time)
+                & (frames[symbol]["event_time"] + BAR_DELTA >= funding_time)
+            ]
             if price_rows.empty:
                 raise ValueError(f"missing funding valuation bar: {symbol}")
             notional = _decimal(position["quantity"]) * _decimal(

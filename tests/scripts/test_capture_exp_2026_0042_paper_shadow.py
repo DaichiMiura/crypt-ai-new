@@ -9,6 +9,7 @@ from scripts.capture_exp_2026_0042_paper_shadow import (
     LOOKBACK_BARS,
     SYMBOLS,
     _apply_pending_orders,
+    _apply_funding,
     _execution_price,
     _normalize_closed_bars,
 )
@@ -65,3 +66,52 @@ def test_pending_target_enters_on_next_bar_open() -> None:
     assert events[0]["event_time"] == times[1].isoformat()
     assert state["cash_usdt"] == "999.8800"
     assert set(state["positions"]) == {"LINKUSDT"}
+
+
+def test_funding_uses_close_of_bar_ending_at_funding_time(monkeypatch) -> None:
+    """Funding時刻に終了する確定足の終値で評価することをテストする。"""
+
+    times = pd.date_range("2026-01-01 04:00", periods=2, freq=BAR_DELTA, tz="UTC")
+    frames = {
+        symbol: pd.DataFrame(
+            {
+                "event_time": times,
+                "open": [100, 110],
+                "high": [101, 111],
+                "low": [99, 109],
+                "close": [100, 110],
+            }
+        )
+        for symbol in SYMBOLS
+    }
+    funding_time = times[-1] + BAR_DELTA
+    monkeypatch.setattr(
+        "scripts.capture_exp_2026_0042_paper_shadow._get_json",
+        lambda *_args, **_kwargs: {
+            "result": {
+                "list": [
+                    {
+                        "fundingRateTimestamp": str(int(funding_time.timestamp() * 1000)),
+                        "fundingRate": "0.001",
+                    }
+                ]
+            }
+        },
+    )
+    state = {
+        "cash_usdt": "1000",
+        "positions": {
+            "LINKUSDT": {
+                "quantity": "2",
+                "entry_price": "100",
+                "last_funding_time": times[0].isoformat(),
+            }
+        },
+    }
+
+    events = _apply_funding(state, frames)
+
+    assert events[0]["event_type"] == "FUNDING"
+    assert events[0]["notional"] == "220"
+    assert events[0]["cash_flow"] == "-0.220"
+    assert state["cash_usdt"] == "999.780"
