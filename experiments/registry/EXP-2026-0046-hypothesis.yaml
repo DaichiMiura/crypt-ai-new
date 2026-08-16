@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0046"
 created_at_utc: "2026-08-16T00:00:00Z"
 owner_role: "research"
-status: "preregistered"
+status: "completed"
 
 hypothesis:
   statement: "EXP-2026-0045のフィボナッチ買い増しを最大3ロットへ制限すると、最大5ロット版の利益の大部分を残しながら最大ドローダウンを改善できる可能性がある。"
@@ -48,7 +48,7 @@ methodology:
   execution_gate: "研究比較のみ。現在のEXP-2026-0042 paper/shadow設定は変更しない。"
 
 evaluation:
-  status: "PENDING"
+  status: "KEEP_FIXED_200"
   primary_metrics:
     - "費用・Funding控除後の最終equity"
     - "最大ドローダウン"
@@ -61,6 +61,7 @@ evaluation:
     final_candidate: "versus_fixed_200とversus_same_max5_armの両方を満たす場合だけpaper候補とする。"
   promotion_rule: "過去データ比較だけではpaper/shadow設定を変更しない。"
   result_artifact: "artifacts/EXP-2026-0046/summary.json"
+  result_summary: "固定率最大3は最終1829.29 USDT・最大DD -31.47%・return/DD 2.64、ATR最大3は1855.57・-32.62%・2.62。固定200より増益したがDDを4.45〜5.61ポイント悪化。最大5ロット版よりDDを9.87〜11.32ポイント改善したが最終資産維持率は84.55%・82.08%で事前登録90%条件に未達。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -71,9 +72,9 @@ data:
 
 execution_status:
   preregistered: true
-  runner_exists: false
-  backtest_started: false
-  backtest_completed: false
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
   paper_started: false
   shadow_started: false
   live_started: false
