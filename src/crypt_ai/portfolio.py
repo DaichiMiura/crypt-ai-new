@@ -768,7 +768,7 @@ def _summarize(
         (
             _decimal(event["fee"], "fee")
             for event in events
-            if event["event_type"] in {"ENTRY", "EXIT"} and "fee" in event
+            if "fee" in event
         ),
         Decimal("0"),
     )

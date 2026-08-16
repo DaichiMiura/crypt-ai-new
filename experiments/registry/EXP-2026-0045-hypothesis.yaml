@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0045"
 created_at_utc: "2026-08-16T00:00:00Z"
 owner_role: "research"
-status: "preregistered"
+status: "completed"
 
 hypothesis:
   statement: "EXP-2026-0042の売買シグナルを固定し、初回100 USDTから下落時に100 USDTずつ最大4回買い増すと、反発時の平均取得価格を下げ、固定200 USDTより最終資産またはreturn/DD比を改善できる可能性がある。"
@@ -54,7 +54,7 @@ methodology:
   execution_gate: "研究比較のみ。現在稼働中のEXP-2026-0042 paper/shadow設定は変更しない。"
 
 evaluation:
-  status: "PENDING"
+  status: "KEEP_FIXED_200"
   primary_metrics:
     - "費用・Funding控除後の最終equity"
     - "最大ドローダウン"
@@ -67,6 +67,7 @@ evaluation:
     tie_breaker: "両フィボナッチarmが候補ならreturn/DD比が高い方を優先する。"
   promotion_rule: "過去データ比較だけではpaper/shadow設定を変更しない。"
   result_artifact: "artifacts/EXP-2026-0045/summary.json"
+  result_summary: "固定200は最終1589.37 USDT・最大DD -27.01%・return/DD 2.18。固定率フィボナッチは2163.58・-41.33%・2.82、ATRフィボナッチは2260.62・-43.95%・2.87。両買い増しarmは最終資産とreturn/DDを改善したが最大DDを悪化させたため、事前登録candidate条件は不成立。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -79,9 +80,9 @@ data:
 
 execution_status:
   preregistered: true
-  runner_exists: false
-  backtest_started: false
-  backtest_completed: false
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
   paper_started: false
   shadow_started: false
   live_started: false
