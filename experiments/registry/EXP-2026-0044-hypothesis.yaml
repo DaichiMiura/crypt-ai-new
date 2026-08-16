@@ -1,0 +1,91 @@
+schema_version: 1
+experiment_id: "EXP-2026-0044"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0042の売買シグナルを固定し、entry時の現在equityに比例して1銘柄の資金枠を決めると、固定200 USDTより複利が働き、20%枠では同程度のリスクで最終資産を改善できる可能性がある。50%枠では最大2銘柄へ全資産を配分する提案の収益・ドローダウンを確認する。"
+  economic_rationale: "固定ロットでは確定・未確定損益が次の新規建玉へ反映されない。equity比例なら利益後に元本が増え、損失後に自動縮小する。一方、1銘柄50%は複利化と最大投資比率40%から100%への引上げを同時に行うため、20%枠と分離して比較する。"
+  parent_experiment_ids:
+    - "EXP-2026-0042"
+    - "EXP-2026-0043"
+
+methodology:
+  input: "EXP-2026-0015のZOOMEX linear perpetual 2時間足とFunding履歴。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  frozen_strategy: "EXP-2026-0042の4銘柄、30日相対モメンタム、7日rebalance、正の中央値regime、上位2、保有中4位転落の次足退出、base resetまで再entry禁止を変更しない。"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+  arms:
+    fixed_200:
+      sizing: "EXP-2026-0042と同じ1銘柄200 USDT固定、最大2銘柄、最大gross 400 USDT。"
+      compounding: false
+    equity_20pct_per_slot:
+      sizing: "0から1へのentry時に、同時刻openで評価した現在equityの20%を1枠の費用込み予算とする。実建玉元本は予算を1+entry fee率で割る。"
+      max_gross_fraction: "0.40"
+      compounding: true
+    equity_50pct_per_slot:
+      sizing: "0から1へのentry時に、同時刻openで評価した現在equityの50%を1枠の費用込み予算とする。実建玉元本は予算を1+entry fee率で割る。"
+      max_gross_fraction: "1.00"
+      compounding: true
+  sizing_timing:
+    - "entry実行時のopen価格で既存建玉を時価評価し、同時刻までのFunding・決済を反映したequityを使う。"
+    - "保有中の建玉は増減せず、0から1への新規entry時だけ元本を再計算する。"
+    - "対象が1銘柄だけなら1枠だけ使い、空いた枠を同一銘柄へ集中させない。"
+    - "既存建玉と新規建玉のopen時grossがarm上限を超える場合、新規entryを拒否し、部分的な縮小や既存建玉の再調整は行わない。"
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+    funding: "正のFundingはlongが支払い、負のFundingは受け取る。"
+  capital:
+    initial_equity: "1000"
+    max_concurrent_positions: 2
+    short_enabled: false
+    leverage_assumption: "gross/equity比のみを比較し、追加レバレッジは使わない。"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "補間足では新規entryしない。"
+    - "entry時equity、価格、Funding、または時刻を検証できない場合は拒否する。"
+    - "equity比例gross上限または利用可能cashを超える新規entryは拒否する。"
+  execution_gate: "研究比較のみ。現在稼働中のEXP-2026-0042 paper/shadow設定は変更しない。"
+
+evaluation:
+  status: "PENDING"
+  primary_metrics:
+    - "費用・Funding控除後の最終equity"
+    - "最大ドローダウン"
+    - "return_rate / abs(max_drawdown)"
+  secondary_metrics:
+    - "年別損益、entry数、配分拒否数、最大gross/equity比、手数料、Funding"
+    - "4年間・年率10%複利基準1464.10 USDTとの差"
+  decision_rule:
+    equity_20pct_per_slot: "固定200より最終equityが高く、最大DDを悪化させず、1464.10 USDT以上なら複利候補とする。"
+    equity_50pct_per_slot: "20%枠より最終equityが高く、return/DD比も20%枠以上なら全額配分候補とする。"
+  promotion_rule: "過去データ比較だけではpaper/shadow設定を変更しない。"
+  result_artifact: "artifacts/EXP-2026-0044/summary.json"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: false
+  backtest_started: false
+  backtest_completed: false
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  preregistration_commit: "結果確認前に3arm、entry時equity、費用込み枠、保有中resizeなし、1銘柄時の集中禁止、採否条件を固定する。"
