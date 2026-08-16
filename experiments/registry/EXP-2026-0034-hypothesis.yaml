@@ -1,0 +1,79 @@
+schema_version: 1
+experiment_id: "EXP-2026-0034"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0033で観測したヘッジarmの改善が、単にロング投資額を減らして現金を保持した効果ではなく、ベーシス・ヘッジ固有の効果であるかを検証する。"
+  economic_rationale: "同じbasis予算を、現物long・perpetual shortペアへ配分する場合と未投資の現金として保持する場合を比較し、ヘッジによる価格相殺・収益・費用の寄与を分離する。"
+  parent_experiment_ids:
+    - "EXP-2026-0033"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0033と同じZOOMEX現物・linear perpetual trade/mark・Fundingデータ。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  long_strategy: "EXP-2026-0033と同一の2時間足ロング条件を使用する。"
+  basis_strategy: "EXP-2026-0033と同一のentry +0.50%、exit +0.10%、最大保有360本、片脚24 USDTを使用する。"
+  capital_allocation:
+    initial_equity: "1000"
+    reserve_cash: "200"
+    deployable_equity: "800"
+    budgets:
+      long_only: "basis予算0、ロング800"
+      hedge_5pct: "basis予算50、ロング750、最大1ペア"
+      cash_control_5pct: "basis予算50を現金保持、ロング750、ペアなし"
+      hedge_10pct: "basis予算100、ロング700、最大2ペア"
+      cash_control_10pct: "basis予算100を現金保持、ロング700、ペアなし"
+      hedge_20pct: "basis予算200、ロング600、最大4ペア"
+      cash_control_20pct: "basis予算200を現金保持、ロング600、ペアなし"
+    long_allocation: "ロング予算を4銘柄へ均等配分する。"
+    compounding: false
+    cross_sleeve_reallocation: false
+  costs: "EXP-2026-0033と同一の手数料、spread、slippage仮定。"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "データ品質、共通期間、共通時刻、銘柄対応が検証できない場合は拒否する。"
+    - "現金保持対照群ではbasis注文を一切発生させない。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "REGISTERED"
+  primary_metric: "同一basis予算のhedge armとcash control armの最終equity差。"
+  secondary_metrics:
+    - "最大DD、手数料、Funding、basis損益、ロング損益"
+    - "long_onlyとの差、および4年間年率10%複利基準1464.10 USDTとの差"
+  diagnostic_rule: "hedge armが対応するcash controlより最終equityまたは最大DDで優れるかを確認する。現金保持に劣る場合、ヘッジ固有の改善とは認めない。"
+  promotion_rule: "この切り分け結果だけでpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0034/summary.json"
+  result_summary: "5%、10%、20%の全比較で、ベーシス・ヘッジは同一予算の現金保持対照群を最終equity・最大DDとも下回った。ヘッジとの差は-0.14〜-0.19 USDTで、EXP-0033の改善はロング配分を減らし現金を保持した効果が主因と判断する。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX spot and linear USDT perpetual"
+  target_venue: "ZOOMEX spot and linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    spot: "data/processed/EXP-2026-0032/{SYMBOL}/spot-2h.csv"
+    perpetual_trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    perpetual_mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0033"
+  preregistration_commit: "結果確認前にbasis hedge群と同一予算のcash control群、ロング条件、費用、評価指標を固定する。"

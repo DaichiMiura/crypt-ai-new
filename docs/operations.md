@@ -21,6 +21,16 @@
 shadowではBinance Japanの市場データを本番相当の経路で受信するが、注文APIへ送信してはならない。戦略の出力は注文直前で止め、次の情報から想定約定を計算する。
 
 - signal time、receive time、decision time、simulated order time
+
+## Exchange order preflight
+
+ZOOMEXへ接続する前に、`src/crypt_ai/execution.py`の注文候補生成を通す。銘柄仕様の
+`tickSize`、`qtyStep`、最小数量、最小元本へ丸め・照合し、資金配分層の承認結果とともに
+監査する。この層はAPIへ送信せず、約定確認後に配分状態を更新する。
+
+新規注文の約定前に状態を楽観的に増やさない。注文拒否・取消・部分約定は実約定数量へ
+合わせて会計・配分状態を更新する実行アダプターを別途実装するまで、paperまたはshadow
+の候補としてのみ扱う。
 - best bid/ask、spread、板の厚さ、想定価格、数量、価格刻み、最小数量
 - データ遅延、注文相当の処理時間、想定slippage、部分約定、未約定理由
 - その時点のfee model、想定commission、口座残高を使わないpaper残高

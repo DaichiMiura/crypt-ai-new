@@ -1,0 +1,94 @@
+schema_version: 1
+experiment_id: "EXP-2026-0031"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "複数銘柄の過去30日リターン下位銘柄を定期的にショートするクロスセクショナル・モメンタムは、VOID式とは異なる原理で下落局面の損失を補完できる可能性がある。"
+  economic_rationale: "同じ市場方向を無条件にショートするのではなく、相対的に弱い銘柄へショートを限定することで、銘柄間のリターン差を利用し、単一銘柄の上昇に対するショート損失を抑える。"
+  parent_experiment_ids:
+    - "EXP-2026-0030"
+    - "EXP-2026-0029"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015のZOOMEX trade 2時間足と8時間ごとのFunding率。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  warmup_window: "評価開始前30日をランキング計算のウォームアップに使う。"
+  signal_strategy: "各銘柄の30日（360本）リターンを比較し、7日（84本）ごとに下位2銘柄を選定する。選定は確定足の次の2時間足始値へ遅延する。"
+  ranking: "リターン昇順、同率は銘柄名昇順。6銘柄中2銘柄をショートし、整数化した下位四分位相当とする。"
+  accounting: "run_allocated_portfolioによるショート専用会計。固定ロット元本を担保相当額として取り置き、Fundingは既存建玉へ決済時刻に適用する。"
+  arms:
+    cash_control: "初期equity 1000 USDT、ショート上限0、ロング上限0。"
+    short_5pct: "初期equity 1000 USDT、ショート上限50 USDT（5%）、ロング上限0。"
+    short_10pct: "初期equity 1000 USDT、ショート上限100 USDT（10%）、ロング上限0。"
+    short_20pct: "初期equity 1000 USDT、ショート上限200 USDT（20%）、ロング上限0。"
+  capital_allocation:
+    initial_equity: "1000"
+    reserve_cash: "200"
+    lot_notional: "50"
+    total_cap: "200"
+    per_symbol_cap: "200"
+    compounding: false
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "6銘柄のウォームアップ・評価期間、2時間足時刻、データ品質が一致しない場合は拒否する。"
+    - "補間行、欠損、重複、内部gap、正でない価格、非有限Fundingがある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED"
+  primary_metric: "ショート枠armごとの最終equity、最大DD、Funding込みの純損益。"
+  secondary_metrics:
+    - "cash controlとの差、ショート実現損益、Funding受払、手数料、エントリー数"
+    - "4年間の年率10%複利インデックス基準1464.10 USDTとの差"
+    - "銘柄別ランキング、配分拒否数、最大ショート元本"
+  diagnostic_rule: "単一armを自動採用しない。最終equity、最大DD、Funding、取引回数を併記し、結果が相対的に良くてもpaper・shadowへ直ちには昇格しない。"
+  promotion_rule: "単一期間のクロスセクショナル結果だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0031/summary.json"
+  result_summary: "6銘柄固定の今回条件では、cash controlの最終equity1000 USDTに対し、5%枠は971.83 USDT、10%枠と20%枠は931.94 USDTとなった。最大DDは5%枠-10.995%、10%・20%枠-23.631%。Fundingはプラスだったが、ショート価格損益と手数料を補えず、今回の固定ルールは不採用とする。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  backtest_result_artifact: "artifacts/EXP-2026-0031/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+references:
+  - title: "Momentum in the Cryptocurrency Market: A Comprehensive Analysis under Realistic Assumptions"
+    url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4675565"
+    relevance: "現実的な費用・取引制約下で、タイムシリーズとクロスセクショナルのモメンタムを比較する研究。"
+  - title: "Cross-sectional Momentum in Cryptocurrency Markets"
+    url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4322637"
+    relevance: "暗号資産の銘柄間モメンタムを検証した先行研究。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0030"
+    - "EXP-2026-0029"
+  preregistration_commit: "この仮説ファイルを結果確認前に追加し、30日lookback、7日rebalance、下位2銘柄、4つのショート枠を固定する。"

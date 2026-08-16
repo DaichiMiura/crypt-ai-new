@@ -50,11 +50,12 @@ OSSは実装部品として利用する。実験台帳、会計の正本、戦�
 ## Dependency direction
 
 ```text
-data -> strategy -> portfolio/accounting -> risk -> execution
+data -> strategy -> portfolio/allocation/accounting -> risk -> execution
                                       monitoring <-+
 ```
 
 - `execution` は研究用コードやLLMを呼び出さない。
+- `execution` は注文候補を取引所仕様・配分・リスク境界で検査するが、現在の実装はAPI送信を行わない。
 - `risk` は注文を拒否できるが、安全制約を緩和できない。
 - `strategy` は残高、秘密情報、取引所クライアントへ直接アクセスしない。
 - `backtest` と `execution` は共通の注文・約定・会計モデルを使用する。

@@ -12,6 +12,8 @@ from crypt_ai.research import (
     interpolate_missing_hourly_data,
     prepare_atr_trailing_exit_signals,
     prepare_bollinger_mean_reversion_signals,
+    prepare_cross_sectional_momentum_long_signals,
+    prepare_cross_sectional_momentum_short_signals,
     prepare_donchian_bollinger_exit_signals,
     prepare_donchian_long_short_regime_signals,
     prepare_donchian_regime_filter_signals,
@@ -36,6 +38,159 @@ def test_prepare_signals_uses_previous_closed_bar():
     result = prepare_signals(frame, fast_window=2, slow_window=3)
     assert result.loc[3, "desired_position"] == 0
     assert result.loc[4, "desired_position"] == 1
+
+
+def test_cross_sectional_momentum_selects_worst_symbols_and_holds_until_rebalance():
+    """下位モメンタム銘柄を選び、次のリバランスまでショート状態を保持することをテストする。"""
+    timestamps = pd.date_range("2026-01-01", periods=8, freq="h", tz="UTC")
+    frames = {
+        "AAA": pd.DataFrame({"event_time": timestamps, "close": [100, 100, 100, 100, 100, 100, 100, 100]}),
+        "BBB": pd.DataFrame({"event_time": timestamps, "close": [100, 90, 90, 90, 90, 90, 90, 90]}),
+        "CCC": pd.DataFrame({"event_time": timestamps, "close": [100, 110, 110, 110, 110, 110, 110, 110]}),
+    }
+
+    result = prepare_cross_sectional_momentum_short_signals(
+        frames, lookback_bars=1, rebalance_bars=3, short_count=1
+    )
+
+    assert result["BBB"].loc[1, "cross_sectional_rank"] == 1
+    assert result["BBB"].loc[1, "short_signal_position"] == 1
+    assert result["BBB"].loc[2, "short_signal_position"] == 1
+    assert result["BBB"].loc[2, "desired_short_position"] == 1
+    assert result["CCC"].loc[2, "short_signal_position"] == 0
+
+
+def test_cross_sectional_momentum_rejects_unsynchronized_frames():
+    """銘柄間で時刻が一致しない入力を拒否することをテストする。"""
+    timestamps = pd.date_range("2026-01-01", periods=3, freq="h", tz="UTC")
+    with pytest.raises(ValueError, match="identical timestamps"):
+        prepare_cross_sectional_momentum_short_signals(
+            {
+                "AAA": pd.DataFrame({"event_time": timestamps, "close": [1, 2, 3]}),
+                "BBB": pd.DataFrame(
+                    {
+                        "event_time": timestamps + pd.Timedelta(hours=1),
+                        "close": [1, 2, 3],
+                    }
+                ),
+            },
+            lookback_bars=1,
+            rebalance_bars=1,
+            short_count=1,
+        )
+
+
+def test_cross_sectional_long_selects_best_symbols_on_positive_market():
+    """正の市場regimeで上位モメンタム銘柄を次足からロングすることをテストする。"""
+
+    timestamps = pd.date_range("2026-01-01", periods=5, freq="h", tz="UTC")
+    frames = {
+        "AAA": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 101, 102, 103, 104]}
+        ),
+        "BBB": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 110, 120, 130, 140]}
+        ),
+        "CCC": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 105, 110, 115, 120]}
+        ),
+    }
+
+    result = prepare_cross_sectional_momentum_long_signals(
+        frames, lookback_bars=1, rebalance_bars=2, long_count=1
+    )
+
+    assert result["BBB"].loc[1, "cross_sectional_rank"] == 1
+    assert result["BBB"].loc[1, "long_signal_position"] == 1
+    assert result["BBB"].loc[2, "desired_long_position"] == 1
+    assert result["AAA"].loc[2, "desired_long_position"] == 0
+
+
+def test_cross_sectional_long_holds_cash_when_market_median_is_not_positive():
+    """市場中央値モメンタムが非正なら上位銘柄もロングしないことをテストする。"""
+
+    timestamps = pd.date_range("2026-01-01", periods=4, freq="h", tz="UTC")
+    frames = {
+        "AAA": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 110, 110, 110]}
+        ),
+        "BBB": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 90, 90, 90]}
+        ),
+        "CCC": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 80, 80, 80]}
+        ),
+    }
+
+    result = prepare_cross_sectional_momentum_long_signals(
+        frames, lookback_bars=1, rebalance_bars=2, long_count=1
+    )
+
+    assert result["AAA"].loc[1, "market_regime_ok"] == False  # noqa: E712
+    assert result["AAA"].loc[2, "desired_long_position"] == 0
+    assert sum(result[symbol].loc[1, "long_signal_position"] for symbol in frames) == 0
+
+
+def test_cross_sectional_long_early_exit_waits_until_next_rebalance():
+    """モメンタム0以下の早期退出後に次のリバランスまで再選定しないことをテストする。"""
+
+    timestamps = pd.date_range("2026-01-01", periods=5, freq="h", tz="UTC")
+    frames = {
+        "AAA": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 120, 100, 130, 140]}
+        ),
+        "BBB": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 110, 115, 120, 125]}
+        ),
+        "CCC": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 105, 110, 115, 120]}
+        ),
+    }
+
+    result = prepare_cross_sectional_momentum_long_signals(
+        frames,
+        lookback_bars=1,
+        rebalance_bars=3,
+        long_count=1,
+        early_exit_on_nonpositive=True,
+    )
+
+    assert result["AAA"].loc[1, "long_signal_position"] == 1
+    assert result["AAA"].loc[2, "momentum_early_exit_signal"] == True  # noqa: E712
+    assert result["AAA"].loc[2, "long_signal_position"] == 0
+    assert result["AAA"].loc[3, "long_signal_position"] == 0
+    assert result["AAA"].loc[3, "desired_long_position"] == 0
+
+
+def test_cross_sectional_long_market_exit_closes_all_until_next_rebalance():
+    """市場中央値0以下の早期退出後に全銘柄が次のリバランスまで待つことをテストする。"""
+
+    timestamps = pd.date_range("2026-01-01", periods=5, freq="h", tz="UTC")
+    frames = {
+        "AAA": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 120, 100, 130, 140]}
+        ),
+        "BBB": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 110, 90, 120, 130]}
+        ),
+        "CCC": pd.DataFrame(
+            {"event_time": timestamps, "close": [100, 105, 80, 115, 120]}
+        ),
+    }
+
+    result = prepare_cross_sectional_momentum_long_signals(
+        frames,
+        lookback_bars=1,
+        rebalance_bars=3,
+        long_count=2,
+        early_exit_on_nonpositive_median=True,
+    )
+
+    assert result["AAA"].loc[1, "long_signal_position"] == 1
+    assert result["BBB"].loc[1, "long_signal_position"] == 1
+    assert result["AAA"].loc[2, "market_early_exit_signal"] == True  # noqa: E712
+    assert sum(result[symbol].loc[2, "long_signal_position"] for symbol in frames) == 0
+    assert sum(result[symbol].loc[3, "long_signal_position"] for symbol in frames) == 0
 
 
 def test_run_backtest_charges_fee_on_both_sides():

@@ -12,16 +12,22 @@ required_files=(
   pyproject.toml
   config/risk-limits.yaml
   config/paper-risk-limits.yaml
+  config/allocation.yaml
   config/strategies/exp-0001-risk.yaml
   config/strategies/exp-2026-0012-paper.yaml
+  config/strategies/exp-2026-0042-paper-shadow.yaml
   docs/accounting-policy.md
   docs/dependency-policy.md
   docs/references/penfold-universal-principles.md
   docs/charter.md
   docs/operations.md
   docs/paper-exp-2026-0012.md
+  docs/paper-shadow-exp-2026-0042.md
+  deploy/systemd/crypt-ai-exp-0042-paper-shadow.service
+  deploy/systemd/crypt-ai-exp-0042-paper-shadow.timer
   docs/research-policy.md
   docs/risk-policy.md
+  docs/allocation-policy.md
   docs/venue-data-policy.md
   docs/validation-policy.md
   experiments/registry/EXP-2026-0001-hypothesis.yaml
@@ -58,8 +64,38 @@ required_files=(
   experiments/registry/EXP-2026-0014-validation.md
   experiments/registry/EXP-2026-0015-hypothesis.yaml
   experiments/registry/EXP-2026-0015-strategy.yaml
+  experiments/registry/EXP-2026-0031-hypothesis.yaml
+  experiments/registry/EXP-2026-0031-validation.md
+  experiments/registry/EXP-2026-0032-hypothesis.yaml
+  experiments/registry/EXP-2026-0032-validation.md
+  experiments/registry/EXP-2026-0033-hypothesis.yaml
+  experiments/validation/EXP-2026-0033-validation.md
+  experiments/registry/EXP-2026-0034-hypothesis.yaml
+  experiments/validation/EXP-2026-0034-validation.md
+  experiments/registry/EXP-2026-0035-hypothesis.yaml
+  experiments/validation/EXP-2026-0035-validation.md
+  experiments/registry/EXP-2026-0036-hypothesis.yaml
+  experiments/validation/EXP-2026-0036-validation.md
+  experiments/registry/EXP-2026-0037-hypothesis.yaml
+  experiments/validation/EXP-2026-0037-validation.md
+  experiments/registry/EXP-2026-0038-hypothesis.yaml
+  experiments/validation/EXP-2026-0038-validation.md
+  experiments/registry/EXP-2026-0039-hypothesis.yaml
+  experiments/validation/EXP-2026-0039-validation.md
+  experiments/registry/EXP-2026-0040-hypothesis.yaml
+  experiments/registry/EXP-2026-0041-hypothesis.yaml
+  experiments/registry/EXP-2026-0042-hypothesis.yaml
+  experiments/registry/EXP-2026-0043-hypothesis.yaml
+  experiments/validation/EXP-2026-0040-validation.md
+  experiments/validation/EXP-2026-0041-validation.md
+  experiments/validation/EXP-2026-0042-validation.md
+  experiments/validation/EXP-2026-0043-validation.md
+  experiments/validation/EXP-2026-0035-drawdown-diagnostic.md
+  experiments/registry/EXP-2026-0030-hypothesis.yaml
+  experiments/registry/EXP-2026-0030-validation.md
   experiments/registry/DATA-2026-0005-manifest.yaml
   experiments/approvals/EXP-2026-0012-paper.yaml
+  experiments/approvals/EXP-2026-0042-paper-shadow.yaml
   scripts/download_binance_global_data.py
   scripts/download_binance_btcjpy_daily.py
   scripts/download_exp_2026_0014_data.py
@@ -82,11 +118,52 @@ required_files=(
   scripts/run_exp_2026_0012.py
   scripts/run_exp_2026_0013.py
   scripts/run_exp_2026_0014.py
+  scripts/run_exp_2026_0031.py
+  scripts/run_exp_2026_0032.py
+  scripts/run_exp_2026_0033.py
+  scripts/run_exp_2026_0034.py
+  scripts/run_exp_2026_0035.py
+  scripts/run_exp_2026_0036.py
+  scripts/run_exp_2026_0037.py
+  scripts/run_exp_2026_0038.py
+  scripts/run_exp_2026_0039.py
+  scripts/run_exp_2026_0040.py
+  scripts/run_exp_2026_0041.py
+  scripts/run_exp_2026_0042.py
+  scripts/run_exp_2026_0043.py
+  scripts/capture_exp_2026_0042_paper_shadow.py
+  scripts/run_exp_2026_0042_paper_shadow_cycle.sh
+  scripts/diagnose_exp_2026_0035_drawdown.py
+  scripts/download_zoomex_exp_2026_0032_spot_data.py
+  scripts/run_exp_2026_0030.py
   scripts/run_exp_2026_0012_paper.py
   scripts/run_paper_daily.sh
   src/crypt_ai/paper.py
+  src/crypt_ai/allocation.py
+  src/crypt_ai/portfolio.py
+  src/crypt_ai/execution.py
   src/crypt_ai/research.py
   src/crypt_ai/void_short.py
+  src/crypt_ai/basis.py
+  src/crypt_ai/basis_backtest.py
+  tests/scripts/test_run_exp_2026_0031.py
+  tests/scripts/test_run_exp_2026_0032.py
+  tests/scripts/test_run_exp_2026_0033.py
+  tests/scripts/test_run_exp_2026_0034.py
+  tests/scripts/test_run_exp_2026_0035.py
+  tests/scripts/test_run_exp_2026_0036.py
+  tests/scripts/test_run_exp_2026_0037.py
+  tests/scripts/test_run_exp_2026_0038.py
+  tests/scripts/test_run_exp_2026_0039.py
+  tests/scripts/test_run_exp_2026_0040.py
+  tests/scripts/test_run_exp_2026_0041.py
+  tests/scripts/test_run_exp_2026_0042.py
+  tests/scripts/test_run_exp_2026_0043.py
+  tests/scripts/test_capture_exp_2026_0042_paper_shadow.py
+  tests/scripts/test_diagnose_exp_2026_0035_drawdown.py
+  tests/scripts/test_download_zoomex_exp_2026_0032_spot_data.py
+  tests/src/crypt_ai/test_basis.py
+  tests/src/crypt_ai/test_basis_backtest.py
   templates/hypothesis.yaml
   templates/data-manifest.yaml
   templates/validation-report.md
@@ -130,6 +207,15 @@ assert_paper_setting '^allowed_exchanges: \[paper\]$' 'paper must use the synthe
 assert_paper_setting '^  reject_on_unknown_state: true$' 'paper must reject unknown states'
 assert_paper_setting '^  reject_on_reconciliation_failure: true$' 'paper must reject reconciliation failures'
 assert_paper_setting '^  reject_on_risk_engine_failure: true$' 'paper must reject risk-engine failures'
+
+if ! grep -Eq '^environment: paper$' config/allocation.yaml; then
+  echo 'invalid allocation setting: allocation must be paper-only' >&2
+  exit 1
+fi
+if ! grep -Eq '^schema_version: 1$' config/allocation.yaml; then
+  echo 'invalid allocation setting: schema version is missing' >&2
+  exit 1
+fi
 
 if ! grep -Eq '^strategy_id: EXP-0001$' config/strategies/exp-0001-risk.yaml; then
   echo 'invalid strategy setting: strategy ID is missing' >&2

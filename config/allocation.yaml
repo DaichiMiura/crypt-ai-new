@@ -1,0 +1,18 @@
+# 複数銘柄のpaper/research配分例。live adapterへ直接渡してはならない。
+schema_version: 1
+environment: paper
+currency: JPY
+
+# 資産一覧は実験の対象に応じて変更する。
+allowed_symbols: [BTCUSDT, ETHUSDT, LINKUSDT, UNIUSDT, ADAUSDT, AVAXUSDT]
+
+# 100,000 JPYの口座で、20,000 JPYを予備資金として残す例。
+initial_equity: "100000"
+reserve_cash: "20000"
+max_long_gross_notional: "60000"
+max_short_gross_notional: "10000"
+max_total_gross_notional: "70000"
+per_symbol_max_notional: "10000"
+lot_notional: "10000"
+max_concurrent_long_positions: 6
+max_concurrent_short_positions: 1

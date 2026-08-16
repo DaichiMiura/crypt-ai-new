@@ -1,0 +1,91 @@
+schema_version: 1
+experiment_id: "EXP-2026-0035"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "4銘柄へ個別にロングシグナルを適用する現行方式より、過去30日で相対的に強い銘柄だけへ固定ロットを配分し、市場全体が弱いときに現金保持する方式の方が、弱い銘柄による損失を抑えられる可能性がある。"
+  economic_rationale: "暗号資産には銘柄間の強弱が継続する局面があり、絶対モメンタムが弱い市場で無理に保有せず、相対モメンタム上位へ限定することで、固定ユニバース全体への無差別な配分を避ける。"
+  parent_experiment_ids:
+    - "EXP-2026-0034"
+    - "EXP-2026-0031"
+    - "EXP-2026-0023"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0015のZOOMEX linear perpetual trade 2時間足とFunding履歴。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  ranking:
+    lookback_bars: 360
+    lookback_description: "30日（2時間足360本）のclose-to-close単純リターン。"
+    rebalance_bars: 84
+    rebalance_description: "7日（2時間足84本）ごとに順位を更新する。"
+    order: "リターン降順、同率は銘柄名昇順。確定足の選定を次足始値へ遅延する。"
+    market_regime: "4銘柄の30日リターン中央値が0以下の場合、次のリバランスまで全銘柄を現金保持する。"
+  arms:
+    cash_control: "全額現金保持。"
+    current_equal_long: "EXP-2026-0023/0033のATR trailing exit付きロングを4銘柄へ個別適用。最大4ロット。"
+    momentum_top1: "市場regimeが正のとき相対モメンタム1位へ1ロット。最大1銘柄。"
+    momentum_top2: "市場regimeが正のとき相対モメンタム上位2銘柄へ各1ロット。最大2銘柄。"
+  capital_allocation:
+    initial_equity: "1000"
+    reserve_cash: "200"
+    lot_notional: "200"
+    per_symbol_max_notional: "200"
+    current_equal_long_cap: "800"
+    momentum_top1_cap: "200"
+    momentum_top2_cap: "400"
+    compounding: false
+    unused_capital: "現金保持。top1/top2の投資額が小さい点は、最終equityと最大DDの解釈で明示する。"
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+    funding: "正のFundingはlongが支払い、負のFundingは受け取る。"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "4銘柄のウォームアップ・評価期間、2時間足時刻、価格、Funding、補間有無を検証できない場合は拒否する。"
+    - "市場regimeが非正、ランキング未計算、または補間足の場合は新規entryしない。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "REGISTERED"
+  primary_metric: "各armの最終equity、最大DD、現金対照との差。"
+  secondary_metrics:
+    - "投資元本上限、保有率、取引件数、手数料、Funding、銘柄別entry件数"
+    - "4年間・年率10%複利インデックス基準1464.10 USDTとの差"
+    - "current_equal_longとの差、および市場regimeによる現金退避回数"
+  diagnostic_rule: "top1/top2は投資元本が異なるため、最終equity・最大DDだけでなく平均・最大gross元本と現金保持率を併記する。特定銘柄の事後除外はしない。"
+  promotion_rule: "単一期間の結果だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0035/summary.json"
+  result_summary: "current_equal_longは最終930.97 USDT、top1は1331.80 USDT、top2は1475.46 USDTとなった。top2は4年間年率10%複利基準1464.10を11.36 USDT上回った一方、最大DDは-41.54%だった。top2をDD改善へ進めるBACKTEST_CANDIDATEとし、paper等には昇格しない。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0034"
+    - "EXP-2026-0031"
+    - "EXP-2026-0023"
+  preregistration_commit: "結果確認前に4銘柄、30日lookback、7日rebalance、上位1・2、中央値regime、1ロット200 USDT、費用を固定する。"

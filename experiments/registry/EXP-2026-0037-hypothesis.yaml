@@ -1,0 +1,79 @@
+schema_version: 1
+experiment_id: "EXP-2026-0037"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0035の上位2銘柄ロングで、保有銘柄の30日モメンタムが0以下になった次足に退出すると、利益源を維持しながら最大DDを抑えられる可能性がある。"
+  economic_rationale: "相対順位が高くても絶対リターンが負へ転じた銘柄を次の7日リバランスまで保有し続ける必要はない。既存のモメンタム指標を退出にも利用し、悪化したポジションだけを早く現金化する。"
+  parent_experiment_ids:
+    - "EXP-2026-0035"
+    - "EXP-2026-0036"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0035と同じZOOMEX linear perpetual 2時間足とFunding履歴。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  entry_strategy: "30日lookback、7日rebalance、4銘柄中央値リターンが正のとき上位2銘柄を次足始値からロングするEXP-0035条件。"
+  arms:
+    cash_control: "全額現金保持。"
+    weekly_exit: "EXP-0035再現。選定状態を次の7日リバランスまで維持する。"
+    momentum_zero_exit: "保有中に当該銘柄の30日モメンタムが0以下になった確定足の次足始値で退出する。退出後は次の7日リバランスまで再entryしない。"
+  capital_allocation:
+    initial_equity: "1000"
+    reserve_cash: "200"
+    lot_notional: "200"
+    max_concurrent_positions: 2
+    max_long_gross_notional: "400"
+    per_symbol_max_notional: "200"
+    compounding: false
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+    funding: "正のFundingはlongが支払い、負のFundingは受け取る。"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "EXP-0035と同じデータ品質・時刻・補間拒否条件を満たさない場合は実行しない。"
+    - "市場中央値regimeが非正の場合は全額現金保持する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "REGISTERED"
+  primary_metric: "weekly_exitとmomentum_zero_exitの最終equity、最大DD。"
+  secondary_metrics:
+    - "純損益、手数料、Funding、取引回数、早期退出回数、投資中バー比率"
+    - "4年間年率10%複利基準1464.10 USDTとの差"
+  diagnostic_rule: "entryのリバランス時刻と選定順位を共通にし、早期退出後の同一リバランス期間内再entryがないことを確認する。"
+  promotion_rule: "単一期間の退出比較だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0037/summary.json"
+  result_summary: "momentum_zero_exitは最終1268.81 USDT・最大DD-30.13%となり、weekly_exitの1475.46 USDT・-41.54%に対してDDを11.41ポイント改善したが、最終資産を206.65 USDT失いインデックス基準を下回った。早期退出単独では利益とDDを両立しない。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0035"
+    - "EXP-2026-0036"
+  preregistration_commit: "結果確認前にEXP-0035のentry・資金・費用を固定し、30日モメンタム0以下の早期退出だけを追加する。"

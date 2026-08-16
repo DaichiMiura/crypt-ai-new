@@ -132,6 +132,46 @@ def open_void_short_maker(
     )
 
 
+def open_void_short_taker(
+    position: VoidShortPosition,
+    *,
+    quantity: Decimal,
+    raw_price: Decimal,
+    costs: VoidShortCostModel,
+) -> VoidShortPosition:
+    """市場性の売り約定をショート建玉へ加える。
+
+    売りのtaker約定は、スリッページによって基準価格より低い価格で約定する
+    と仮定する。新しい下落ブレイク型ショートの次足始値エントリーで使う。
+
+    Args:
+        position: 約定前のショート建玉。
+        quantity: 新規売り数量。
+        raw_price: 約定判定に使う市場価格。
+        costs: 費用モデル。
+
+    Returns:
+        加重平均建値、売却代金、taker手数料を反映した建玉。
+
+    Raises:
+        ValueError: 数量または価格が非正・非有限の場合。
+    """
+
+    _require_positive(quantity=quantity, price=raw_price)
+    execution_price = raw_price * (Decimal("1") - costs.taker_slippage_rate)
+    old_notional = position.quantity * position.average_entry_price
+    fill_notional = quantity * execution_price
+    new_quantity = position.quantity + quantity
+    fee = fill_notional * costs.taker_fee_rate
+    return VoidShortPosition(
+        quantity=new_quantity,
+        average_entry_price=(old_notional + fill_notional) / new_quantity,
+        cash_flow=position.cash_flow + fill_notional - fee,
+        trading_fees=position.trading_fees + fee,
+        funding_cash_flow=position.funding_cash_flow,
+    )
+
+
 def close_void_short(
     position: VoidShortPosition,
     *,

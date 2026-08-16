@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 import math
@@ -795,6 +796,300 @@ def prepare_donchian_long_short_regime_signals(
     result["desired_position"] = (
         result["signal_position"].shift(1, fill_value=0).astype(int)
     )
+    return result
+
+
+def prepare_cross_sectional_momentum_short_signals(
+    frames: Mapping[str, pd.DataFrame],
+    *,
+    lookback_bars: int = 360,
+    rebalance_bars: int = 84,
+    short_count: int = 2,
+) -> dict[str, pd.DataFrame]:
+    """銘柄間モメンタムの下位銘柄をショートする状態を作る。
+
+    各銘柄の確定終値から`lookback_bars`本前までのリターンを比較し、
+    リターンが低い順に`short_count`銘柄を選ぶ。選定は`rebalance_bars`本ごとに
+    行い、確定したランキングを次のバーの始値へ遅延する。したがって、選定に
+    現在バーの始値・高値・安値、または将来バーの情報は使わない。銘柄間の同率は
+    銘柄名の昇順で決定し、同じ入力から同じ選定結果を再現できるようにする。
+
+    Args:
+        frames: 銘柄名をキーとする、UTCの`event_time`と正の`close`を含むDataFrame。
+            すべての銘柄は同じ時刻集合、昇順、一定間隔でなければならない。
+        lookback_bars: モメンタム計算に使う過去バー数。
+        rebalance_bars: ランキングを更新する間隔。最初の更新は、データ先頭から
+            `lookback_bars`本経過した時点で行う。
+        short_count: 各更新でショートする下位銘柄数。
+
+    Returns:
+        銘柄ごとの入力列に、モメンタム、順位、リバランス選定、
+        `desired_short_position`、`desired_long_position`を追加したDataFrame。
+
+    Raises:
+        ValueError: 銘柄が空、入力列・時刻・価格が不正、銘柄間の時刻が不一致、
+            またはパラメータが不正な場合。
+    """
+
+    if not frames:
+        raise ValueError("frames must not be empty")
+    if lookback_bars <= 0 or rebalance_bars <= 0 or short_count <= 0:
+        raise ValueError("lookback_bars, rebalance_bars, and short_count must be positive")
+    symbols = tuple(sorted(frames))
+    if short_count > len(symbols):
+        raise ValueError("short_count must not exceed the number of symbols")
+
+    prepared: dict[str, pd.DataFrame] = {}
+    timestamp_sets: set[frozenset[pd.Timestamp]] = set()
+    for symbol in symbols:
+        source = frames[symbol].copy()
+        required = {"event_time", "close"}
+        missing = required.difference(source.columns)
+        if missing:
+            raise ValueError(f"missing cross-sectional columns for {symbol}: {sorted(missing)}")
+        source["event_time"] = pd.to_datetime(source["event_time"], utc=True, errors="coerce")
+        if source["event_time"].isna().any():
+            raise ValueError(f"invalid event_time: {symbol}")
+        if (
+            source["event_time"].duplicated().any()
+            or not source["event_time"].is_monotonic_increasing
+        ):
+            raise ValueError(f"event_time must be unique and sorted: {symbol}")
+        source["close"] = pd.to_numeric(source["close"], errors="coerce")
+        if source["close"].isna().any() or not source["close"].gt(0).all():
+            raise ValueError(f"close must be positive: {symbol}")
+        prepared[symbol] = source.reset_index(drop=True)
+        timestamp_sets.add(frozenset(source["event_time"]))
+
+    if len(timestamp_sets) != 1:
+        raise ValueError("all cross-sectional frames must have identical timestamps")
+    timestamps = prepared[symbols[0]]["event_time"]
+    if len(timestamps) <= lookback_bars:
+        raise ValueError("frames must contain more rows than lookback_bars")
+
+    momentum = pd.DataFrame(
+        {
+            symbol: prepared[symbol]["close"].div(
+                prepared[symbol]["close"].shift(lookback_bars)
+            )
+            - 1
+            for symbol in symbols
+        }
+    )
+    selected = {symbol: [0] * len(timestamps) for symbol in symbols}
+    ranks = {symbol: [pd.NA] * len(timestamps) for symbol in symbols}
+    rebalance_flags = [False] * len(timestamps)
+    active: dict[str, int] = {symbol: 0 for symbol in symbols}
+    for index in range(len(timestamps)):
+        if index >= lookback_bars and (index - lookback_bars) % rebalance_bars == 0:
+            values = {
+                symbol: float(momentum.loc[index, symbol]) for symbol in symbols
+            }
+            if all(math.isfinite(value) for value in values.values()):
+                ordered = sorted(symbols, key=lambda symbol: (values[symbol], symbol))
+                current_ranks = {
+                    symbol: rank for rank, symbol in enumerate(ordered, start=1)
+                }
+                for symbol in symbols:
+                    ranks[symbol][index] = current_ranks[symbol]
+                    active[symbol] = int(symbol in ordered[:short_count])
+                rebalance_flags[index] = True
+        for symbol in symbols:
+            selected[symbol][index] = active[symbol]
+
+    result: dict[str, pd.DataFrame] = {}
+    for symbol in symbols:
+        frame = prepared[symbol].copy()
+        frame["momentum_return"] = momentum[symbol]
+        frame["cross_sectional_rank"] = pd.array(ranks[symbol], dtype="Int64")
+        frame["rebalance_signal"] = rebalance_flags
+        frame["short_signal_position"] = selected[symbol]
+        frame["desired_short_position"] = (
+            frame["short_signal_position"].shift(1, fill_value=0).astype(int)
+        )
+        frame["desired_long_position"] = 0
+        result[symbol] = frame
+    return result
+
+
+def prepare_cross_sectional_momentum_long_signals(
+    frames: Mapping[str, pd.DataFrame],
+    *,
+    lookback_bars: int = 360,
+    rebalance_bars: int = 84,
+    long_count: int = 2,
+    require_positive_median: bool = True,
+    early_exit_on_nonpositive: bool = False,
+    early_exit_on_nonpositive_median: bool = False,
+) -> dict[str, pd.DataFrame]:
+    """銘柄間モメンタム上位をロングする状態を作る。
+
+    各銘柄の確定終値から`lookback_bars`本のリターンを計算し、リターンが
+    高い順に`long_count`銘柄を選ぶ。`require_positive_median`が有効な場合、
+    全銘柄リターンの中央値が0以下なら全銘柄を現金状態にする。
+    `early_exit_on_nonpositive`が有効な場合、選定銘柄自身のモメンタムが0以下に
+    なった時点で選定を解除し、次のリバランスまで再選定しない。状態は確定した
+    次のバーの始値へ遅延する。`early_exit_on_nonpositive_median`が有効な場合は、
+    週の途中で全銘柄モメンタム中央値が0以下になった時点で全選定を解除する。
+
+    Args:
+        frames: 銘柄名をキーとする、UTCの`event_time`と正の`close`を含む
+            DataFrame。全銘柄の時刻集合は一致しなければならない。
+        lookback_bars: モメンタム計算に使う過去バー数。
+        rebalance_bars: ランキングを更新する間隔。
+        long_count: 各更新でロングする上位銘柄数。
+        require_positive_median: 銘柄リターン中央値が正の場合だけ選定するか。
+        early_exit_on_nonpositive: 選定銘柄のモメンタムが0以下なら、次の
+            リバランスを待たず選定解除するか。
+        early_exit_on_nonpositive_median: 全銘柄モメンタム中央値が週の途中で
+            0以下なら、全選定を次のリバランスまで解除するか。
+
+    Returns:
+        銘柄別入力へモメンタム、順位、市場regime、選定状態、次足始値用
+        `desired_long_position`を追加したDataFrame。
+
+    Raises:
+        ValueError: 入力、時刻、価格、パラメータ、または銘柄間時刻が不正な場合。
+    """
+
+    if not frames:
+        raise ValueError("frames must not be empty")
+    if lookback_bars <= 0 or rebalance_bars <= 0 or long_count <= 0:
+        raise ValueError("lookback_bars, rebalance_bars, and long_count must be positive")
+    if not all(
+        isinstance(value, bool)
+        for value in (
+            require_positive_median,
+            early_exit_on_nonpositive,
+            early_exit_on_nonpositive_median,
+        )
+    ):
+        raise ValueError("regime and early-exit flags must be bool")
+    symbols = tuple(sorted(frames))
+    if long_count > len(symbols):
+        raise ValueError("long_count must not exceed the number of symbols")
+
+    prepared: dict[str, pd.DataFrame] = {}
+    timestamp_sets: set[frozenset[pd.Timestamp]] = set()
+    for symbol in symbols:
+        source = frames[symbol].copy()
+        required = {"event_time", "close"}
+        missing = required.difference(source.columns)
+        if missing:
+            raise ValueError(
+                f"missing cross-sectional columns for {symbol}: {sorted(missing)}"
+            )
+        source["event_time"] = pd.to_datetime(
+            source["event_time"], utc=True, errors="coerce"
+        )
+        if source["event_time"].isna().any():
+            raise ValueError(f"invalid event_time: {symbol}")
+        if (
+            source["event_time"].duplicated().any()
+            or not source["event_time"].is_monotonic_increasing
+        ):
+            raise ValueError(f"event_time must be unique and sorted: {symbol}")
+        source["close"] = pd.to_numeric(source["close"], errors="coerce")
+        if source["close"].isna().any() or not source["close"].gt(0).all():
+            raise ValueError(f"close must be positive: {symbol}")
+        prepared[symbol] = source.reset_index(drop=True)
+        timestamp_sets.add(frozenset(source["event_time"]))
+
+    if len(timestamp_sets) != 1:
+        raise ValueError("all cross-sectional frames must have identical timestamps")
+    timestamps = prepared[symbols[0]]["event_time"]
+    if len(timestamps) <= lookback_bars:
+        raise ValueError("frames must contain more rows than lookback_bars")
+
+    momentum = pd.DataFrame(
+        {
+            symbol: prepared[symbol]["close"].div(
+                prepared[symbol]["close"].shift(lookback_bars)
+            )
+            - 1
+            for symbol in symbols
+        }
+    )
+    selected = {symbol: [0] * len(timestamps) for symbol in symbols}
+    early_exit_flags = {symbol: [False] * len(timestamps) for symbol in symbols}
+    market_early_exit_flags = [False] * len(timestamps)
+    ranks = {symbol: [pd.NA] * len(timestamps) for symbol in symbols}
+    rebalance_flags = [False] * len(timestamps)
+    median_values = [float("nan")] * len(timestamps)
+    live_median_values = [float("nan")] * len(timestamps)
+    regime_flags = [False] * len(timestamps)
+    active = {symbol: 0 for symbol in symbols}
+    current_median = float("nan")
+    current_regime = False
+    for index in range(len(timestamps)):
+        live_values = {
+            symbol: float(momentum.loc[index, symbol]) for symbol in symbols
+        }
+        live_median = (
+            float(pd.Series(tuple(live_values.values())).median())
+            if all(math.isfinite(value) for value in live_values.values())
+            else float("nan")
+        )
+        live_median_values[index] = live_median
+        if index >= lookback_bars and (index - lookback_bars) % rebalance_bars == 0:
+            values = live_values
+            if all(math.isfinite(value) for value in values.values()):
+                current_median = live_median
+                current_regime = (
+                    current_median > 0 if require_positive_median else True
+                )
+                ordered = sorted(
+                    symbols, key=lambda symbol: (-values[symbol], symbol)
+                )
+                current_ranks = {
+                    symbol: rank for rank, symbol in enumerate(ordered, start=1)
+                }
+                for symbol in symbols:
+                    ranks[symbol][index] = current_ranks[symbol]
+                    active[symbol] = int(
+                        current_regime and symbol in ordered[:long_count]
+                    )
+                rebalance_flags[index] = True
+            else:
+                current_median = float("nan")
+                current_regime = False
+                active = {symbol: 0 for symbol in symbols}
+        if early_exit_on_nonpositive and index >= lookback_bars:
+            for symbol in symbols:
+                value = float(momentum.loc[index, symbol])
+                if active[symbol] and (not math.isfinite(value) or value <= 0):
+                    active[symbol] = 0
+                    early_exit_flags[symbol][index] = True
+        if (
+            early_exit_on_nonpositive_median
+            and not rebalance_flags[index]
+            and any(active.values())
+            and (not math.isfinite(live_median) or live_median <= 0)
+        ):
+            active = {symbol: 0 for symbol in symbols}
+            market_early_exit_flags[index] = True
+        for symbol in symbols:
+            selected[symbol][index] = active[symbol]
+        median_values[index] = current_median
+        regime_flags[index] = current_regime
+
+    result: dict[str, pd.DataFrame] = {}
+    for symbol in symbols:
+        frame = prepared[symbol].copy()
+        frame["momentum_return"] = momentum[symbol]
+        frame["cross_sectional_rank"] = pd.array(ranks[symbol], dtype="Int64")
+        frame["market_median_momentum"] = median_values
+        frame["live_market_median_momentum"] = live_median_values
+        frame["market_regime_ok"] = regime_flags
+        frame["rebalance_signal"] = rebalance_flags
+        frame["momentum_early_exit_signal"] = early_exit_flags[symbol]
+        frame["market_early_exit_signal"] = market_early_exit_flags
+        frame["long_signal_position"] = selected[symbol]
+        frame["desired_long_position"] = (
+            frame["long_signal_position"].shift(1, fill_value=0).astype(int)
+        )
+        frame["desired_short_position"] = 0
+        result[symbol] = frame
     return result
 
 

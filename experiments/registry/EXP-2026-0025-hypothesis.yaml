@@ -46,7 +46,7 @@ methodology:
   execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
 
 evaluation:
-  status: "PREREGISTERED"
+  status: "COMPLETED_DIAGNOSTIC"
   primary_metric: "下落ブレイクショートを固定スリーブで実行した最終資産と最大DD。"
   secondary_metrics:
     - "VOID式balanced_shortとの最終資産差、最大DD差、ショートentry・exit・Funding・手数料"
@@ -56,6 +56,7 @@ evaluation:
   benchmark_rule: "インデックス基準未達でも手法間の差分は報告するが、基準未達を収益候補合格とは扱わない。"
   promotion_rule: "共通データ上の診断だけではpaper・shadow・liveへ昇格しない。"
   result_artifact: "artifacts/EXP-2026-0025/summary.json"
+  result_summary: "下落ブレイク型ショートはVOID式1.5 ATRショートに対して6銘柄中1銘柄だけ最終資産が改善し、中央値-75.15 USDT、合算-444.67 USDTだった。最大DDは6銘柄すべてで悪化し、中央値の差は-0.3759（約37.59ポイント悪化）だった。ロング併用でもVOID式併用に対して最終資産は1銘柄だけ改善、最大DDは6銘柄すべて悪化した。long_onlyに対しても最終資産は2銘柄のみ改善し、最大DDは6銘柄すべて悪化した。6銘柄ともインデックス基準1,464.10 USDTには届かなかった。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -71,8 +72,8 @@ data:
 
 execution_status:
   preregistered: true
-  runner_exists: false
-  backtest_started: false
+  runner_exists: true
+  backtest_started: true
   backtest_result_artifact: "artifacts/EXP-2026-0025/summary.json"
   paper_started: false
   shadow_started: false

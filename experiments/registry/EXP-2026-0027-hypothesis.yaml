@@ -1,0 +1,77 @@
+schema_version: 1
+experiment_id: "EXP-2026-0027"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0025の下落ブレイク型ショートで多発した3 ATRストップを6 ATRへ広げると、時間切れまで保有できる下落トレードが増え、固定4ロットcontrolより最終資産を改善できる可能性がある。"
+  economic_rationale: "EXP-2026-0026ではSTOP_LOSSが127件で合計-1,782.89 USDTだった一方、TIME_EXITは73件中71件が利益で合計+1,647.38 USDTだった。エントリーとサイズを変えず、ストップ幅だけを広げて早期退出の寄与を検証する。"
+  parent_experiment_ids:
+    - "EXP-2026-0025"
+    - "EXP-2026-0026"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0025と同一のZOOMEX trade・mark・Funding・銘柄仕様。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  control: "SMA2400本、Donchian240本、ATR240本、次足始値taker、4ロット単一エントリー、3 ATR固定ストップ、SMA復帰退出、最大168本。EXP-0025と同一。"
+  variant: "controlの固定ストップだけを6 ATRへ変更する。SMA復帰退出、最大168本、4ロット、費用、Funding、データ、シグナルは変更しない。"
+  arms:
+    control: "EXP-0025の3 ATR stop。"
+    wider_stop: "6 ATR stop。"
+  capital_allocation:
+    initial_equity: "1000"
+    short_sleeve: "250"
+    short_entry_gross_notional: "200 USDT (20% of portfolio initial equity)"
+    compounding: false
+    cross_sleeve_reallocation: false
+  maximum_variants: 1
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "controlとvariantで入力データ、期間、銘柄、シグナル、費用、ロット数が一致しない場合は比較を拒否する。"
+    - "欠損、重複、内部gap、補間行がある場合は拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "COMPLETED_DIAGNOSTIC"
+  primary_metric: "wider_stopとcontrolの最終資産差、closed損益差、最大DD差。"
+  secondary_metrics:
+    - "STOP_LOSS、SMA_EXIT、TIME_EXITの件数と損益差"
+    - "勝率、Profit Factor、平均保有期間、Funding、手数料、最大建玉"
+  diagnostic_rule: "wider_stopが最終資産を改善する銘柄数と、最大DD・ストップ損失・想定元本が悪化する銘柄数を同時に報告する。"
+  promotion_rule: "この退出比較だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0027/summary.json"
+  result_summary: "6 ATR wider_stopは3 ATR controlに対して6銘柄中5銘柄で最終資産とclosed損益が改善し、最終資産差の中央値は+75.27 USDT、合算は+328.53 USDTだった。最大DDも5銘柄で改善し、中央値の差は+0.1097（約10.97ポイント改善）だった。STOP_LOSSは合計78件減り、TIME_EXITは41件増えた。一方、UNIUSDTは最終資産-121.98 USDT、最大DD差-0.3415で悪化し、最大想定元本差の中央値は+18.33 USDTだった。したがって6 ATRは退出要因の診断として有望だが、銘柄横断で安定した採用候補とは扱わない。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    mark: "data/processed/EXP-2026-0015/{SYMBOL}/mark-price-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+    metadata: "var/exp-2026-0015-data.json"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_result_artifact: "artifacts/EXP-2026-0027/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0025"
+    - "EXP-2026-0026"
+  preregistration_commit: "このファイルを追加する時点で、3 ATR controlと6 ATR単一variant、評価指標を結果確認前に固定する。"

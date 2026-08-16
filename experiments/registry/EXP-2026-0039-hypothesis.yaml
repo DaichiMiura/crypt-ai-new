@@ -1,0 +1,89 @@
+schema_version: 1
+experiment_id: "EXP-2026-0039"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "EXP-2026-0035の上位2銘柄ロングで、entry時の30日実現ボラティリティが年率100%以上なら100 USDT、未満なら200 USDTを固定すると、固定200よりDDを抑え、固定100より利益を残せる可能性がある。"
+  economic_rationale: "方向シグナルと退出時刻を変えず、価格変動が大きい銘柄だけ元本を半減することで、取引回数を増やさずに高リスク局面の損失寄与を縮小する。"
+  parent_experiment_ids:
+    - "EXP-2026-0035"
+    - "EXP-2026-0036"
+    - "EXP-2026-0038"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+
+methodology:
+  input: "EXP-2026-0035と同じZOOMEX linear perpetual 2時間足とFunding履歴。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  signal_strategy: "EXP-2026-0035の30日lookback、7日rebalance、市場中央値regime、上位2銘柄、週次退出を固定する。"
+  volatility:
+    return: "2時間足close-to-close対数リターンの母標準偏差（ddof=0）。"
+    window_bars: 360
+    annualization: "sqrt(12 * 365)。"
+    high_volatility_threshold: "1.0（年率100%）。"
+    timing: "entry判定の確定足で利用し、次足始値のロットを決める。将来情報は使わない。"
+  arms:
+    cash_control: "全額現金保持。"
+    fixed_lot_100: "選定銘柄へ常に100 USDT。"
+    fixed_lot_200: "EXP-0035再現。選定銘柄へ常に200 USDT。"
+    volatility_lot: "entry時の年率実現ボラが100%以上なら100 USDT、未満なら200 USDT。保有中はサイズを変更しない。"
+  capital_allocation:
+    initial_equity: "1000"
+    reserve_cash: "200"
+    base_lot_notional: "100"
+    max_lot_count_per_symbol: 2
+    max_concurrent_positions: 2
+    max_long_gross_notional: "400"
+    per_symbol_max_notional: "200"
+    compounding: false
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+    funding: "正のFundingはlongが支払い、負のFundingは受け取る。"
+  no_parameter_sweep: true
+  no_trade_conditions:
+    - "EXP-0035と同じデータ品質・時刻・補間拒否条件を満たさない場合は実行しない。"
+    - "entry時の30日実現ボラティリティが非有限の場合は新規注文を拒否する。"
+  execution_gate: "研究比較のみ。paper・shadow・liveは許可しない。"
+
+evaluation:
+  status: "REGISTERED"
+  primary_metric: "volatility_lotの最終equity、最大DD、およびfixed100・fixed200との差。"
+  secondary_metrics:
+    - "100/200 USDT entry件数、平均配分元本、手数料、Funding、投資中バー比率"
+    - "4年間年率10%複利基準1464.10 USDTとの差"
+  diagnostic_rule: "全active armでentry/exit時刻・銘柄を一致させ、ロット額だけが異なることを確認する。"
+  promotion_rule: "単一期間の動的ロット比較だけではpaper・shadow・liveへ昇格しない。"
+  result_artifact: "artifacts/EXP-2026-0039/summary.json"
+  result_summary: "volatility_lotは77 entry中25回を100 USDT、52回を200 USDTとし、最終1267.75 USDT・最大DD-36.71%だった。fixed200よりDDを4.83ポイント改善したが最終資産を207.71 USDT失い、fixed100より最終資産は30.02 USDT高い一方DDが14.87ポイント悪いため不採用とする。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX linear USDT perpetual"
+  target_venue: "ZOOMEX linear USDT perpetual"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0035"
+    - "EXP-2026-0036"
+    - "EXP-2026-0038"
+  preregistration_commit: "結果確認前にEXP-0035の売買シグナル、30日実現ボラ、年率100%閾値、100/200 USDTの二段階ロットを固定する。"

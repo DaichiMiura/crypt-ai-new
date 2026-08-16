@@ -46,6 +46,7 @@ AIを活用して仮想通貨取引戦略を研究・検証・運用するため
 9. [会計方針](docs/accounting-policy.md)
 10. [Penfold本からの設計原則](docs/references/penfold-universal-principles.md)
 11. [OSS・依存関係ポリシー](docs/dependency-policy.md)
+12. [資金配分方針](docs/allocation-policy.md)
 
 ## 最初のマイルストーン
 

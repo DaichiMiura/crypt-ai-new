@@ -1,0 +1,52 @@
+schema_version: 1
+experiment_id: "EXP-2026-0043"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "validation"
+status: "ROBUSTNESS_VALIDATED"
+
+hypothesis:
+  statement: "EXP-2026-0042の固定仕様は、期間・銘柄・取引費用を分解しても、単一局面や単一銘柄だけに依存せず正の優位性を維持する。"
+  economic_rationale: "採用候補が偶然の一期間、一銘柄、楽観的な費用仮定だけで成立していないことを確認し、売買条件を変更せずに頑健性を評価する。"
+  parent_experiment_ids:
+    - "EXP-2026-0042"
+
+methodology:
+  frozen_strategy: "EXP-2026-0042の4銘柄top2、30日相対モメンタム、7日rebalance、4位転落時の次足退出、固定200 USDTロットを変更しない。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  validations:
+    calendar_year: "連続運用equityの各暦年最初と最後を比較し、年別増減と年内最大DDを算出する。年初に資産をリセットしない。"
+    rolling_12_month: "月末equityから12か月差の損益率を算出し、最小・中央値・正の窓比率を記録する。"
+    symbol_contribution: "entry、Funding、exitを対応付け、手数料・Funding込みの取引純損益を銘柄別に集計する。"
+    doubled_costs: "シグナルとFundingを固定し、fee、round-trip spread、slippageをそれぞれ2倍にして再実行する。"
+  frozen_parameters: true
+  no_strategy_variant: true
+  no_parameter_sweep: true
+  execution_gate: "研究検証のみ。paper・shadow・liveはこの結果だけで自動開始しない。"
+
+evaluation:
+  status: "REGISTERED"
+  primary_metrics:
+    - "2倍費用時の最終equityと最大DD"
+    - "暦年別equity増減、12か月rolling returnの最小値と正の窓比率"
+    - "銘柄別純損益と最大利益寄与率"
+  validation_rule:
+    - "2倍費用でも最終equityが1464.10 USDT以上。"
+    - "4暦年のうち3年以上が正のequity増減。"
+    - "rolling 12か月窓の過半数が正。"
+    - "全期間純利益の70%以上を単一銘柄へ依存しない。"
+  decision_rule: "4条件をすべて満たせばEXP-2026-0042をROBUSTNESS_VALIDATEDとする。未達ならBACKTEST_CANDIDATEのまま弱点を記録する。"
+  result_artifact: "artifacts/EXP-2026-0043/summary.json"
+  result_summary: "固定仕様は4条件をすべて達成した。2倍費用でも最終1538.48 USDT・最大DD -28.13%。2022年は-16.70%だが2023〜2025年は正、rolling 12か月35窓の77.14%が正。全4銘柄が純利益で最大寄与AVAXは総利益の33.40%だった。"
+
+data:
+  price_and_funding: "data/processed/EXP-2026-0015/{SYMBOL}/"
+  source_signals: "EXP-2026-0042の実装で同一データから再生成する。"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  validation_started: true
+  validation_completed: true
+
+provenance:
+  preregistration_commit: "結果確認前に固定仕様、暦年・12か月・銘柄・2倍費用の4検証と合格条件を固定する。"

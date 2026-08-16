@@ -11,6 +11,7 @@ from crypt_ai.void_short_accounting import (
     apply_void_short_funding,
     close_void_short,
     open_void_short_maker,
+    open_void_short_taker,
 )
 
 
@@ -71,6 +72,21 @@ def test_taker_cover_applies_adverse_slippage_and_fee():
 
     assert position.realized_net_pnl == Decimal("-10.1960660")
     assert position.trading_fees == Decimal("0.0860660")
+
+
+def test_taker_short_entry_applies_downward_slippage_and_fee():
+    """市場売りエントリーへ下方スリッページとtaker手数料を課すことをテストする。"""
+    costs = VoidShortCostModel(taker_slippage_rate=Decimal("0.001"))
+    position = open_void_short_taker(
+        VoidShortPosition(),
+        quantity=Decimal("1"),
+        raw_price=Decimal("100"),
+        costs=costs,
+    )
+
+    assert position.average_entry_price == Decimal("99.900")
+    assert position.cash_flow == Decimal("99.840060")
+    assert position.trading_fees == Decimal("0.059940")
 
 
 def test_positive_funding_is_income_for_short():
