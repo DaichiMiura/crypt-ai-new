@@ -137,7 +137,10 @@ def _numeric_price_frame(frame: pd.DataFrame, source: str) -> pd.DataFrame:
             raise ValueError(f"non-finite {source}.{column}")
     if source != "premium_index" and (numeric[["open", "high", "low", "close"]] <= 0).any().any():
         raise ValueError(f"non-positive {source} price")
-    return numeric.set_index("event_time", verify_integrity=True).sort_index()
+    numeric = numeric.set_index("event_time").sort_index()
+    if not numeric.index.is_unique:
+        raise ValueError(f"duplicate {source} event time")
+    return numeric
 
 
 def _log_return(close: pd.Series, hours: int) -> float:
@@ -529,7 +532,10 @@ def _load_inputs(data_dir: Path, metadata_path: Path) -> tuple[
             raise ValueError(f"artifact hash mismatch: {symbol} funding")
         funding = _read_before_cutoff(funding_path, SEALED_HOLDOUT_START)
         funding["funding_rate"] = pd.to_numeric(funding["funding_rate"], errors="raise")
-        funding_frames[symbol] = funding.set_index("event_time", verify_integrity=True).sort_index()
+        funding = funding.set_index("event_time").sort_index()
+        if not funding.index.is_unique:
+            raise ValueError(f"duplicate funding event time: {symbol}")
+        funding_frames[symbol] = funding
         if symbol in TRADED_SYMBOLS:
             lot = record["instrument"]["lotSizeFilter"]
             rules[symbol] = InstrumentRule(Decimal(lot["qtyStep"]), Decimal(lot["minOrderQty"]),
