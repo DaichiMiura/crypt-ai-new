@@ -1,0 +1,134 @@
+schema_version: 1
+experiment_id: "EXP-2026-0055"
+created_at_utc: "2026-08-17T15:50:08Z"
+owner_role: "research"
+status: "preregistered"
+
+hypothesis:
+  statement: "9 source銘柄で費用の2倍を超える6時間上昇eventを確率分類し、時間分離した確率校正、30日周期再学習、leave-one-asset-out転移gateを通過したmodelは、学習labelを一度も使わないBCH・LTC・DOT・DOGEの2026-01-01〜2026-07-31に、cashと固定6時間momentumを費用・Funding込みnet PnLで上回る可能性がある。"
+  economic_rationale: "平均0付近へ縮むreturn回帰ではなく、往復費用0.32%を十分に超えるtail eventを直接学ぶ。dimensionlessな価格・volatility・activity・BTC regime・横断特徴だけに限定し、銘柄固有IDを捨てることで未知銘柄にも共通する短期状態持続を検証する。"
+  expected_failure_modes:
+    - "source銘柄にも安定した分類signalがなく、Brier scoreやPnLがconstant・momentumを上回らない。"
+    - "上昇eventの確率とreturn magnitudeが一致せず、分類精度があっても費用控除後期待値が負になる。"
+    - "source内の銘柄転移に成功しても、未観測4銘柄のmicrostructureやregimeへ移転しない。"
+    - "30日周期・730日windowがconcept driftへ遅れる、または学習標本減少で不安定になる。"
+    - "1時間Klineが板、queue、時変spreadを表さず、固定費用が実約定を過小評価する。"
+    - "固定probability/margin gateで取引数が不足する。"
+
+methodology:
+  setup: "UTC 00:00、06:00、12:00、18:00だけで判断する。timestampがt-1hの確定足までをfeatureに使い、trade Klineのt openでentry、t+6h openでexitする。symbol ID、生price、target assetのlabelを使わない。"
+  target: "UP=1 if (exit_open/entry_open - 1) > 0.0064、otherwise 0。0.0064はbase往復費用0.0032の2倍。境界をまたぐ未成熟labelはpurgeする。"
+  features:
+    - "local trade close log return 1、3、6、12、24時間。"
+    - "1時間log returnの母標準偏差6・24時間と24時間downside semivolatility。"
+    - "直前1時間足のbody=(close-open)/open、range=(high-low)/open。"
+    - "log1p(volume)とlog1p(turnover)の直近24実測足z-score。"
+    - "BTCUSDT contextの6・24時間log returnと24時間volatility。"
+    - "同時刻group内の6時間return降順percentile rank、中央値差、母標準偏差。"
+    - "UTC hourのsin/cosとBTC 24時間return符号×BTC 24時間volatility。"
+  feature_count: 21
+  probability_calibration: "各modelのfit期間より後、評価期間より前のsource-only期間でPlatt scalingを1回fitする。校正器は切片付きL2 logistic、正則化lambda=1.0、確率clip=1e-6。評価対象銘柄のlabelは使わない。"
+  models:
+    logistic: "featureをfit期間だけで平均0・母標準偏差1へ標準化し、切片を正則化しないL2 logistic regression。lambda=1.0、Newton法最大100回、gradient infinity norm<1e-8で収束。class weightなし。"
+    xgboost: "xgboost 3.4.1 native API。objective=binary:logistic、eval_metric=logloss、max_depth=3、eta=0.05、min_child_weight=20、subsample=1、colsample_bytree=1、lambda=10、alpha=0、gamma=0、tree_method=hist、max_bin=256、seed=0、nthread=1、num_boost_round=200。early stopping・探索なし。"
+  source_temporal_split: "fit=2022-02-01〜2023-12-31完了label、calibration=2024-01-01〜2024-12-31完了label、development=2025-01-01〜2025-12-31完了label。同時刻groupを分割せず各境界で6時間purgeする。"
+  leave_one_asset_out: "9 source銘柄を1つずつ外し、残り8銘柄だけのfit/calibration labelで学習・校正し、外した銘柄の2025年を予測する。外した銘柄の全期間labelをfit、scaling、calibration、thresholdへ使わない。"
+  model_selection: "各modelを同一9-fold gateで独立評価し、全gateを満たすmodelだけを候補にする。候補中、USDT centへROUND_HALF_EVENしたaggregate base net PnL最大を選び、同額ならlogisticを選ぶ。候補0ならtargetを開かずREJECTED。"
+  adaptive_retraining: "target評価では30日ごとにsource-only直近730日を再学習する。各cutoffで時間順の先頭80%をfit、6時間purge後の末尾20%をcalibrationとし、次の30日境界で期限切れとする。target labelは過去分も使わない。"
+  entry_rule: "各判断時刻で対象groupの校正済みP(UP)最大銘柄を選ぶ。top probability>=0.45、top-minus-second>=0.03、かつsource calibrationから固定手順で求める p*mean(UP gross return)+(1-p)*mean(non-UP gross return)>0.0064 の場合だけ100 USDT longする。同値はsymbol昇順。"
+  exit_rule: "entryから6時間後のtrade Kline openで全量exit。途中resize、利確、損切り、signal反転決済なし。"
+  no_trade_conditions:
+    - "probability、margin、期待gross returnのいずれかがgate未達または非有限。"
+    - "必要な24時間windowに欠測、重複、補間、非正価格、非有限値がある。"
+    - "modelが30日期限を超過、学習・校正が未収束、片方のclassしかない。"
+    - "Funding cadence、minimum quantity、quantity step、risk上限、reserve cashを検査できない。"
+  simplicity_rationale: "固定21特徴量、2 model族各1設定、1 probability gate、1 margin、long top1、固定100 USDTに限定し、feature・threshold・hyperparameter探索、short、ニューラルネット、RL、AutoMLを行わない。"
+
+scope:
+  exchanges: ["ZOOMEX Global"]
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  market_type: "linear_usdt_perpetual"
+  source_symbols: ["LINKUSDT", "UNIUSDT", "AVAXUSDT", "AAVEUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "NEARUSDT"]
+  sealed_target_symbols: ["BCHUSDT", "LTCUSDT", "DOTUSDT", "DOGEUSDT"]
+  context_only_symbols: ["BTCUSDT"]
+  quote_assets: ["USDT"]
+  timeframe: "1h features; UTC 6h decisions; fixed 6h holding"
+  start_utc: "2022-02-01T00:00:00Z"
+  end_utc: "2026-08-01T00:00:00Z"
+  pair_mapping: "研究・想定実行ともZOOMEX linear USDT perpetual。BTCUSDTはcontext専用。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  source_snapshot_ids: ["DATA-2026-0006", "DATA-2026-0007"]
+  timezone: "UTC"
+  provenance: "追加9銘柄は2026-08-17T15:49:23.874542Z取得、metadata var/exp-2026-0055-data.json、SHA-256 99201014870994c824160f6e449e8c61820fa0a6730affefebb946b2c21fd90d。既存source4銘柄とBTCはDATA-2026-0006。"
+  sealed_holdout: "BCH・LTC・DOT・DOGEの2026-01-01T00:00:00Z〜2026-08-01T00:00:00Z exclusive。登録時点で値、feature、label、損益は未開封。"
+  known_limitations:
+    - "公開Kline/Fundingは板、受信遅延、部分約定、注文拒否、時変spreadを表さない。"
+    - "取得時contract specificationであり、履歴上の仕様変更を完全には再現しない。"
+    - "Funding notionalはsettlement時刻のmark Kline openを代理値とする。"
+    - "固定universeで上場廃止や全市場への一般化を表さない。"
+    - "ZOOMEX公開履歴上の結果であり、実約定での有効性は未検証。"
+
+evaluation:
+  baselines:
+    cash: "初期1000 USDTを保持し、PnL 0、取引0。"
+    momentum: "同じ判断、約定、100 USDT、top1、費用、Funding規則で直近6時間return最大かつ0より大きい銘柄をlongする。"
+    constant_probability: "各foldのfit source label平均を全行へ出す。Brier scoreだけの比較対象。"
+  source_gate:
+    - "9 leave-one-asset-out fold合計completed round trips>=100。"
+    - "9銘柄中base net PnL正が6以上。"
+    - "aggregate base net PnL>0かつmomentum aggregate net PnLを上回る。"
+    - "fee・spread・slippage 2倍のaggregate stress net PnL>0。"
+    - "aggregate Brier score<constant probability Brier score。"
+    - "1銘柄の正利益寄与<=aggregate positive profitの40%。"
+    - "未来参照、補間、同時position、allocation rejection、会計不一致が0。"
+  target_primary_metric: "選択modelのbase net PnLが0より大きく、cashおよびmomentumを上回ること。"
+  target_rejection_criteria:
+    - "completed round trips<40、またはいずれかのtarget銘柄が5未満。"
+    - "base net PnL正のtarget銘柄が4中3未満。"
+    - "fee・spread・slippage 2倍のstress net PnL<=0。"
+    - "最大drawdown<=-10%。"
+    - "未来参照、target label利用、補間、期限切れmodel、allocation rejection、会計不一致が1件以上。"
+  inconclusive_cap: "24・72・168時間block bootstrap各10,000回seed 0でML-minus-momentum日次return差の95% CIを求め、いずれかが0を含めば最大INCONCLUSIVE。全lower bound>0だけPASSED_FORWARD_TEST候補。"
+  secondary_metrics: ["Brier score", "log loss", "precision", "recall", "probability calibration bins", "gross PnL", "fee", "spread", "slippage", "Funding", "turnover", "win rate", "worst trade", "銘柄別寄与"]
+  maximum_variants: 2
+  model_family_count: 2
+  threshold_count: 1
+  margin_count: 1
+  random_seed: 0
+  research_status: "PREREGISTERED"
+  promotion_status: "NOT_ELIGIBLE"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.0002 (参考値、全約定はtaker想定)"
+  taker_fee: "0.0006 per fill"
+  fee_asset: "USDT"
+  spread_assumption: "round-trip 0.001を各fillへ0.0005ずつ不利側に反映する。"
+  slippage_assumption: "各fillへ0.0005を不利側に反映する。"
+  funding_assumption: "entry < settlement < exitの実績rateをlong cash flow=-quantity*settlement_mark_proxy*rateで反映する。"
+  stress_case: "fee、spread、slippageをすべて2倍。Fundingは実績rateのまま。"
+  liquidity_constraints: "初期1000 USDT、1 position最大100 USDT、同時最大1 long、gross上限100 USDT、reserve cash 200 USDT、short・追加レバレッジなし。"
+
+provenance:
+  parent_experiment_ids: ["EXP-2026-0054"]
+  references:
+    - path: "docs/cross-asset-ml-bot-research.md"
+      relevance: "FreqAI、Qlib、FinRLの採否、分類target、未知銘柄分離、rolling再学習の根拠。"
+    - path: "experiments/registry/DATA-2026-0007-manifest.yaml"
+      relevance: "追加sourceとsealed targetの来歴・完全性・封印規則。"
+  preregistration_commit: "source結果を見る前に21特徴量、2 model各1設定、0.45 probability、0.03 margin、source gate、target gate、費用をcommitで固定する。"
+
+execution_status:
+  preregistered: true
+  runner_exists: false
+  source_development_started: false
+  source_gate_completed: false
+  sealed_target_opened: false
+  sealed_target_completed: false
+  paper_started: false
+  shadow_started: false
+  live_started: false
+  independent_validation_status: "PENDING"
