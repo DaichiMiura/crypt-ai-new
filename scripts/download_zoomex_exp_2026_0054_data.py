@@ -8,8 +8,12 @@ from datetime import datetime, timezone
 import json
 import math
 from pathlib import Path
+import sys
 
 import pandas as pd
+
+repo_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(repo_root))
 
 from scripts.download_zoomex_exp_2026_0015_data import (
     BASE_URL,
