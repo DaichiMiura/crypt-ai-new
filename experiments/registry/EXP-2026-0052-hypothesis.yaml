@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0052"
 created_at_utc: "2026-08-17T18:30:00Z"
 owner_role: "research"
-status: "preregistered"
+status: "completed"
 
 hypothesis:
   statement: "EXP-2026-0042の週次top2候補に対し、判断時点より前に損益が確定した週だけで学習するロジスティック回帰をtrade-quality filterとして適用すると、固定ルール単独より費用控除後損益または最大drawdownを改善できる可能性がある。"
@@ -77,7 +77,9 @@ evaluation:
   reserved_out_of_sample: "なし。2025年は既観測retrospective evaluationであり、候補でも開始後に取得するforwardデータなしに昇格しない。"
   maximum_variants: 1
   random_seed: 0
-  research_status: "INCONCLUSIVE"
+  research_status: "REJECTED"
+  result_artifact: "artifacts/EXP-2026-0052/summary.json"
+  result_summary: "2025 retrospective evaluationでbaseline +235.34 USDTに対しML filter -32.69 USDT、費用2倍 -33.88 USDT。baseline候補42件中採用3件（7.14%）に絞り、その3候補の84本target labelはすべて負だった。最大DDは-10.11%から-5.87%へ縮小したが、取引2往復、baseline非改善、stress損失の棄却条件に該当してREJECTED。"
 
 cost_model:
   fee_model_version: "FEE-2026-0001-initial-assumption"
@@ -109,9 +111,10 @@ provenance:
 
 execution_status:
   preregistered: true
-  runner_exists: false
-  backtest_started: false
-  backtest_completed: false
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  backtest_result_artifact: "artifacts/EXP-2026-0052/summary.json"
   paper_started: false
   shadow_started: false
   live_started: false
