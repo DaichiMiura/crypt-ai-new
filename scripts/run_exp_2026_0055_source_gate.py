@@ -503,6 +503,8 @@ def _load_symbol(
     data_dir: Path,
     record: dict[str, object],
     symbol: str,
+    *,
+    value_cutoff: pd.Timestamp = SEALED_TARGET_START,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, InstrumentRule]:
     """hash検証後に一銘柄のtrade、mark、Funding、数量規則を読む。
 
@@ -510,6 +512,7 @@ def _load_symbol(
         data_dir: snapshot保存先。
         record: metadata内の銘柄record。
         symbol: 読み込むsource銘柄。
+        value_cutoff: 読み込む値のexclusive上限。
 
     Returns:
         trade、mark、Funding、数量規則。
@@ -524,11 +527,11 @@ def _load_symbol(
         path = data_dir / symbol / f"{source.replace('_', '-')}-1h.csv"
         if _sha256(path) != artifacts[source]["sha256"]:
             raise ValueError(f"artifact hash mismatch: {symbol} {source}")
-        frames[source] = _numeric_price_frame(_read_before_cutoff(path, SEALED_TARGET_START), source)
+        frames[source] = _numeric_price_frame(_read_before_cutoff(path, value_cutoff), source)
     funding_path = data_dir / symbol / "funding-rate.csv"
     if _sha256(funding_path) != artifacts["funding"]["sha256"]:
         raise ValueError(f"artifact hash mismatch: {symbol} funding")
-    funding = _read_before_cutoff(funding_path, SEALED_TARGET_START)
+    funding = _read_before_cutoff(funding_path, value_cutoff)
     funding["funding_rate"] = pd.to_numeric(funding["funding_rate"], errors="raise")
     funding = funding.set_index("event_time").sort_index()
     lot = record["instrument"]["lotSizeFilter"]
@@ -541,6 +544,8 @@ def load_source_inputs(
     primary_metadata_path: Path,
     supplement_data_dir: Path,
     supplement_metadata_path: Path,
+    *,
+    value_cutoff: pd.Timestamp = SEALED_TARGET_START,
 ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame], dict[str, pd.DataFrame], dict[str, InstrumentRule]]:
     """二snapshotからsourceだけを読み、sealed targetを開かない。
 
@@ -549,6 +554,7 @@ def load_source_inputs(
         primary_metadata_path: DATA-2026-0006 metadata。
         supplement_data_dir: DATA-2026-0007保存先。
         supplement_metadata_path: DATA-2026-0007 metadata。
+        value_cutoff: 読み込むsource値のexclusive上限。
 
     Returns:
         trade、mark、Funding、数量規則。
@@ -580,7 +586,9 @@ def load_source_inputs(
         for symbol in symbols:
             if symbol in SEALED_TARGET_SYMBOLS:
                 raise ValueError("sealed target read attempted")
-            trade, mark, funding, rule = _load_symbol(data_dir, records[symbol], symbol)
+            trade, mark, funding, rule = _load_symbol(
+                data_dir, records[symbol], symbol, value_cutoff=value_cutoff
+            )
             trade_frames[symbol] = trade
             mark_frames[symbol] = mark
             funding_frames[symbol] = funding
