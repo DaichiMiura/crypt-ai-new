@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0055"
 created_at_utc: "2026-08-17T15:50:08Z"
 owner_role: "research"
-status: "preregistered"
+status: "source_gate_completed"
 
 hypothesis:
   statement: "9 source銘柄で費用の2倍を超える6時間上昇eventを確率分類し、時間分離した確率校正、30日周期再学習、leave-one-asset-out転移gateを通過したmodelは、学習labelを一度も使わないBCH・LTC・DOT・DOGEの2026-01-01〜2026-07-31に、cashと固定6時間momentumを費用・Funding込みnet PnLで上回る可能性がある。"
@@ -98,8 +98,38 @@ evaluation:
   threshold_count: 1
   margin_count: 1
   random_seed: 0
-  research_status: "PREREGISTERED"
+  research_status: "SOURCE_GATE_PASSED"
   promotion_status: "NOT_ELIGIBLE"
+  source_gate_result:
+    completed_at_utc: "2026-08-17T16:02:10Z"
+    selected_model: "xgboost"
+    target_opening_authorized: true
+    logistic:
+      net_pnl_usdt: "-98.4569386667887"
+      stress_2x_cost_net_pnl_usdt: "-166.7149755224587"
+      completed_round_trips: 217
+      positive_symbols: 1
+      brier_score: 0.22433738658271984
+      constant_brier_score: 0.22585849973558522
+      gate_passed: false
+    xgboost:
+      net_pnl_usdt: "80.8359476117728"
+      stress_2x_cost_net_pnl_usdt: "46.8643946879968"
+      momentum_net_pnl_usdt: "-2033.6201974420213"
+      completed_round_trips: 108
+      positive_symbols: 8
+      brier_score: 0.22440539927641123
+      constant_brier_score: 0.22585849973558522
+      maximum_positive_profit_contribution: "0.3785156633132247638696935552"
+      gate_passed: true
+    result_artifact: "artifacts/EXP-2026-0055-source-gate/summary.json"
+    result_sha256: "60355b6a36c8c8020d813ed43f9717c735dc6ec2a04254250c3f5592b54836db"
+    validation: "全tradeの会計再集計、fold合計、銘柄・時刻、残高200 USDT下限、sealed target非混入を独立コマンドで照合済み。"
+    caveats:
+      - "XGBoostのBrier改善は0.00145310045917399と小さい。"
+      - "AVAXUSDT foldはbase net PnLが-2.547820505390 USDT。"
+      - "NEARUSDTの正利益寄与37.85%は事前登録上限40%に近い。"
+      - "source gate通過は未観測targetや実約定での有効性を意味しない。"
 
 cost_model:
   fee_model_version: "FEE-2026-0001-initial-assumption"
@@ -123,9 +153,9 @@ provenance:
 
 execution_status:
   preregistered: true
-  runner_exists: false
-  source_development_started: false
-  source_gate_completed: false
+  runner_exists: true
+  source_development_started: true
+  source_gate_completed: true
   sealed_target_opened: false
   sealed_target_completed: false
   paper_started: false
