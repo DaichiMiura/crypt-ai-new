@@ -1,0 +1,128 @@
+schema_version: 1
+experiment_id: "EXP-2026-0048"
+created_at_utc: "2026-08-17T12:58:10Z"
+owner_role: "research"
+status: "completed"
+
+hypothesis:
+  statement: "過去3回の確定Funding率が銘柄間で低い2銘柄をlong、高い2銘柄をshortするgross-neutralなキャリーは、ZOOMEXの6銘柄固定ユニバースで、価格損益・手数料・spread・slippage控除後も、現金保持ベースラインを上回る正の純損益を生む可能性がある。"
+  economic_rationale: "Funding率は無期限先物の需給の偏りと保有コストを表す。銘柄間のFunding差が次のFunding期間にも持続するなら、方向性を相殺したlong/shortでFunding差を収益源にできる可能性がある。価格方向を予測するEXP-2026-0035/0042や、同一銘柄のspot-perpetual basisを使うEXP-2026-0032とは異なる収益源を検証する。"
+  expected_failure_modes:
+    - "Funding率の順位が次のFundingへ持続せず、価格損益がFunding受取を上回る。"
+    - "銘柄間の市場β・清算リスクが相殺されず、gross-neutralでも大きなDDが発生する。"
+    - "銘柄順位の入替えによる4脚の売買費用、spread、slippageがFunding差を食いつぶす。"
+    - "2026年に固定した6銘柄ユニバースを過去へ適用するため、結果をZOOMEX全銘柄の普遍的効果と解釈できない。"
+
+methodology:
+  setup: "EXP-2026-0015のZOOMEX linear USDT perpetual trade 2時間足と8時間ごとのFunding履歴をUTCで整列する。各Funding時刻の現在値はシグナル計算へ使わず、直前3回の確定Funding率の単純平均だけを使う。"
+  entry_rule: "Funding時刻tで直前3回の平均Funding率を銘柄間で昇順に順位付けし、低い2銘柄をlong、高い2銘柄をshortとして予約する。予約はtの次の確定2時間足openで実行する。Funding時刻tの支払いはt以前から保有する建玉だけへ先に適用する。"
+  stop_rule: "固定stopは置かない。リバランスでdesired sideが0になった銘柄は次の2時間足openで決済する。"
+  exit_rule: "3回のFundingイベントごとに順位を更新し、各銘柄のlong/short desired状態を次の2時間足openへ遅延させる。評価終了時の未決済建玉は最終closeでmark-to-marketし、未実現損益として明示する。"
+  no_trade_conditions:
+    - "6銘柄の2時間足時刻集合、Funding時刻集合、価格、Funding率が完全一致しない場合は実行を拒否する。"
+    - "直前3回のFunding率が揃わない銘柄では順位を作らず、全銘柄をcash保持とする。"
+    - "補間足、欠損、重複、非正価格、非有限Funding、未確定足では新規entryを行わない。"
+    - "long_count + short_countがユニバース数を超える設定は拒否する。"
+  simplicity_rationale: "lookback 3回、3イベントごとの更新、上下2銘柄、固定50 USDTロットを結果確認前に固定し、パラメータ探索を行わない。"
+
+scope:
+  exchanges:
+    - "ZOOMEX Global"
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  venue_role: "target_execution"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "ADAUSDT"
+    - "AVAXUSDT"
+    - "NEARUSDT"
+    - "AAVEUSDT"
+  quote_assets:
+    - "USDT"
+  pair_mapping: "研究venueとtarget venueは同じZOOMEX linear USDT perpetualを使う。6銘柄はDATA-2026-0005の2026-08-15時点流動性スナップショットで固定されており、過去の全銘柄ユニバースを表さない。"
+  venue_transfer_claim: "same_venue_signal_only"
+  timeframe: "2h bars; 8h Funding events"
+  start_utc: "2022-02-01T00:00:00Z"
+  end_utc: "2026-01-01T00:00:00Z"
+  decision_time_information:
+    - "Funding時刻tのFunding率はtの順位計算に使わず、tより前の3回だけを使う。"
+    - "シグナルは次の2時間足openへ遅延させ、同じ足のcloseやFunding支払後の情報で遡及約定しない。"
+    - "評価期間開始時はflatとし、開始前に発生したシグナルから建玉を引き継がない。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  snapshot_id: "DATA-2026-0005"
+  timezone: "UTC"
+  known_limitations:
+    - "Funding履歴は公開APIの決済時刻と率であり、rateが事前に確定・観測できた受信時刻を含まない。"
+    - "6銘柄は2026-08-15時点の選定で、上場廃止・流動性変化・point-in-time universeを再現しない。"
+    - "公開KlineとFundingは板、部分約定、清算、証拠金、注文拒否を表さない。"
+    - "結果はZOOMEX公開履歴上の研究結果であり、実約定の有効性を示さない。"
+
+evaluation:
+  baseline: "初期1000 USDTを全期間cash保持するcontrol。"
+  primary_metric: "予約した2025-07-01以降のOOSで、手数料・spread・slippage・Funding・価格損益込みのnet PnLとcash controlとの差。"
+  secondary_metrics:
+    - "OOS最大DD、年率換算return/abs(max_drawdown)、Funding cash flow、価格損益、fee、売買回数、平均保有gross"
+    - "2022-02-01〜2025-06-30のdevelopment期間とOOS期間の符号・銘柄別寄与"
+    - "費用を2倍にした事前固定stress caseのOOS net PnL"
+  expected_value_formula: "funding_cash_flow + realized_price_pnl + unrealized_price_pnl - entry_fees - exit_fees - modeled_spread_and_slippage"
+  rejection_criteria:
+    - "OOS net PnLが0以下、またはcash controlを下回る。"
+    - "OOS Funding cash flowが、価格損益と全費用の合計を補えない。"
+    - "OOS最大DDが-20%以下になる。"
+    - "費用2倍stress caseでOOS net PnLが正にならない。"
+    - "入力時点、Fundingの重複適用、会計再構築のいずれかを検証できない。"
+  reserved_out_of_sample: "2025-07-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。OOS結果を見た後に仕様・ユニバース・費用を変更しない。"
+  maximum_variants: 1
+  random_seed: 0
+  research_status: "REJECTED"
+  result_artifact: "artifacts/EXP-2026-0048/summary.json"
+  result_summary: "基本費用では全期間final equity 432.96 USDT、net PnL -567.04 USDT、最大DD -57.74%。予約OOS（2025-07-01〜2025-12-31）はfinal equity 432.96 USDT、net PnL -77.09 USDT、Funding +0.27 USDT、fee 22.93 USDT、最大DD -17.31%でcash controlを下回った。費用2倍stressでは全期間final equity 242.60 USDT、OOSは開示可能な新規建玉がなくnet PnL 0で、採用条件を満たさない。Funding差は価格損益と売買費用を補えず、REJECTEDとする。"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.0002 (参考値、今回の新規・決済はtaker想定)"
+  taker_fee: "0.0006"
+  fee_asset: "USDT"
+  fee_sensitivity_cases:
+    - "base: fee 0.0006, round-trip spread 0.001, slippage per fill 0.0005"
+    - "stress: 上記fee、spread、slippageをすべて2倍"
+  spread_assumption: "片道のexecution priceへround-trip spread 0.001の半分を不利側へ反映する。"
+  slippage_assumption: "各fillへ0.0005を不利側へ反映する。"
+  liquidity_constraints: "固定50 USDT/銘柄、シグナル上の最大gross 200、long/short各gross上限200、total gross hard cap 400、per-symbol 50、reserve cash 200。板の深さ・部分約定・清算は未再現。"
+
+money_management:
+  sizing_method: "固定50 USDT notional per side per symbol; 最大2 long + 2 short。"
+  risk_budget_basis: "初期equity 1000 USDT、reserve cash 200 USDT、シグナル上の最大gross 200 USDT、total gross hard cap 400 USDT。追加レバレッジは使わない。"
+  loss_response: "損失時にロットを増減しない。配分拒否、データ不明、reserve cash不足では新規entryを拒否する。"
+  increase_conditions: []
+  decrease_conditions:
+    - "固定上限を超える注文は配分層で拒否する。"
+    - "paper/shadow/liveへの昇格や増額は本実験の結果から自動で行わない。"
+  risk_of_ruin_method: "OOS最大DDと固定gross/equity比を報告する。清算・証拠金riskは未モデルのため、live risk-of-ruinとは解釈しない。"
+
+provenance:
+  parent_experiment_ids:
+    - "EXP-2026-0031"
+    - "EXP-2026-0032"
+    - "EXP-2026-0042"
+  references:
+    - title: "bryanvine/alpha-research"
+      url: "https://github.com/bryanvine/alpha-research"
+      relevance: "Funding-rate cross-sectionを費用・OOS・多重検定込みで検証する公開研究。コードのライセンス表示がないため依存・コピーはしない。"
+    - title: "aoki-h-jp/funding-rate-arbitrage"
+      url: "https://github.com/aoki-h-jp/funding-rate-arbitrage"
+      relevance: "複数CEXのFunding取得・差分表示の実装例。MITだがZOOMEX対応と現行性は別途確認が必要。"
+  preregistration_commit: "結果確認前にlookback 3 Funding、3イベント更新、上下2銘柄、固定50 USDT、OOS期間、費用stress、棄却条件を固定する。"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  backtest_result_artifact: "artifacts/EXP-2026-0048/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false

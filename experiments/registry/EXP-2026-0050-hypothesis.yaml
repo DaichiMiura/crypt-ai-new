@@ -1,0 +1,115 @@
+schema_version: 1
+experiment_id: "EXP-2026-0050"
+created_at_utc: "2026-08-17T16:20:00Z"
+owner_role: "research"
+status: "completed"
+
+hypothesis:
+  statement: "同じL1系暗号資産であるAVAXUSDTとNEARUSDTのlog価格差が過去の関係から2標準偏差以上乖離したとき、割高側をshort・割安側をlongする等金額ペアは、市場方向への依存を抑えながら費用控除後に平均回帰収益を生む可能性がある。"
+  economic_rationale: "AVAXとNEARはともにスマートコントラクトL1として共通の暗号市場・セクター要因を受ける一方、短期的な需給やニュースで相対価格が乖離し得る。過去データだけで推定したlog価格関係へ戻る性質があれば、long/shortを同額にすることで市場方向より相対価格収束を主な収益源にできる。"
+  expected_failure_modes:
+    - "二銘柄の長期関係が構造変化し、spreadが平均回帰せず一方向へ拡大する。"
+    - "rolling hedge ratioと平均・標準偏差の推定誤差が大きく、z-scoreが安定しない。"
+    - "2脚のentry/exit費用とFundingが小さな収束利益を上回る。"
+    - "等金額はdollar-neutralだがβ-neutralではなく、市場急変で価格riskが残る。"
+
+methodology:
+  setup: "ZOOMEX AVAXUSDTとNEARUSDT linear perpetualの同期した確定2時間足を使う。各時刻tより前720本（60日）のlog価格で、NEAR log価格を説明変数、AVAX log価格を目的変数とするOLS切片・傾きを推定する。現在spreadはtの確定closeで計算し、過去360本（30日）のspread平均・母標準偏差でz-score化する。"
+  entry_rule: "flat時、確定足tのz-scoreが+2以上ならAVAX 50 USDT short・NEAR 50 USDT long、-2以下ならAVAX long・NEAR shortを予約し、tの次の2時間足openで同時に建てる。"
+  stop_rule: "保有中のz-score絶対値が4以上になった確定足の次の2時間足openで両脚を決済する。片脚だけの継続は許さない。"
+  exit_rule: "z-score絶対値が0.5以下へ戻るか、entryから168本（14日）経過した確定足の次の2時間足openで両脚を決済する。"
+  no_trade_conditions:
+    - "60日OLSまたは30日spread窓が不足する。"
+    - "同期時刻、価格、Funding、補間フラグに欠損・重複・不正がある。"
+    - "spread標準偏差が0または有限でない。"
+    - "両脚を同じ次足openで建てられない、または配分・reserve cash条件を満たさない。"
+  simplicity_rationale: "GitHub上の一般的なpairs-trading構造から、1 pair、OLS 60日、z-score 30日、entry 2、exit 0.5、stop 4、time stop 14日、等金額50 USDT/脚の1 variantだけを結果確認前に固定する。cointegration pair探索やparameter grid searchは行わない。"
+
+scope:
+  exchanges: ["ZOOMEX Global"]
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  venue_role: "target_execution"
+  symbols: ["AVAXUSDT", "NEARUSDT"]
+  quote_assets: ["USDT"]
+  pair_mapping: "研究・targetとも同じZOOMEX linear USDT perpetual。AVAX/NEARのpair選択はL1という事前の経済分類で固定し、過去成績やcointegration順位で選ばない。"
+  venue_transfer_claim: "same_venue_signal_only"
+  timeframe: "2h"
+  start_utc: "2022-03-02T00:00:00Z"
+  end_utc: "2026-01-01T00:00:00Z"
+  decision_time_information:
+    - "OLSはtより前720本だけで推定し、tのcloseを回帰係数へ含めない。"
+    - "tのcloseでシグナルを確定し、約定は次の2時間足openへ遅延する。"
+    - "Fundingは決済時刻以前から保有する建玉だけへ適用する。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  snapshot_id: "DATA-2026-0005"
+  timezone: "UTC"
+  known_limitations:
+    - "2026年固定pairを過去へ適用し、point-in-time universeや上場廃止を再現しない。"
+    - "統計的cointegrationをpair選定条件にせず、経済分類だけで固定する。"
+    - "公開Kline/Fundingは板、部分約定、証拠金、清算、注文拒否を表さない。"
+    - "ZOOMEX公開履歴上の研究結果であり、実約定の有効性は未検証。"
+
+evaluation:
+  baseline: "初期1000 USDT cash control。"
+  primary_metric: "2025-07-01〜2025-12-31のretrospective holdoutにおける費用・Funding・価格損益込みnet PnL。"
+  secondary_metrics:
+    - "holdout completed round trips、最大DD、Funding、fee、平均保有時間、stop/time/mean-reversion別exit数"
+    - "developmentとholdoutの損益符号、long/short向き別寄与"
+    - "費用2倍stressのholdout net PnL"
+  expected_value_formula: "long_leg_price_pnl + short_leg_price_pnl + funding_cash_flow - fees - spread - slippage"
+  rejection_criteria:
+    - "holdout completed pair round tripsが20未満。"
+    - "holdout net PnLが0以下、またはcash controlを下回る。"
+    - "holdout最大DDが-10%以下。"
+    - "費用2倍stressのholdout net PnLが正でない。"
+    - "両脚同期、未来参照、Funding、会計再構築を検証できない。"
+  reserved_out_of_sample: "2025-07-01〜2025-12-31は既存研究で価格を観測済みなので、未観測OOSではなく固定仕様のretrospective holdoutとする。候補でも新しいforward evidenceなしに昇格しない。"
+  maximum_variants: 1
+  random_seed: 0
+  research_status: "REJECTED"
+  result_artifact: "artifacts/EXP-2026-0050/summary.json"
+  result_summary: "holdoutでは31回以上のpair往復を確保したが、base net PnL -16.31 USDT、最大DD -2.44%、stress net PnL -26.40 USDT。exitはz-stop 21、mean reversion 10、time stop 1でstopが優勢。固定シグナルの費用ゼロ診断でもholdout -6.22 USDTのため、費用だけでなくspread平均回帰の不成立が主因。REJECTED。"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.0002 (参考値、約定はtaker想定)"
+  taker_fee: "0.0006"
+  fee_asset: "USDT"
+  fee_sensitivity_cases:
+    - "base: fee 0.0006, round-trip spread 0.001, slippage per fill 0.0005"
+    - "stress: fee、spread、slippageをすべて2倍"
+  spread_assumption: "round-trip 0.001を各fillの不利側へ半分ずつ反映。"
+  slippage_assumption: "各fillへ0.0005を不利側へ反映。"
+  liquidity_constraints: "各脚50 USDT、pair gross 100 USDT、total hard cap 400、reserve cash 200。片脚だけのentryは拒否する。"
+
+money_management:
+  sizing_method: "AVAXとNEARを各50 USDTの等金額long/short。"
+  risk_budget_basis: "初期1000 USDT、pair gross 100、reserve 200、追加レバレッジなし。"
+  loss_response: "損失時も増額しない。stop後はflatへ戻り、次の独立したentry条件まで待つ。"
+  increase_conditions: []
+  decrease_conditions: ["配分、安全検査、両脚同期のいずれかが不明ならentryを拒否する。"]
+  risk_of_ruin_method: "holdout最大DD、worst trade、連敗、固定gross/equity比を報告する。"
+
+provenance:
+  parent_experiment_ids: []
+  references:
+    - title: "alitariq1/pairs-trading"
+      url: "https://github.com/alitariq1/pairs-trading"
+      relevance: "MITのend-to-end pairs trading例。rolling spread、z-score、stop、time stop、費用評価の構造を参考にし、コードはコピーしない。"
+    - title: "AJeanis/Pairs-Trading"
+      url: "https://github.com/AJeanis/Pairs-Trading"
+      relevance: "cointegration、factor neutrality、学習期間とOOS分離の説明を設計上の注意として参照する。"
+  preregistration_commit: "結果確認前にAVAX/NEAR、OLS 720 bars、spread 360 bars、entry 2、exit 0.5、stop 4、time stop 168 bars、各50 USDT、1 variantを固定する。"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  backtest_result_artifact: "artifacts/EXP-2026-0050/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false

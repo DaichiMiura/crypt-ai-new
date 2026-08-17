@@ -90,6 +90,10 @@ required_files=(
   experiments/registry/EXP-2026-0045-hypothesis.yaml
   experiments/registry/EXP-2026-0046-hypothesis.yaml
   experiments/registry/EXP-2026-0047-hypothesis.yaml
+  experiments/registry/EXP-2026-0048-hypothesis.yaml
+  experiments/registry/EXP-2026-0049-hypothesis.yaml
+  experiments/registry/EXP-2026-0050-hypothesis.yaml
+  experiments/registry/EXP-2026-0051-hypothesis.yaml
   experiments/validation/EXP-2026-0040-validation.md
   experiments/validation/EXP-2026-0041-validation.md
   experiments/validation/EXP-2026-0042-validation.md
@@ -98,6 +102,11 @@ required_files=(
   experiments/validation/EXP-2026-0045-validation.md
   experiments/validation/EXP-2026-0046-validation.md
   experiments/validation/EXP-2026-0047-validation.md
+  experiments/validation/EXP-2026-0048-validation.md
+  experiments/validation/EXP-2026-0048-diagnostic.md
+  experiments/validation/EXP-2026-0049-validation.md
+  experiments/validation/EXP-2026-0050-validation.md
+  experiments/validation/EXP-2026-0051-validation.md
   experiments/validation/EXP-2026-0035-drawdown-diagnostic.md
   experiments/registry/EXP-2026-0030-hypothesis.yaml
   experiments/registry/EXP-2026-0030-validation.md
@@ -143,6 +152,10 @@ required_files=(
   scripts/run_exp_2026_0045.py
   scripts/run_exp_2026_0046.py
   scripts/run_exp_2026_0047.py
+  scripts/run_exp_2026_0048.py
+  scripts/run_exp_2026_0049.py
+  scripts/run_exp_2026_0050.py
+  scripts/run_exp_2026_0051.py
   scripts/capture_exp_2026_0042_paper_shadow.py
   scripts/run_exp_2026_0042_paper_shadow_cycle.sh
   scripts/diagnose_exp_2026_0035_drawdown.py
@@ -159,6 +172,9 @@ required_files=(
   src/crypt_ai/void_short.py
   src/crypt_ai/basis.py
   src/crypt_ai/basis_backtest.py
+  src/crypt_ai/funding_carry.py
+  src/crypt_ai/low_volatility.py
+  src/crypt_ai/pairs_mean_reversion.py
   tests/scripts/test_run_exp_2026_0031.py
   tests/scripts/test_run_exp_2026_0032.py
   tests/scripts/test_run_exp_2026_0033.py
@@ -176,11 +192,18 @@ required_files=(
   tests/scripts/test_run_exp_2026_0045.py
   tests/scripts/test_run_exp_2026_0046.py
   tests/scripts/test_run_exp_2026_0047.py
+  tests/scripts/test_run_exp_2026_0048.py
+  tests/scripts/test_run_exp_2026_0049.py
+  tests/scripts/test_run_exp_2026_0050.py
+  tests/scripts/test_run_exp_2026_0051.py
   tests/scripts/test_capture_exp_2026_0042_paper_shadow.py
   tests/scripts/test_diagnose_exp_2026_0035_drawdown.py
   tests/scripts/test_download_zoomex_exp_2026_0032_spot_data.py
   tests/src/crypt_ai/test_basis.py
   tests/src/crypt_ai/test_basis_backtest.py
+  tests/src/crypt_ai/test_funding_carry.py
+  tests/src/crypt_ai/test_low_volatility.py
+  tests/src/crypt_ai/test_pairs_mean_reversion.py
   tests/src/crypt_ai/test_long_ladder.py
   templates/hypothesis.yaml
   templates/data-manifest.yaml

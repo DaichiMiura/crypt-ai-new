@@ -1,0 +1,111 @@
+schema_version: 1
+experiment_id: "EXP-2026-0051"
+created_at_utc: "2026-08-17T17:10:00Z"
+owner_role: "research"
+status: "completed"
+
+hypothesis:
+  statement: "ZOOMEXの固定6銘柄で過去30日実現ボラティリティが最も低い2銘柄を週次保有し、市場全体の過去180日リターン中央値が正の期間だけlongする方式は、高ボラティリティ銘柄への集中と下降相場への曝露を避け、費用控除後にcash controlを上回る可能性がある。"
+  economic_rationale: "暗号資産では高い値動きが高い将来収益を保証せず、投機需要が高ボラティリティ銘柄を割高にする可能性がある。低ボラティリティ銘柄へ限定し、長期市場regimeが正のときだけ保有すれば、上昇参加を残しながら大幅下落と不要な回転を抑えられる可能性がある。"
+  expected_failure_modes:
+    - "低ボラティリティが単に上昇力の弱さを表し、強いbull marketでcashや高β銘柄に劣後する。"
+    - "180日filterが遅く、下落後まで保有し、回復初期を逃す。"
+    - "6銘柄固定の順位が特定銘柄へ集中し、低vol効果ではなく銘柄固有效果になる。"
+    - "週次入替えの費用とlong Funding支払いが収益を上回る。"
+
+methodology:
+  setup: "6銘柄の同期した確定2時間足を使う。時刻tのcloseまでの360本close-to-close returnの母標準偏差を年率化（sqrt(12*365)）し、30日実現volとする。各銘柄のt close / 2160本前close - 1を180日returnとし、その中央値を市場regimeとする。"
+  entry_rule: "7日ごと（84本）に、180日return中央値が0より大きければ30日vol昇順の2銘柄を選び、次の2時間足openで各100 USDTをlongする。"
+  stop_rule: "価格stopは置かない。週次更新時に市場regimeが非正なら全決済しcashを保持する。"
+  exit_rule: "週次更新時にtop2から外れた銘柄を次の2時間足openで決済し、新しいtop2へ入れ替える。評価終了時は最終closeでmark-to-marketする。"
+  no_trade_conditions:
+    - "30日volまたは180日returnの履歴が不足する。"
+    - "180日return中央値が0以下。"
+    - "6銘柄の時刻、Funding時刻、価格が同期しない、または欠損・重複・補間・不正値がある。"
+    - "配分上限、reserve cash、銘柄上限を満たさない。"
+  simplicity_rationale: "30日vol、180日regime、週次、top2、各100 USDTを結果確認前に固定し、窓・銘柄数・閾値を探索しない1 variantとする。"
+
+scope:
+  exchanges: ["ZOOMEX Global"]
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  venue_role: "target_execution"
+  symbols: ["LINKUSDT", "UNIUSDT", "ADAUSDT", "AVAXUSDT", "NEARUSDT", "AAVEUSDT"]
+  quote_assets: ["USDT"]
+  pair_mapping: "研究・targetとも同じZOOMEX linear USDT perpetual。6銘柄はDATA-2026-0005の2026-08-15時点固定でpoint-in-time universeではない。"
+  venue_transfer_claim: "same_venue_signal_only"
+  timeframe: "2h; weekly rebalance"
+  start_utc: "2022-07-01T00:00:00Z"
+  end_utc: "2026-01-01T00:00:00Z"
+  decision_time_information:
+    - "時刻tの確定closeまででvolと180日returnを計算し、約定は次の2時間足openへ遅延する。"
+    - "未確定足、将来return、将来の銘柄順位を使わない。"
+    - "Fundingは決済時刻以前から保有する建玉だけへ適用する。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  snapshot_id: "DATA-2026-0005"
+  timezone: "UTC"
+  known_limitations:
+    - "2026年固定universeを過去へ適用し、point-in-time上場・流動性を再現しない。"
+    - "6銘柄だけのcross-sectionで低vol anomaly一般を検証できない。"
+    - "公開Kline/Fundingは板、部分約定、証拠金、清算、注文拒否を表さない。"
+    - "ZOOMEX公開履歴上の研究結果であり、実約定の有効性は未検証。"
+
+evaluation:
+  baseline: "初期1000 USDT cash control。"
+  primary_metric: "2025-07-01〜2025-12-31 retrospective holdoutの費用・Funding込みnet PnL。"
+  secondary_metrics:
+    - "holdout最大DD、entry/exit、Funding、fee、平均gross、銘柄別保有期間・寄与"
+    - "developmentとholdoutの損益符号、market filter稼働率、選択集中度"
+    - "費用2倍stressのholdout net PnL"
+  expected_value_formula: "selected_long_price_pnl + funding_cash_flow - fees - spread - slippage"
+  rejection_criteria:
+    - "holdout completed leg round tripsが10未満。"
+    - "holdout net PnLが0以下、またはcash controlを下回る。"
+    - "holdout最大DDが-10%以下。"
+    - "費用2倍stressのholdout net PnLが正でない。"
+    - "未来参照、Funding、資金配分、会計再構築を検証できない。"
+  reserved_out_of_sample: "2025-07-01〜2025-12-31は既存研究で観測済みのretrospective holdout。候補でも新しいforward evidenceなしに昇格しない。"
+  maximum_variants: 1
+  random_seed: 0
+  research_status: "REJECTED"
+  result_artifact: "artifacts/EXP-2026-0051/summary.json"
+  result_summary: "developmentは+205.93 USDTだったが、retrospective holdoutはbase -22.26 USDT、最大DD -7.42%、stress -24.45 USDT、完了leg往復7で全主要基準を満たさずREJECTED。費用ゼロ診断も-20.07 USDTで価格損益が主因。holdoutのaccepted 13週中AAVE選択11回、ADAの約100→57 USDTの損失が大きく、低vol順位は将来downsideや銘柄集中を防げなかった。"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.0002 (参考値、約定はtaker想定)"
+  taker_fee: "0.0006"
+  fee_asset: "USDT"
+  fee_sensitivity_cases:
+    - "base: fee 0.0006, round-trip spread 0.001, slippage per fill 0.0005"
+    - "stress: fee、spread、slippageをすべて2倍"
+  spread_assumption: "round-trip 0.001を各fillの不利側へ半分ずつ反映。"
+  slippage_assumption: "各fillへ0.0005を不利側へ反映。"
+  liquidity_constraints: "各100 USDT、最大2 long、signal gross 200、total hard cap 400、reserve cash 200。"
+
+money_management:
+  sizing_method: "選択銘柄ごと固定100 USDT、最大2銘柄。"
+  risk_budget_basis: "初期1000 USDT、最大gross 200、reserve 200、追加レバレッジなし。"
+  loss_response: "損失時も増額しない。market filter不成立時は全額cash。"
+  increase_conditions: []
+  decrease_conditions: ["配分またはデータ検査不能では新規entryを拒否する。"]
+  risk_of_ruin_method: "holdout最大DD、worst period、gross/equity比、銘柄集中度を報告する。"
+
+provenance:
+  parent_experiment_ids: []
+  references:
+    - title: "低ボラティリティ銘柄を週次保有する新規仮説"
+      relevance: "既存の相対momentum、Funding、pair spread、Donchianとは異なるcross-sectional risk characteristicを検証する。"
+  preregistration_commit: "結果確認前にvol 360 bars、regime 2160 bars、weekly 84 bars、top2、各100 USDT、1 variantを固定する。"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  backtest_result_artifact: "artifacts/EXP-2026-0051/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
