@@ -1,0 +1,92 @@
+schema_version: 1
+experiment_id: "EXP-2026-0047"
+created_at_utc: "2026-08-17T00:00:00Z"
+owner_role: "research"
+status: "completed"
+
+hypothesis:
+  statement: "1銘柄最大200 USDT・2銘柄合計400 USDTを固定した場合、初回100 USDTと下落時100 USDTの分割entryは、初回200 USDT一括entryより最大DDを抑えながら費用控除後成績を維持または改善できる可能性がある。"
+  economic_rationale: "初回シグナル後に価格が下落した場合だけ残り半分を投入すれば平均取得価格を下げられ、下落しない場合は100 USDTを現金で残せる。一方、そのまま上昇する局面では投入不足となり、追加約定のfeeも増えるため、最大資金量を揃えた直接比較が必要である。"
+  parent_experiment_ids:
+    - "EXP-2026-0042"
+    - "EXP-2026-0045"
+    - "EXP-2026-0046"
+
+methodology:
+  input: "EXP-2026-0015のZOOMEX linear USDT perpetual 2時間足KlineとFunding履歴。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  frozen_strategy: "EXP-2026-0042の4銘柄、30日相対モメンタム、7日rebalance、正の中央値regime、上位2、保有中4位転落の次足退出、base resetまで再entry禁止を変更しない。"
+  symbols: [LINKUSDT, UNIUSDT, AVAXUSDT, AAVEUSDT]
+  arms:
+    fixed_200:
+      sizing: "シグナルentry時に200 USDTを一括投入し、保有中は追加しない。"
+    split_fixed_percent_max2:
+      sizing: "シグナルentry時に100 USDTを投入し、初回約定価格から2.36%下落を確定足lowで初めて確認した次足openに100 USDTを1回だけ追加する。"
+    split_atr_max2:
+      sizing: "シグナルentry時に100 USDTを投入し、entry時固定20日ATRの1.000倍下落を確定足lowで初めて確認した次足openに100 USDTを1回だけ追加する。"
+  capital_control:
+    initial_equity: "1000"
+    max_concurrent_positions: 2
+    max_notional_per_symbol: "200"
+    max_total_allocated_notional: "400"
+    compounding: false
+    additional_leverage: false
+    short_enabled: false
+  execution_order:
+    - "Funding、基礎シグナル退出、前足で発火した追加、初回entry、markの順に処理する。"
+    - "追加条件は確定済み足のlowで判定し、同じ足のopenへ約定させない。"
+    - "基礎シグナル退出時は未約定の追加を破棄する。"
+    - "補間足では初回entryも追加triggerも行わない。"
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+    funding: "Funding timestampの既存全数量へ適用する。"
+  attempts: 3
+  no_parameter_sweep: true
+  expected_failure_conditions:
+    - "entry後に押し目なく上昇する局面が多く、分割版が利益を取り逃す。"
+    - "追加後も下落が続き、平均取得価格低下より追加損失が大きい。"
+    - "追加約定feeが分割効果を相殺する。"
+  execution_gate: "ZOOMEX公開履歴上のresearch比較のみ。現在のEXP-2026-0042 paper/shadow設定は変更しない。"
+
+evaluation:
+  research_status: "REJECTED"
+  promotion_status: "NOT_ELIGIBLE"
+  primary_metrics:
+    - "費用・Funding控除後の最終equity"
+    - "最大ドローダウン"
+    - "return_rate / abs(max_drawdown)"
+  secondary_metrics:
+    - "平均allocated notional、最大mark gross/equity、年別損益、追加回数、追加後の損失退出、fee、Funding、拒否数"
+    - "4年間・年率10%複利基準1464.10 USDTとの差"
+  decision_rule:
+    backtest_candidate: "固定200以上の最終equity、固定200以上（悪化なし）の最大DD、固定200以上のreturn/DD比、1464.10 USDT以上をすべて満たす場合にBACKTEST_CANDIDATEとする。"
+    preferred_split: "両分割armが候補ならreturn/DD比が高い方を優先する。"
+    otherwise: "基準未達はREJECTED、実装またはデータ品質で判定不能ならINCONCLUSIVEとする。"
+  promotion_rule: "本実験だけではpaper/shadowを変更せず、promotion_statusはNOT_ELIGIBLEのままとする。"
+  result_artifact: "artifacts/EXP-2026-0047/summary.json"
+  result_summary: "固定200は最終1589.37 USDT・最大DD -27.01%・return/DD 2.18。固定率100+100は1574.15・-23.01%・2.50で、最終資産を15.22 USDT（0.96%）下げる代わりにDDを4.01ポイント改善。ATR100+100は1549.34・-24.51%・2.24。両分割armとも固定200以上の最終equity条件に未達のためREJECTED。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  research_venue: "ZOOMEX"
+  product: "linear_usdt_perpetual"
+  quote_asset: "USDT"
+  timeframe: "120 minutes UTC"
+  availability: "各判断時点までの確定KlineとFundingだけを使用する。"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  preregistration_commit: "結果確認前に同一最大元本、最大2ロット、固定率1段階、ATR1段階、採否条件を固定する。"

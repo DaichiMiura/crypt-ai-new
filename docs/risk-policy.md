@@ -7,6 +7,9 @@
 Phase 0のペーパー運用では、実取引所へ接続しない専用アダプターだけが
 [config/paper-risk-limits.yaml](../config/paper-risk-limits.yaml) を使える。この設定をlive用アダプターへ渡してはならない。ペーパー運用でも上限超過、古いデータ、照合失敗、不明状態は拒否する。
 
+固定済みEXP-2026-0042のshadowはZOOMEX公開データだけを読み、実注文、取引権限、
+秘密情報を使わない。shadowが`paper-risk-limits.yaml`の境界や戦略別上限を緩和することはない。
+
 ## Global limits and strategy budgets
 
 `paper-risk-limits.yaml`は口座・環境全体のハード上限であり、戦略固有の適正値ではない。各戦略は、登録済み実験に対応する

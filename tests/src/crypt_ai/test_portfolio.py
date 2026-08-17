@@ -169,6 +169,8 @@ def test_portfolio_applies_funding_to_existing_short_before_exit():
     frame = _frame([0, 0, 0], [100, 100, 100]).assign(
         desired_short_position=[0, 1, 0],
         funding_rate=[0, 0, 0.001],
+        open=[100, 100, 80],
+        close=[100, 100, 200],
     )
     result = run_allocated_portfolio(
         {"AAA": frame},
@@ -180,7 +182,127 @@ def test_portfolio_applies_funding_to_existing_short_before_exit():
         CostModel(Decimal("0"), Decimal("0"), Decimal("0")),
     )
 
-    assert result.metrics["funding_cash_flow"] == "10.000"
-    assert result.metrics["final_equity"] == "100010.000"
+    assert result.metrics["funding_cash_flow"] == "8.000"
+    assert result.metrics["final_equity"] == "102008.000"
     funding_events = [event for event in result.events if event["event_type"] == "FUNDING"]
     assert funding_events[0]["side"] == "short"
+
+
+def test_equity_fraction_sizing_compounds_at_new_entry() -> None:
+    """利益後の新規entry元本が現在equityに比例して増えることをテストする。"""
+
+    result = run_allocated_long_portfolio(
+        {"AAA": _frame([0, 1, 0, 1, 0], [100, 100, 200, 200, 200])},
+        _config(
+            allowed_symbols=("AAA",),
+            reserve_cash=Decimal("0"),
+            max_concurrent_long_positions=1,
+        ),
+        CostModel(Decimal("0"), Decimal("0"), Decimal("0")),
+        entry_equity_fraction=Decimal("0.20"),
+    )
+
+    entries = [event for event in result.events if event["event_type"] == "ENTRY"]
+    assert [event["notional"] for event in entries] == ["20000.00", "24000.0000"]
+
+
+def test_half_equity_slots_share_fee_inclusive_budget_equally() -> None:
+    """2つの50%枠がentry手数料込みで現在equity内に収まることをテストする。"""
+
+    result = run_allocated_long_portfolio(
+        {
+            "AAA": _frame([0, 1], [100, 100]),
+            "BBB": _frame([0, 1], [100, 100]),
+        },
+        _config(
+            allowed_symbols=("AAA", "BBB"),
+            initial_equity=Decimal("1000"),
+            reserve_cash=Decimal("0"),
+            max_concurrent_long_positions=2,
+        ),
+        CostModel(Decimal("0.0006"), Decimal("0"), Decimal("0")),
+        entry_equity_fraction=Decimal("0.50"),
+    )
+
+    entries = [event for event in result.events if event["event_type"] == "ENTRY"]
+    budgets = [Decimal(event["notional"]) + Decimal(event["fee"]) for event in entries]
+    assert len(entries) == 2
+    assert budgets[0] == budgets[1]
+    assert abs(sum(budgets) - Decimal("1000")) < Decimal("1e-20")
+
+
+def test_single_target_uses_only_one_half_equity_slot() -> None:
+    """対象が1銘柄なら50%枠を1つだけ使用することをテストする。"""
+
+    result = run_allocated_long_portfolio(
+        {"AAA": _frame([0, 1], [100, 100])},
+        _config(
+            allowed_symbols=("AAA",),
+            initial_equity=Decimal("1000"),
+            reserve_cash=Decimal("0"),
+            max_concurrent_long_positions=2,
+        ),
+        CostModel(Decimal("0.0006"), Decimal("0"), Decimal("0")),
+        entry_equity_fraction=Decimal("0.50"),
+    )
+
+    entry = next(event for event in result.events if event["event_type"] == "ENTRY")
+    budget = Decimal(entry["notional"]) + Decimal(entry["fee"])
+    assert abs(budget - Decimal("500")) < Decimal("1e-20")
+
+
+def test_equity_fraction_rejects_total_above_one_hundred_percent() -> None:
+    """最大同時保有時に100%を超えるequity比率を拒否することをテストする。"""
+
+    with pytest.raises(ValueError, match="must not exceed 1"):
+        run_allocated_long_portfolio(
+            {"AAA": _frame([0, 1], [100, 100])},
+            _config(
+                allowed_symbols=("AAA",),
+                max_concurrent_long_positions=2,
+            ),
+            CostModel(Decimal("0"), Decimal("0"), Decimal("0")),
+            entry_equity_fraction=Decimal("0.51"),
+        )
+
+
+def test_equity_fraction_rejects_integer_lot_multiplier() -> None:
+    """equity比例枠と固定ロット倍率の同時指定を拒否することをテストする。"""
+
+    frame = _frame([0, 1], [100, 100]).assign(
+        desired_long_lot_count=[1, 2]
+    )
+    with pytest.raises(ValueError, match="requires lot_count 1"):
+        run_allocated_long_portfolio(
+            {"AAA": frame},
+            _config(
+                allowed_symbols=("AAA",),
+                max_concurrent_long_positions=1,
+            ),
+            CostModel(Decimal("0"), Decimal("0"), Decimal("0")),
+            entry_equity_fraction=Decimal("0.20"),
+        )
+
+
+def test_equity_fraction_rejects_new_slot_after_existing_position_outgrows_cap() -> None:
+    """既存建玉の値上がりでgross上限を超える新規枠を拒否することをテストする。"""
+
+    result = run_allocated_long_portfolio(
+        {
+            "AAA": _frame([0, 1, 1], [100, 100, 200]),
+            "BBB": _frame([0, 0, 1], [100, 100, 100]),
+        },
+        _config(
+            allowed_symbols=("AAA", "BBB"),
+            reserve_cash=Decimal("0"),
+            max_concurrent_long_positions=2,
+        ),
+        CostModel(Decimal("0"), Decimal("0"), Decimal("0")),
+        entry_equity_fraction=Decimal("0.20"),
+    )
+
+    rejection = next(
+        event for event in result.events if event["event_type"] == "ORDER_REJECTED"
+    )
+    assert rejection["symbol"] == "BBB"
+    assert rejection["allocation_reason"] == "equity_fraction_cap"

@@ -75,6 +75,7 @@ def run_allocated_portfolio(
     cost_model: CostModel,
     *,
     reject_interpolated_entries: bool = True,
+    entry_equity_fraction: Decimal | None = None,
 ) -> AllocatedPortfolioResult:
     """複数銘柄のlong/shortシグナルを配分承認付きで同時に会計する。
 
@@ -85,9 +86,15 @@ def run_allocated_portfolio(
     ロット数に使い、列がなければ1ロットとする。保有中のロット変更は行わない。
     1から0になった時は決済して配分枠を解放する。銘柄、sideの処理順は固定する。
 
+    `entry_equity_fraction`を指定した場合はlongだけを対象に、entry時点のopenで
+    評価したequityの指定比率を費用込み1枠予算とする。建玉元本は予算を
+    `1 + fee_rate`で割り、最大同時保有数を掛けた比率をgross上限とする。
+    保有中の建玉はresizeせず、新規entry時だけ複利を反映する。
+
     入力行に任意の`funding_rate`列がある場合、各時刻の既存建玉へFundingを適用する。
     正のFundingはlongが支払い、shortが受け取る。欠損値または列なしは0として扱う。
-    Fundingは、その時刻の新規entryより前、既存建玉のexitより前に適用する。
+    Fundingは発生時刻のopenで評価し、その時刻の新規entryより前、既存建玉のexitより
+    前に適用する。
 
     Shortは、1ロット元本を担保相当額としてcashから取り置き、mark時には
     `entry_price - mark_price`の含み損益を反映する研究用会計である。取引所の
@@ -101,6 +108,7 @@ def run_allocated_portfolio(
         config: 資産、固定ロット、配分上限を定義する設定。
         cost_model: 売買手数料、spread、slippageの仮定。
         reject_interpolated_entries: 補間バー上の新規注文を拒否するか。
+        entry_equity_fraction: entry時equityに対する費用込み1枠予算の比率。
 
     Returns:
         配分後の会計指標、監査イベント、equity曲線。
@@ -109,6 +117,7 @@ def run_allocated_portfolio(
         ValueError: 銘柄、時刻、価格、シグナルの入力が不正な場合。
     """
 
+    fraction = _normalize_entry_equity_fraction(entry_equity_fraction, config)
     normalized = _normalize_frames(frames, config)
     timestamps = sorted(next(iter(normalized.values())))
     state = AllocationState(config.initial_equity)
@@ -132,12 +141,12 @@ def run_allocated_portfolio(
             funding_rate = _funding_rate(row, symbol)
             if funding_rate == 0:
                 continue
-            close = _price(row.close, f"{symbol}.close")
+            funding_price = _price(row.open, f"{symbol}.open")
             for side in ("long", "short"):
                 position = positions.get((symbol, side))
                 if position is None:
                     continue
-                notional = position.quantity * close
+                notional = position.quantity * funding_price
                 funding_delta = (
                     -notional * funding_rate
                     if side == "long"
@@ -181,12 +190,7 @@ def run_allocated_portfolio(
                     gross = position.quantity * execution_price
                     pnl = position.quantity * (position.entry_price - execution_price)
                     cash += position.notional + pnl - fee
-                allocator.release(
-                    state,
-                    side=side,
-                    symbol=symbol,
-                    lot_count=position.lot_count,
-                )
+                state.close_position(side, symbol, position.notional)
                 positions.pop(key)
                 event = {
                     "event_time": timestamp.isoformat(),
@@ -200,6 +204,9 @@ def run_allocated_portfolio(
                 if pnl is not None:
                     event["pnl"] = str(pnl)
                 events.append(event)
+
+        entry_equity = _equity_at_open(cash, positions, rows)
+        state.equity = entry_equity
 
         # 新規配分も銘柄昇順、long先行で処理し、同時刻の結果を再現可能にする。
         for symbol in sorted(rows):
@@ -220,43 +227,77 @@ def run_allocated_portfolio(
                     )
                     continue
                 lot_count = _desired_lot_count(row, symbol, side)
-                decision = allocator.evaluate_order(
-                    state,
-                    side=side,
-                    symbol=symbol,
-                    lot_count=lot_count,
-                )
-                if not decision.accepted:
-                    events.append(
-                        _rejection_event(timestamp, symbol, side, decision.reason)
+                if fraction is None:
+                    decision = allocator.evaluate_order(
+                        state,
+                        side=side,
+                        symbol=symbol,
+                        lot_count=lot_count,
                     )
-                    continue
+                    if not decision.accepted:
+                        events.append(
+                            _rejection_event(timestamp, symbol, side, decision.reason)
+                        )
+                        continue
+                    approved_notional = decision.approved_notional
+                    allocation_reason = decision.reason
+                else:
+                    if side != "long":
+                        raise ValueError(
+                            "entry_equity_fraction supports long positions only"
+                        )
+                    if lot_count != 1:
+                        raise ValueError(
+                            "entry_equity_fraction requires lot_count 1"
+                        )
+                    approved_notional = entry_equity * fraction / (
+                        Decimal("1") + cost_model.fee_rate
+                    )
+                    rejection_reason = _fractional_entry_rejection_reason(
+                        positions,
+                        rows,
+                        config,
+                        entry_equity,
+                        approved_notional,
+                        fraction,
+                    )
+                    if rejection_reason is not None:
+                        events.append(
+                            _rejection_event(
+                                timestamp, symbol, side, rejection_reason
+                            )
+                        )
+                        continue
+                    allocation_reason = "equity_fraction"
                 raw_open = _price(row.open, f"{symbol}.open")
                 execution_price = (
                     cost_model.buy_price(raw_open)
                     if side == "long"
                     else cost_model.sell_price(raw_open)
                 )
-                fee = decision.approved_notional * cost_model.fee_rate
-                required_cash = decision.approved_notional + fee
+                fee = approved_notional * cost_model.fee_rate
+                required_cash = approved_notional + fee
                 if required_cash > cash:
                     events.append(
                         _rejection_event(timestamp, symbol, side, "insufficient_cash")
                     )
                     continue
-                quantity = decision.approved_notional / execution_price
+                quantity = approved_notional / execution_price
                 cash -= required_cash
-                allocator.try_open(
-                    state,
-                    side=side,
-                    symbol=symbol,
-                    lot_count=lot_count,
-                )
+                if fraction is None:
+                    allocator.try_open(
+                        state,
+                        side=side,
+                        symbol=symbol,
+                        lot_count=lot_count,
+                    )
+                else:
+                    state.open_position(side, symbol, approved_notional)
                 positions[key] = _PortfolioPosition(
                     side=side,
                     quantity=quantity,
                     entry_price=execution_price,
-                    notional=decision.approved_notional,
+                    notional=approved_notional,
                     lot_count=lot_count,
                 )
                 events.append(
@@ -266,11 +307,11 @@ def run_allocated_portfolio(
                         "side": side,
                         "symbol": symbol,
                         "quantity": str(quantity),
-                        "notional": str(decision.approved_notional),
+                        "notional": str(approved_notional),
                         "lot_count": lot_count,
                         "execution_price": str(execution_price),
                         "fee": str(fee),
-                        "allocation_reason": decision.reason,
+                        "allocation_reason": allocation_reason,
                     }
                 )
 
@@ -324,6 +365,7 @@ def run_allocated_long_portfolio(
     cost_model: CostModel,
     *,
     reject_interpolated_entries: bool = True,
+    entry_equity_fraction: Decimal | None = None,
 ) -> AllocatedPortfolioResult:
     """複数銘柄のlongシグナルだけを配分承認付きで同時に会計する。
 
@@ -332,6 +374,7 @@ def run_allocated_long_portfolio(
         config: 資産、固定ロット、配分上限を定義する設定。
         cost_model: 売買手数料、spread、slippageの仮定。
         reject_interpolated_entries: 補間バー上の新規注文を拒否するか。
+        entry_equity_fraction: entry時equityに対する費用込み1枠予算の比率。
 
     Returns:
         配分後の会計指標、監査イベント、equity曲線。
@@ -345,7 +388,113 @@ def run_allocated_long_portfolio(
         config,
         cost_model,
         reject_interpolated_entries=reject_interpolated_entries,
+        entry_equity_fraction=entry_equity_fraction,
     )
+
+
+def _normalize_entry_equity_fraction(
+    value: Decimal | None, config: AllocationConfig
+) -> Decimal | None:
+    """entry時equity比率を検証する。
+
+    Args:
+        value: 費用込み1枠予算のequity比率。Noneは固定ロット。
+        config: 最大同時保有数を含む配分設定。
+
+    Returns:
+        検証済み比率、または固定ロットを表すNone。
+
+    Raises:
+        ValueError: 比率が非正、または最大2枠等の合計で100%を超える場合。
+    """
+
+    if value is None:
+        return None
+    fraction = _decimal(value, "entry_equity_fraction")
+    if fraction <= 0:
+        raise ValueError("entry_equity_fraction must be positive")
+    if fraction * config.max_concurrent_long_positions > Decimal("1"):
+        raise ValueError(
+            "entry_equity_fraction times max concurrent long positions must not exceed 1"
+        )
+    return fraction
+
+
+def _equity_at_open(
+    cash: Decimal,
+    positions: dict[tuple[str, str], _PortfolioPosition],
+    rows: dict[str, object],
+) -> Decimal:
+    """同時刻openで既存建玉を評価したentry前equityを返す。
+
+    Args:
+        cash: Fundingと同時刻の決済を反映した現金。
+        positions: entry前に残っている建玉。
+        rows: 銘柄別の同時刻市場行。
+
+    Returns:
+        open時点の現金と建玉評価額の合計。
+    """
+
+    equity = cash
+    for (symbol, side), position in positions.items():
+        open_price = _price(rows[symbol].open, f"{symbol}.open")
+        if side == "long":
+            equity += position.quantity * open_price
+        else:
+            equity += position.notional + position.quantity * (
+                position.entry_price - open_price
+            )
+    return equity
+
+
+def _fractional_entry_rejection_reason(
+    positions: dict[tuple[str, str], _PortfolioPosition],
+    rows: dict[str, object],
+    config: AllocationConfig,
+    entry_equity: Decimal,
+    requested_notional: Decimal,
+    fraction: Decimal,
+) -> str | None:
+    """equity比例entryの同時保有数とgross比率を検査する。
+
+    Args:
+        positions: entry直前の建玉。
+        rows: 銘柄別の同時刻市場行。
+        config: 最大同時保有数を含む配分設定。
+        entry_equity: 同時刻openで評価した口座equity。
+        requested_notional: 新規に要求する建玉元本。
+        fraction: 費用込み1枠予算のequity比率。
+
+    Returns:
+        拒否理由。承認可能ならNone。
+    """
+
+    long_positions = {
+        symbol: position
+        for (symbol, side), position in positions.items()
+        if side == "long"
+    }
+    if len(long_positions) >= config.max_concurrent_long_positions:
+        return "max_concurrent_positions"
+    if entry_equity <= 0 or requested_notional <= 0:
+        return "nonpositive_equity"
+    current_gross = sum(
+        (
+            position.quantity
+            * _price(rows[symbol].open, f"{symbol}.open")
+            for symbol, position in long_positions.items()
+        ),
+        Decimal("0"),
+    )
+    max_gross = (
+        entry_equity
+        * fraction
+        * config.max_concurrent_long_positions
+    )
+    if current_gross + requested_notional > max_gross:
+        return "equity_fraction_cap"
+    return None
 
 
 def _normalize_frames(
@@ -619,7 +768,7 @@ def _summarize(
         (
             _decimal(event["fee"], "fee")
             for event in events
-            if event["event_type"] in {"ENTRY", "EXIT"} and "fee" in event
+            if "fee" in event
         ),
         Decimal("0"),
     )

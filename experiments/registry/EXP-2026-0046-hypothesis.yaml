@@ -1,0 +1,83 @@
+schema_version: 1
+experiment_id: "EXP-2026-0046"
+created_at_utc: "2026-08-16T00:00:00Z"
+owner_role: "research"
+status: "completed"
+
+hypothesis:
+  statement: "EXP-2026-0045のフィボナッチ買い増しを最大3ロットへ制限すると、最大5ロット版の利益の大部分を残しながら最大ドローダウンを改善できる可能性がある。"
+  economic_rationale: "EXP-2026-0045では買い増しが最終資産を増やした一方、下落中の銘柄へ最大500 USDTを集中して最大DDが悪化した。後半2段階を削れば、平均取得価格を下げる効果を残しつつ、1銘柄300 USDT、2銘柄合計600 USDTへ集中を限定できる。"
+  parent_experiment_ids:
+    - "EXP-2026-0042"
+    - "EXP-2026-0045"
+
+methodology:
+  input: "EXP-2026-0015のZOOMEX linear perpetual 2時間足とFunding履歴。"
+  evaluation_window: "2022-02-01T00:00:00Z〜2025-12-31T23:59:59Z UTC。"
+  frozen_strategy: "EXP-2026-0042の売買シグナル、EXP-2026-0045の会計・次足open約定・固定100 USDTロットを変更しない。"
+  symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+  arms:
+    fixed_200:
+      sizing: "EXP-2026-0042と同じ初回200 USDT固定。"
+    fibonacci_fixed_percent_max3:
+      sizing: "初回100 USDT。初回価格から2.36%、3.82%下落を確定足lowで確認した次足openに各100 USDT追加する。"
+      max_lots_per_symbol: 3
+    fibonacci_atr_max3:
+      sizing: "初回100 USDT。entry時固定20日ATRの1.000倍、1.618倍下落を確定足lowで確認した次足openに各100 USDT追加する。"
+      max_lots_per_symbol: 3
+  unchanged_execution_rules:
+    - "Funding、退出、前足で発火した買い増し、初回entryの順に処理する。"
+    - "補間足で初回entryと買い増しtriggerを行わない。"
+    - "short、複利、追加レバレッジを使わない。"
+  costs:
+    fee_rate: "0.0006"
+    round_trip_spread: "0.001"
+    slippage_per_fill: "0.0005"
+    funding: "各保有数量へ反映する。"
+  capital:
+    initial_equity: "1000"
+    lot_notional: "100"
+    max_concurrent_positions: 2
+    max_lots_per_symbol: 3
+    max_total_gross_notional: "600"
+  no_parameter_sweep: true
+  execution_gate: "研究比較のみ。現在のEXP-2026-0042 paper/shadow設定は変更しない。"
+
+evaluation:
+  status: "KEEP_FIXED_200"
+  primary_metrics:
+    - "費用・Funding控除後の最終equity"
+    - "最大ドローダウン"
+    - "return_rate / abs(max_drawdown)"
+  secondary_metrics:
+    - "年別損益、追加約定数、買い増し後の損失退出数、最大gross/equity比、手数料、Funding、拒否数"
+  decision_rule:
+    versus_fixed_200: "固定200より最終equityが高く、最大DDを悪化させず、return/DD比も固定200以上なら候補とする。"
+    versus_same_max5_arm: "対応する最大5ロット版より最大DDを5ポイント以上改善し、最大5ロット版の最終equityを90%以上維持し、1464.10 USDT以上なら縮小候補とする。"
+    final_candidate: "versus_fixed_200とversus_same_max5_armの両方を満たす場合だけpaper候補とする。"
+  promotion_rule: "過去データ比較だけではpaper/shadow設定を変更しない。"
+  result_artifact: "artifacts/EXP-2026-0046/summary.json"
+  result_summary: "固定率最大3は最終1829.29 USDT・最大DD -31.47%・return/DD 2.64、ATR最大3は1855.57・-32.62%・2.62。固定200より増益したがDDを4.45〜5.61ポイント悪化。最大5ロット版よりDDを9.87〜11.32ポイント改善したが最終資産維持率は84.55%・82.08%で事前登録90%条件に未達。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  timeframe: "120 minutes UTC"
+  artifacts:
+    trade: "data/processed/EXP-2026-0015/{SYMBOL}/trade-2h.csv"
+    funding: "data/processed/EXP-2026-0015/{SYMBOL}/funding-rate.csv"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  paper_started: false
+  shadow_started: false
+  live_started: false
+
+provenance:
+  preregistration_commit: "結果確認前に最大3ロット、使用する最初の2段階、最大5ロット版との比較条件を固定する。"
