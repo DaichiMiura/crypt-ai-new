@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0054"
 created_at_utc: "2026-08-17T14:49:31Z"
 owner_role: "research"
-status: "registered"
+status: "development_completed"
 
 hypothesis:
   statement: "ZOOMEX linear perpetualの確定1時間足から作る価格・活動量・derivatives・BTC context・cross-sectional特徴量で6時間先gross log returnを予測し、予測値がbase往復費用の2倍を超えるtop1銘柄だけを100 USDT longすると、封印した2026-01-01〜2026-07-31期間にcashおよび固定6時間momentum baselineを費用・Funding込みnet PnLで上回る可能性がある。"
@@ -101,6 +101,22 @@ evaluation:
   random_seed: 0
   research_status: "PENDING"
   promotion_status: "NOT_ELIGIBLE"
+  development_result:
+    selected_model: "ridge"
+    selection_reason: "highest_development_net_pnl"
+    ridge_net_pnl_usdt: "7.372397419117"
+    ridge_completed_round_trips: 15
+    ridge_max_drawdown: "-0.0108980833204050932291427762"
+    xgboost_net_pnl_usdt: "-15.641081969383"
+    xgboost_completed_round_trips: 58
+    xgboost_max_drawdown: "-0.0290940029988947078555914665"
+    train_sample_rows: 17036
+    development_sample_rows: 5836
+    excluded_decision_times: 0
+    holdout_authorized_by_preregistered_gate: true
+    sealed_holdout_opened: false
+    result_artifact: "artifacts/EXP-2026-0054-development/summary.json"
+    result_sha256: "87f4e0fb642f533a5ee7b611cca07b58604a6cc56c394d08e967d667f52eff86"
 
 cost_model:
   fee_model_version: "FEE-2026-0001-initial-assumption"
@@ -137,11 +153,13 @@ provenance:
 
 execution_status:
   preregistered: true
-  runner_exists: false
-  development_started: false
-  development_completed: false
+  runner_exists: true
+  development_started: true
+  development_completed: true
   sealed_holdout_opened: false
   sealed_holdout_completed: false
   paper_started: false
   shadow_started: false
   live_started: false
+  development_runner_commit: "49f75ba"
+  independent_validation_status: "PENDING"
