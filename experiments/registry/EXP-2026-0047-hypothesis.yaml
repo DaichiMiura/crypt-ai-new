@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0047"
 created_at_utc: "2026-08-17T00:00:00Z"
 owner_role: "research"
-status: "preregistered"
+status: "completed"
 
 hypothesis:
   statement: "1銘柄最大200 USDT・2銘柄合計400 USDTを固定した場合、初回100 USDTと下落時100 USDTの分割entryは、初回200 USDT一括entryより最大DDを抑えながら費用控除後成績を維持または改善できる可能性がある。"
@@ -51,7 +51,7 @@ methodology:
   execution_gate: "ZOOMEX公開履歴上のresearch比較のみ。現在のEXP-2026-0042 paper/shadow設定は変更しない。"
 
 evaluation:
-  research_status: "PENDING"
+  research_status: "REJECTED"
   promotion_status: "NOT_ELIGIBLE"
   primary_metrics:
     - "費用・Funding控除後の最終equity"
@@ -66,6 +66,7 @@ evaluation:
     otherwise: "基準未達はREJECTED、実装またはデータ品質で判定不能ならINCONCLUSIVEとする。"
   promotion_rule: "本実験だけではpaper/shadowを変更せず、promotion_statusはNOT_ELIGIBLEのままとする。"
   result_artifact: "artifacts/EXP-2026-0047/summary.json"
+  result_summary: "固定200は最終1589.37 USDT・最大DD -27.01%・return/DD 2.18。固定率100+100は1574.15・-23.01%・2.50で、最終資産を15.22 USDT（0.96%）下げる代わりにDDを4.01ポイント改善。ATR100+100は1549.34・-24.51%・2.24。両分割armとも固定200以上の最終equity条件に未達のためREJECTED。"
 
 data:
   source: "ZOOMEX Global public V3 REST API"
@@ -80,9 +81,9 @@ data:
 
 execution_status:
   preregistered: true
-  runner_exists: false
-  backtest_started: false
-  backtest_completed: false
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
   paper_started: false
   shadow_started: false
   live_started: false
