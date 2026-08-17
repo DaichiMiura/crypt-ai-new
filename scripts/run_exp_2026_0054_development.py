@@ -24,6 +24,7 @@ CONTEXT_SYMBOL = "BTCUSDT"
 EVALUATION_START = pd.Timestamp("2022-02-01T00:00:00Z")
 MODEL_SELECTION_START = pd.Timestamp("2025-01-01T00:00:00Z")
 SEALED_HOLDOUT_START = pd.Timestamp("2026-01-01T00:00:00Z")
+SEALED_HOLDOUT_END = pd.Timestamp("2026-08-01T00:00:00Z")
 HORIZON = pd.Timedelta(hours=6)
 FEATURE_NAMES = (
     "return_1h", "return_3h", "return_6h", "return_12h", "return_24h",
@@ -263,12 +264,19 @@ def _base_features(
 def build_samples(
     prices: dict[str, dict[str, pd.DataFrame]],
     funding: dict[str, pd.DataFrame],
+    *,
+    decision_start: pd.Timestamp = EVALUATION_START,
+    decision_end: pd.Timestamp = SEALED_HOLDOUT_START,
+    exit_end: pd.Timestamp = SEALED_HOLDOUT_START,
 ) -> tuple[list[Sample], dict[pd.Timestamp, str]]:
-    """2025年末までの時点整合済み標本を作る。
+    """指定期間の時点整合済み標本を作る。
 
     Args:
         prices: 銘柄、系列ごとの価格frame。
         funding: 取引銘柄ごとのFunding frame。
+        decision_start: 最初の判断境界。
+        decision_end: 判断境界のexclusive上限。
+        exit_end: exit時刻のexclusive上限。
 
     Returns:
         pooled標本と判断時刻ごとの除外理由。
@@ -279,11 +287,11 @@ def build_samples(
 
     samples: list[Sample] = []
     exclusions: dict[pd.Timestamp, str] = {}
-    decision_times = pd.date_range(EVALUATION_START, SEALED_HOLDOUT_START, freq="6h", inclusive="left")
+    decision_times = pd.date_range(decision_start, decision_end, freq="6h", inclusive="left")
     btc_trade = prices[CONTEXT_SYMBOL]["trade"]
     for decision_time in decision_times:
         exit_time = decision_time + HORIZON
-        if exit_time >= SEALED_HOLDOUT_START:
+        if exit_time >= exit_end:
             continue
         try:
             base = {
@@ -411,6 +419,7 @@ def evaluate_predictions(
     funding_frames: dict[str, pd.DataFrame],
     *,
     cost_multiplier: Decimal = Decimal("1"),
+    entry_threshold: float = PREDICTION_THRESHOLD,
 ) -> dict[str, object]:
     """予測top1を固定費用・Funding込みで評価する。
 
@@ -421,6 +430,7 @@ def evaluate_predictions(
         price_frames: mark価格を含むframe。
         funding_frames: 実績Funding frame。
         cost_multiplier: fee、spread、slippage倍率。
+        entry_threshold: top1予測が厳密に超える必要がある値。
 
     Returns:
         PnL、取引数、drawdown、監査行。
@@ -442,7 +452,7 @@ def evaluate_predictions(
         if len(candidates) != len(TRADED_SYMBOLS):
             raise ValueError("incomplete cross-sectional decision")
         sample, prediction = min(candidates, key=lambda item: (-item[1], item[0].symbol))
-        if not math.isfinite(prediction) or prediction <= PREDICTION_THRESHOLD:
+        if not math.isfinite(prediction) or prediction <= entry_threshold:
             continue
         quantity = _quantity(rules[sample.symbol], sample.entry_open)
         if quantity <= 0:
@@ -460,15 +470,51 @@ def evaluate_predictions(
         for settlement_time, row in settlements.iterrows():
             mark_open = Decimal(str(price_frames[sample.symbol]["mark_price"].loc[settlement_time, "open"]))
             funding_cash -= quantity * mark_open * Decimal(str(row["funding_rate"]))
-        pnl = quantity * (exit_fill - entry_fill) + funding_cash - fees
+        gross_price_pnl = quantity * (sample.exit_open - sample.entry_open)
+        spread_cost = quantity * (sample.entry_open + sample.exit_open) * HALF_SPREAD * cost_multiplier
+        slippage_cost = quantity * (sample.entry_open + sample.exit_open) * SLIPPAGE * cost_multiplier
+        pnl = gross_price_pnl + funding_cash - fees - spread_cost - slippage_cost
         equity += pnl
         peak = max(peak, equity)
         maximum_drawdown = min(maximum_drawdown, equity / peak - Decimal("1"))
-        trades.append({"decision_time": decision_time.isoformat(), "symbol": sample.symbol,
+        trades.append({"decision_time": decision_time.isoformat(),
+                       "exit_time": (decision_time + HORIZON).isoformat(), "symbol": sample.symbol,
                        "prediction": prediction, "quantity": str(quantity), "funding_cash_flow": str(funding_cash),
-                       "fees": str(fees), "net_pnl": str(pnl), "equity": str(equity)})
-    return {"net_pnl": str(equity - INITIAL_EQUITY), "completed_round_trips": len(trades),
-            "max_drawdown": str(maximum_drawdown), "trades": trades}
+                       "gross_price_pnl": str(gross_price_pnl), "fees": str(fees),
+                       "spread_cost": str(spread_cost), "slippage_cost": str(slippage_cost),
+                       "turnover": str(quantity * (entry_fill + exit_fill)),
+                       "net_pnl": str(pnl), "equity": str(equity)})
+    pnls = [Decimal(trade["net_pnl"]) for trade in trades]
+    wins = [pnl for pnl in pnls if pnl > 0]
+    losses = [pnl for pnl in pnls if pnl < 0]
+    consecutive_losses = 0
+    maximum_consecutive_losses = 0
+    for pnl in pnls:
+        consecutive_losses = consecutive_losses + 1 if pnl < 0 else 0
+        maximum_consecutive_losses = max(maximum_consecutive_losses, consecutive_losses)
+    symbol_net_pnl = {
+        symbol: str(sum((Decimal(trade["net_pnl"]) for trade in trades if trade["symbol"] == symbol), Decimal("0")))
+        for symbol in TRADED_SYMBOLS
+    }
+    return {
+        "net_pnl": str(equity - INITIAL_EQUITY),
+        "return": str(equity / INITIAL_EQUITY - Decimal("1")),
+        "completed_round_trips": len(trades),
+        "max_drawdown": str(maximum_drawdown),
+        "gross_price_pnl": str(sum((Decimal(trade["gross_price_pnl"]) for trade in trades), Decimal("0"))),
+        "funding_cash_flow": str(sum((Decimal(trade["funding_cash_flow"]) for trade in trades), Decimal("0"))),
+        "fees": str(sum((Decimal(trade["fees"]) for trade in trades), Decimal("0"))),
+        "spread_cost": str(sum((Decimal(trade["spread_cost"]) for trade in trades), Decimal("0"))),
+        "slippage_cost": str(sum((Decimal(trade["slippage_cost"]) for trade in trades), Decimal("0"))),
+        "turnover": str(sum((Decimal(trade["turnover"]) for trade in trades), Decimal("0"))),
+        "win_rate": float(len(wins) / len(pnls)) if pnls else None,
+        "average_win": str(sum(wins, Decimal("0")) / len(wins)) if wins else None,
+        "average_loss": str(sum(losses, Decimal("0")) / len(losses)) if losses else None,
+        "worst_trade": str(min(pnls)) if pnls else None,
+        "maximum_consecutive_losses": maximum_consecutive_losses,
+        "symbol_net_pnl": symbol_net_pnl,
+        "trades": trades,
+    }
 
 
 def select_model(results: dict[str, dict[str, object]]) -> tuple[str | None, str]:
@@ -495,7 +541,12 @@ def select_model(results: dict[str, dict[str, object]]) -> tuple[str | None, str
     return max(rounded, key=rounded.__getitem__), "highest_development_net_pnl"
 
 
-def _load_inputs(data_dir: Path, metadata_path: Path) -> tuple[
+def _load_inputs(
+    data_dir: Path,
+    metadata_path: Path,
+    *,
+    value_cutoff: pd.Timestamp = SEALED_HOLDOUT_START,
+) -> tuple[
     dict[str, dict[str, pd.DataFrame]], dict[str, pd.DataFrame], dict[str, InstrumentRule]
 ]:
     """hash検証後、封印境界より前だけを読み込む。
@@ -503,6 +554,7 @@ def _load_inputs(data_dir: Path, metadata_path: Path) -> tuple[
     Args:
         data_dir: DATA-2026-0006の保存先。
         metadata_path: 取得metadata。
+        value_cutoff: 値を読み込むexclusive上限。development既定値はholdout開始。
 
     Returns:
         価格、Funding、数量規則。
@@ -526,11 +578,11 @@ def _load_inputs(data_dir: Path, metadata_path: Path) -> tuple[
             path = data_dir / symbol / filename
             if _sha256(path) != record["artifacts"][source]["sha256"]:
                 raise ValueError(f"artifact hash mismatch: {symbol} {source}")
-            prices[symbol][source] = _numeric_price_frame(_read_before_cutoff(path, SEALED_HOLDOUT_START), source)
+            prices[symbol][source] = _numeric_price_frame(_read_before_cutoff(path, value_cutoff), source)
         funding_path = data_dir / symbol / "funding-rate.csv"
         if _sha256(funding_path) != record["artifacts"]["funding"]["sha256"]:
             raise ValueError(f"artifact hash mismatch: {symbol} funding")
-        funding = _read_before_cutoff(funding_path, SEALED_HOLDOUT_START)
+        funding = _read_before_cutoff(funding_path, value_cutoff)
         funding["funding_rate"] = pd.to_numeric(funding["funding_rate"], errors="raise")
         funding = funding.set_index("event_time").sort_index()
         if not funding.index.is_unique:

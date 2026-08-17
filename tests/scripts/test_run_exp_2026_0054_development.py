@@ -164,3 +164,11 @@ def test_evaluate_predictions_applies_costs_and_top1():
     assert result["completed_round_trips"] == 1
     assert Decimal(str(result["net_pnl"])) < Decimal("1")
     assert result["trades"][0]["symbol"] == "LINKUSDT"
+    assert Decimal(result["net_pnl"]) == (
+        Decimal(result["gross_price_pnl"])
+        + Decimal(result["funding_cash_flow"])
+        - Decimal(result["fees"])
+        - Decimal(result["spread_cost"])
+        - Decimal(result["slippage_cost"])
+    )
+    assert result["trades"][0]["exit_time"] == "2025-01-01T06:00:00+00:00"
