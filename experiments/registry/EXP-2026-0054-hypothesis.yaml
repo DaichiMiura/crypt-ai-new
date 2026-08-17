@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0054"
 created_at_utc: "2026-08-17T14:49:31Z"
 owner_role: "research"
-status: "development_completed"
+status: "completed"
 
 hypothesis:
   statement: "ZOOMEX linear perpetualの確定1時間足から作る価格・活動量・derivatives・BTC context・cross-sectional特徴量で6時間先gross log returnを予測し、予測値がbase往復費用の2倍を超えるtop1銘柄だけを100 USDT longすると、封印した2026-01-01〜2026-07-31期間にcashおよび固定6時間momentum baselineを費用・Funding込みnet PnLで上回る可能性がある。"
@@ -99,7 +99,7 @@ evaluation:
   model_family_count: 2
   threshold_count: 1
   random_seed: 0
-  research_status: "PENDING"
+  research_status: "REJECTED"
   promotion_status: "NOT_ELIGIBLE"
   development_result:
     selected_model: "ridge"
@@ -117,6 +117,29 @@ evaluation:
     sealed_holdout_opened: false
     result_artifact: "artifacts/EXP-2026-0054-development/summary.json"
     result_sha256: "87f4e0fb642f533a5ee7b611cca07b58604a6cc56c394d08e967d667f52eff86"
+  sealed_holdout_result:
+    opened_at_utc: "2026-08-17T15:10:53Z"
+    selected_model: "ridge"
+    provisional_research_status: "REJECTED"
+    rejection_reasons: ["holdout_completed_round_trips_below_30"]
+    ridge_net_pnl_usdt: "12.716395537576"
+    ridge_completed_round_trips: 4
+    ridge_max_drawdown: "-0.0022278530790614906111605676"
+    ridge_stress_2x_cost_net_pnl_usdt: "11.417415781716"
+    momentum_net_pnl_usdt: "-191.795594459789"
+    momentum_completed_round_trips: 545
+    momentum_max_drawdown: "-0.2100896298165116665462133885"
+    holdout_sample_rows: 3388
+    holdout_excluded_decision_times: 0
+    gross_return_mae: 0.013307845975575798
+    directional_accuracy: 0.5304014167650531
+    bootstrap_lower_bounds:
+      24h: 0.0005387132459247094
+      72h: 0.0005725190264662592
+      168h: 0.0006245027837568987
+    result_artifact: "artifacts/EXP-2026-0054-holdout/summary.json"
+    result_sha256: "c9e5c93d2c6d5223ea4f0ac836f3ea391d53408b57fe9a150b71c594e80f49f7"
+    opening_sentinel_sha256: "041ee3f02e800e900966424d2d2d6a1c6c81c11ee00d5a791ac301282a08cec1"
 
 cost_model:
   fee_model_version: "FEE-2026-0001-initial-assumption"
@@ -156,10 +179,11 @@ execution_status:
   runner_exists: true
   development_started: true
   development_completed: true
-  sealed_holdout_opened: false
-  sealed_holdout_completed: false
+  sealed_holdout_opened: true
+  sealed_holdout_completed: true
   paper_started: false
   shadow_started: false
   live_started: false
   development_runner_commit: "49f75ba"
+  sealed_holdout_runner_commit: "b6a21febd51bfcb92b984346fe9bfb415a6fd53d"
   independent_validation_status: "PENDING"
