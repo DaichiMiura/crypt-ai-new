@@ -1,0 +1,147 @@
+schema_version: 1
+experiment_id: "EXP-2026-0054"
+created_at_utc: "2026-08-17T14:49:31Z"
+owner_role: "research"
+status: "registered"
+
+hypothesis:
+  statement: "ZOOMEX linear perpetualの確定1時間足から作る価格・活動量・derivatives・BTC context・cross-sectional特徴量で6時間先gross log returnを予測し、予測値がbase往復費用の2倍を超えるtop1銘柄だけを100 USDT longすると、封印した2026-01-01〜2026-07-31期間にcashおよび固定6時間momentum baselineを費用・Funding込みnet PnLで上回る可能性がある。"
+  economic_rationale: "短時間の価格継続性だけでなく、volatility、活動量、perpetual basis、premium、既知Funding、市場全体と横断順位には、6時間以内の状態持続を表す情報があり得る。一方で短期の小さな予測は費用で消えるため、gross予測がbase往復費用0.32%の2倍を超える場合だけ取引する。"
+  expected_failure_modes:
+    - "1時間Klineでは板・queue・時変spreadを観測できず、固定費用が短期約定を過小評価する。"
+    - "2022〜2024で学習した関係が2025 developmentまたは2026 sealed holdoutのregimeへ移転しない。"
+    - "銘柄横断の同時刻標本が独立ではなく、見かけの標本数より有効標本が少ない。"
+    - "XGBoostが少数の外れ値や銘柄固有状態へ過適合し、Ridgeまたは単純momentumを上回らない。"
+    - "0.64%閾値で取引数が30往復未満となり、損益差の不確実性が大きい。"
+    - "Funding時刻、contract specificationの履歴、Kline openを使う約定近似が実約定と乖離する。"
+
+methodology:
+  setup: "DATA-2026-0006のZOOMEX 1時間足を使う。判断境界tをUTC 00:00、06:00、12:00、18:00に限定し、timestampがt-1hの足のcloseまでを特徴量へ使う。trade Klineのt openでentryし、t+6h openで全量exitする。同一銘柄のlabelと保有期間は重ねない。4取引対象を同時刻ごとにpoolして回帰し、各tで予測最大の1銘柄だけを候補にする。"
+  features:
+    - "各銘柄のtrade close log return: 1、3、6、12、24時間。いずれもt以前の確定足だけで計算する。"
+    - "直前1時間足のrange=(high-low)/open、body=(close-open)/open、upper_wick=(high-max(open,close))/open、lower_wick=(min(open,close)-low)/open。"
+    - "log1p(volume)とlog1p(turnover)の直近24実測足z-score。母標準偏差が1e-12以下なら当該判断時刻を除外する。"
+    - "1時間log returnの直近6・24本の母標準偏差、およびsqrt(mean(min(return,0)^2))で定義する24時間downside semivolatility。"
+    - "直前確定closeのlog(trade/mark) basis、log(mark/index) basis、premium index close。"
+    - "timestampがtより厳密に前の最新Funding rate。直前2回の実測Funding時刻の差をcadenceとし、次回予定までの時間/cadenceを作る。cadenceが正でない場合は除外する。将来Funding値は使わない。"
+    - "BTCUSDT context専用の6・24時間trade close log returnと24時間realized volatility。BTCUSDTは売買しない。"
+    - "4対象銘柄の6時間log returnを降順rankし、(4-rank)/3でtop=1、bottom=0へ変換した値と、当該returnから4銘柄中央値を引いた値。"
+  target: "trade Klineのt openからt+6h openまでのgross log return log(exit_open/entry_open)。モデル学習・選択だけに使い、予測閾値はlog(1.0064)とする。"
+  models:
+    ridge: "train内で各特徴量とtargetを平均0・母標準偏差1へ標準化し、切片を正則化せず、(X'X + alpha I)^-1 X'yをnumpy.linalg.solveで解く。alpha=10.0。標準偏差が1e-12以下の特徴量はz=0、係数=0とする。"
+    xgboost: "xgboost 3.4.1のDMatrix/train native API。objective=reg:squarederror、eval_metric=rmse、max_depth=3、eta=0.05、min_child_weight=20、subsample=1.0、colsample_bytree=1.0、lambda=10.0、alpha=0.0、gamma=0.0、tree_method=hist、max_bin=256、seed=0、nthread=1、verbosity=0、num_boost_round=200。early stoppingと探索は行わない。"
+  model_selection: "2022-02-01〜2024-12-31の完了labelだけで各モデルを1回学習し、2025 developmentの費用・Funding込みnet PnLが高い方を選ぶ。USDT centへROUND_HALF_EVENしたPnLが同額、または両モデルともnet PnLが0以下ならREJECTEDとしてholdoutを開かない。選択後は同じ設定で2025-12-31T18:00Zより前にexitが完了したtrain+development標本へ1回だけ再学習する。"
+  entry_rule: "各判断境界で4銘柄の予測gross log returnが最大の銘柄を選び、その予測がlog(1.0064)より厳密に大きい場合だけtrade Klineのt openで100 USDT相当をlongする。同値はsymbol昇順で一意化する。"
+  stop_rule: "intraperiod stopは置かない。欠測や会計不整合を検出した判断境界では新規entryを拒否し、既存positionは最後の有効markを用いて異常終了として報告する。"
+  exit_rule: "entryから6時間後のtrade Kline openで全量exitする。途中resize、利確、損切り、signal反転決済は行わない。"
+  no_trade_conditions:
+    - "予測最大値がlog(1.0064)以下、または有限値でない。"
+    - "4対象銘柄またはBTC contextの必要な24時間windowに欠測、重複、補間、非正価格、非有限値がある。"
+    - "Funding cadenceまたは直近既知Fundingを時点整合的に構築できない。"
+    - "100 USDT注文が取得時点のminimum quantityを満たさない、quantity stepで切り下げ後0、またはrisk上限・reserve cashを満たさない。"
+  simplicity_rationale: "6時間horizon、固定24特徴量、2モデル族、各1設定、単一0.64%閾値、固定100 USDT、long top1だけに限定する。feature selection、hyperparameter探索、閾値探索、short、ニューラルネット、銘柄変更を行わない。"
+
+scope:
+  exchanges: ["ZOOMEX Global"]
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  venue_role: "target_execution"
+  symbols: ["LINKUSDT", "UNIUSDT", "AVAXUSDT", "AAVEUSDT"]
+  context_only_symbols: ["BTCUSDT"]
+  quote_assets: ["USDT"]
+  pair_mapping: "研究・想定実行とも同一ZOOMEX linear USDT perpetual。4銘柄は固定universeでpoint-in-time universeではなく、BTCUSDTはcontext専用。"
+  venue_transfer_claim: "same_venue_signal_only"
+  timeframe: "1h features; UTC 6h decisions; fixed 6h holding"
+  start_utc: "2022-02-01T00:00:00Z"
+  end_utc: "2026-08-01T00:00:00Z"
+  decision_time_information:
+    - "判断境界tより前に終了した足だけをfeatureへ使い、entryはt open、exitはt+6h openとする。"
+    - "trainはt+6hが2025-01-01T00:00:00Zより前、developmentはtが同時刻以降かつt+6hが2026-01-01T00:00:00Zより前の標本だけとする。境界をまたぐlabelをpurgeする。"
+    - "sealed holdoutはtが2026-01-01T00:00:00Z以降かつt+6hが2026-08-01T00:00:00Zより前の標本だけとし、固定済みmodelで一度だけ予測する。"
+    - "同時刻の4銘柄を異なるsplitへ分けず、shuffle、random split、IID cross-validationを行わない。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  snapshot_id: "DATA-2026-0006"
+  timezone: "UTC"
+  provenance: "取得2026-08-17T14:43:32.298452Z、metadata var/exp-2026-0054-data.json、metadata SHA-256 cbf2f7b2076e96c30def5eac89c3037220bbf3d18b41568f5abd46415a77c34e。各CSV hashはmetadataに固定済み。"
+  sealed_holdout: "2026-01-01T00:00:00Z〜2026-08-01T00:00:00Z exclusive。仮説登録時点でOHLC、Funding、feature、label、損益の内容は未開封。"
+  known_limitations:
+    - "公開Kline/Fundingは板、受信遅延、部分約定、注文拒否、時変spread、実際のFunding支払を表さない。"
+    - "取得時instruments-infoを使うため、過去のtick size、quantity step、minimum quantity、Funding interval変更を完全には再現しない。"
+    - "Funding notionalはsettlement時刻のmark Kline openを代理値とし、実際のsettlement markと一致する保証はない。"
+    - "固定4銘柄で上場廃止・universe変更を含まず、他銘柄や他期間へ一般化しない。"
+    - "欠測windowは補間せず除外するため、除外が特定regimeへ偏る可能性がある。"
+    - "ZOOMEX公開履歴上の結果であり、実約定での有効性は未検証。"
+
+evaluation:
+  baselines:
+    cash: "初期1000 USDTを保持し、PnL 0、取引0。"
+    momentum: "同じ判断・entry・exit・100 USDT・top1・費用・Funding規則で、直近6時間log return最大かつ0より大きい銘柄をlongする。予測閾値は使わない。"
+  primary_metric: "sealed holdoutの費用・Funding込みnet PnL。選択ML modelが0より大きく、かつmomentum baselineを上回ること。"
+  secondary_metrics:
+    - "base/stress net PnL、gross price PnL、Funding cash flow、fee、spread、slippage、completed round trips、turnover、trade rate。"
+    - "最大drawdown、worst trade、平均win/loss、win rate、連敗、gross/equity比、銘柄別寄与。"
+    - "gross-return MAE、rank IC、directional accuracy、XGBoost gain importance。これらは診断値で採否条件の代替にしない。"
+    - "24・72・168時間block bootstrapによる、MLとmomentumの日次return差の95% percentile CI。各10,000回、seed 0。"
+  expected_value_formula: "quantity * (adverse_exit_price - adverse_entry_price) + funding_cash_flow - entry_fee - exit_fee。spreadとslippageは各fill priceを不利側へ調整する。"
+  rejection_criteria:
+    - "2025 developmentで選択規則を満たすmodelがなくholdoutを開けない。"
+    - "sealed holdoutのnet PnLが0以下、またはmomentum baseline以下。"
+    - "sealed holdoutのcompleted round tripsが30未満。"
+    - "fee・spread・slippageを2倍にしたstress net PnLが0以下。"
+    - "sealed holdoutの最大drawdownが-10%以上に悪化する。"
+    - "未来参照、split境界label、補間行、同時position、allocation rejection、会計不一致が1件以上ある。"
+    - "再現runで選択model、予測、取引、PnLを一致させられない。"
+  inconclusive_cap: "上記hard gateをすべて満たしても、3種類のblock長のいずれかでML-minus-momentum 95% CIが0を含む場合、research_statusは最大INCONCLUSIVEとする。3種類すべてのlower boundが0より大きい場合だけPASSED_FORWARD_TEST候補とする。"
+  reserved_out_of_sample: "2026-01-01〜2026-07-31の封印holdout。2025 model選択gate後、選択した1 model・1設定で一度だけ開封する。"
+  maximum_variants: 2
+  model_family_count: 2
+  threshold_count: 1
+  random_seed: 0
+  research_status: "PENDING"
+  promotion_status: "NOT_ELIGIBLE"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.0002 (参考値、全約定はtaker想定)"
+  taker_fee: "0.0006 per fill"
+  fee_asset: "USDT"
+  fee_sensitivity_cases:
+    - "base: fee 0.0006 per fill、round-trip spread 0.001、slippage 0.0005 per fill。往復合計0.0032。"
+    - "stress: fee、spread、slippageをすべて2倍。Fundingは実績rateのまま。"
+  spread_assumption: "round-trip 0.001を各fillへ0.0005ずつ不利側に反映する。"
+  slippage_assumption: "各fillへ0.0005を不利側に反映する。"
+  funding_assumption: "position保有区間の内部(entry < settlement < exit)にある実績rateだけをlong cash flow=-quantity*settlement_mark_proxy*rateで反映する。境界一致は不確実性を避けて計上しない。"
+  execution_rounding: "取得時instruments-infoのquantity stepへ100 USDT/entry priceを切り下げ、minimum quantityを検査する。価格tickへの追加丸めはKline約定代理値を変更しないため行わず、制約として報告する。"
+  liquidity_constraints: "初期1000 USDT、1 position最大100 USDT、同時最大1 long、gross上限100 USDT、reserve cash 200 USDT、shortなし、追加レバレッジなし。"
+
+money_management:
+  sizing_method: "entry時100 USDT固定。予測値、勝敗、equityに比例させず、保有中resizeしない。"
+  risk_budget_basis: "初期equity 1000 USDTの10% gross上限、最低200 USDT reserve、最大1銘柄。"
+  loss_response: "損失後の増額、threshold変更、再学習を行わない。データ・モデル・会計検査不能なら新規entryを拒否する。"
+  increase_conditions: []
+  decrease_conditions: ["予測閾値未達または安全検査不能ならcash。部分sizeへ変更しない。"]
+  risk_of_ruin_method: "holdoutの最大drawdown、worst trade、平均win/loss、連敗、gross/equity、費用stressを報告する。短いholdoutから破産確率を保証値として推定しない。"
+
+provenance:
+  parent_experiment_ids: ["EXP-2026-0052", "EXP-2026-0053"]
+  references:
+    - title: "短期ML取引の事前調査"
+      path: "docs/short-horizon-ml-research.md"
+      relevance: "6時間horizon、cost-aware閾値、Ridge/XGBoost比較、時系列split、封印holdoutの根拠。"
+    - title: "XGBoost adoption record"
+      path: "docs/xgboost-adoption.md"
+      relevance: "3.4.1、Apache-2.0、research-only依存、安全境界、rollbackを固定する。"
+  preregistration_commit: "結果確認前に24特徴量、split、Ridge/XGBoost各1設定、model選択、log(1.0064)閾値、100 USDT top1、費用、Funding、holdout gateをcommitで固定する。"
+
+execution_status:
+  preregistered: true
+  runner_exists: false
+  development_started: false
+  development_completed: false
+  sealed_holdout_opened: false
+  sealed_holdout_completed: false
+  paper_started: false
+  shadow_started: false
+  live_started: false
