@@ -32,7 +32,7 @@ methodology:
     logistic: "featureをfit期間だけで平均0・母標準偏差1へ標準化し、切片を正則化しないL2 logistic regression。lambda=1.0、Newton法最大100回、gradient infinity norm<1e-8で収束。class weightなし。"
     xgboost: "xgboost 3.4.1 native API。objective=binary:logistic、eval_metric=logloss、max_depth=3、eta=0.05、min_child_weight=20、subsample=1、colsample_bytree=1、lambda=10、alpha=0、gamma=0、tree_method=hist、max_bin=256、seed=0、nthread=1、num_boost_round=200。early stopping・探索なし。"
   source_temporal_split: "fit=2022-02-01〜2023-12-31完了label、calibration=2024-01-01〜2024-12-31完了label、development=2025-01-01〜2025-12-31完了label。同時刻groupを分割せず各境界で6時間purgeする。"
-  leave_one_asset_out: "9 source銘柄を1つずつ外し、残り8銘柄だけのfit/calibration labelで学習・校正し、外した銘柄の2025年を予測する。外した銘柄の全期間labelをfit、scaling、calibration、thresholdへ使わない。"
+  leave_one_asset_out: "9 source銘柄を1つずつ外し、残り8銘柄だけのfit/calibration labelで学習・校正し、外した銘柄の2025年を予測する。外した銘柄の全期間labelをfit、scaling、calibration、thresholdへ使わない。各foldの候補は外した1銘柄だけなのでtop-minus-second marginは定義せず、P(UP)>=0.45と期待gross return>0.0064だけをentry gateにする。0.03 marginは4銘柄を同時比較するfinal target専用とする。"
   model_selection: "各modelを同一9-fold gateで独立評価し、全gateを満たすmodelだけを候補にする。候補中、USDT centへROUND_HALF_EVENしたaggregate base net PnL最大を選び、同額ならlogisticを選ぶ。候補0ならtargetを開かずREJECTED。"
   adaptive_retraining: "target評価では30日ごとにsource-only直近730日を再学習する。各cutoffで時間順の先頭80%をfit、6時間purge後の末尾20%をcalibrationとし、次の30日境界で期限切れとする。target labelは過去分も使わない。"
   entry_rule: "各判断時刻で対象groupの校正済みP(UP)最大銘柄を選ぶ。top probability>=0.45、top-minus-second>=0.03、かつsource calibrationから固定手順で求める p*mean(UP gross return)+(1-p)*mean(non-UP gross return)>0.0064 の場合だけ100 USDT longする。同値はsymbol昇順。"
