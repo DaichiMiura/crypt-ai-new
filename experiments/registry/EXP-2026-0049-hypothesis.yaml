@@ -1,0 +1,114 @@
+schema_version: 1
+experiment_id: "EXP-2026-0049"
+created_at_utc: "2026-08-17T15:30:00Z"
+owner_role: "research"
+status: "completed"
+
+hypothesis:
+  statement: "絶対符号、費用超過edge、過去価格β差の3条件を満たす場合だけ建てる選択的Fundingキャリーは、EXP-2026-0048と同じZOOMEX 6銘柄で、取引を見送る自由を使って費用控除後OOS純損益を正にできる可能性がある。"
+  economic_rationale: "EXP-2026-0048では相対順位だけを使ったため、longも正Fundingを支払い、予測差が費用を大幅に下回り、gross-neutralでも価格リスクが残った。Fundingの絶対符号、保有予定期間の期待carryが往復費用を上回る条件、価格β差の上限を事前に要求すれば、収益源が成立しない局面では現金を保持し、価格方向と回転費用への曝露を抑えられる可能性がある。"
+  expected_failure_modes:
+    - "厳しいedge条件により取引がゼロまたは少数となり、仮説を評価できない。"
+    - "過去6回のFunding平均が将来6回へ持続せず、符号または差が反転する。"
+    - "過去30日βが将来の価格共変動を表さず、β差上限内でも銘柄固有価格損失が発生する。"
+    - "固定6銘柄では負Funding longと正Funding shortの候補が同時に揃わない。"
+
+methodology:
+  setup: "EXP-2026-0015のZOOMEX linear USDT perpetual 2時間足と8時間FundingをUTCで整列する。Funding時刻tではtのrateを使わず直前6回平均を予測値とする。各銘柄のβはtより前30日間の2時間close-to-close returnを、6銘柄等金額index returnへOLS（cov/var）して求める。"
+  entry_rule: "6 Fundingイベント（48時間）ごとに、予測Funding平均が負の銘柄からlong 2、正の銘柄からshort 2を候補化する。全2+2組合せから、short平均Funding minus long平均Fundingを最大化し、かつlong平均βとshort平均βの絶対差が0.25以下の組合せを選ぶ。予測差×6が基本往復費用率0.0032の1.5倍（0.0048）以上の場合だけ、次の2時間足openで各50 USDTを建てる。"
+  stop_rule: "固定価格stopは置かない。次の48時間更新時に絶対符号、edge、β条件のいずれかを満たさなければ次の2時間足openで全建玉を決済する。"
+  exit_rule: "48時間ごとに条件を再評価し、選択集合が変われば次の2時間足openで不要建玉を決済し必要建玉を建てる。評価終了時は最終closeでmark-to-marketする。"
+  no_trade_conditions:
+    - "負Funding long候補2銘柄または正Funding short候補2銘柄が揃わない。"
+    - "予測Funding差×6が0.0048未満。"
+    - "β計算に30日分の連続した過去2時間returnがない、index分散が0、または有限βを計算できない。"
+    - "全候補組合せでlong/short平均β差が0.25を超える。"
+    - "時刻不一致、補間足、欠損、重複、非正価格、非有限Funding、未確定足を検出する。"
+  simplicity_rationale: "診断で特定した3要因へ一つずつ固定gateを置く1 variantだけを実行する。lookback、保有予定Funding数、費用安全倍率、β窓、β差上限、ロット、OOSを結果確認前に固定し探索しない。"
+
+scope:
+  exchanges: ["ZOOMEX Global"]
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  venue_role: "target_execution"
+  symbols: ["LINKUSDT", "UNIUSDT", "ADAUSDT", "AVAXUSDT", "NEARUSDT", "AAVEUSDT"]
+  quote_assets: ["USDT"]
+  pair_mapping: "研究venueとtarget venueは同じZOOMEX linear USDT perpetual。6銘柄はDATA-2026-0005の2026-08-15時点固定でpoint-in-time universeではない。"
+  venue_transfer_claim: "same_venue_signal_only"
+  timeframe: "2h bars; 8h Funding events; 48h rebalance"
+  start_utc: "2022-02-01T00:00:00Z"
+  end_utc: "2026-01-01T00:00:00Z"
+  decision_time_information:
+    - "Funding時刻tのrateとcloseはtの意思決定に使わず、Fundingはtより前6回、returnはtより前に確定したcloseだけを使う。"
+    - "予約シグナルは次の2時間足openへ1 bar遅延する。"
+    - "評価開始時はflatで、開始前シグナルを引き継がない。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  snapshot_id: "DATA-2026-0005"
+  timezone: "UTC"
+  known_limitations:
+    - "Funding rateの事前受信時刻を含まず、直前確定値だけを利用する。"
+    - "6銘柄固定で上場廃止、流動性変化、point-in-time universeを再現しない。"
+    - "公開Kline/Fundingは板、部分約定、証拠金、清算、注文拒否を表さない。"
+    - "ZOOMEX公開履歴上の研究であり、実約定の有効性は未検証。"
+
+evaluation:
+  baseline: "cash control、および同じ固定シグナルを費用ゼロで会計する診断arm。"
+  primary_metric: "2025-07-01以降OOSの費用・Funding・価格損益込みnet PnL。"
+  secondary_metrics:
+    - "OOS取引数、Funding cash flow、価格損益、全費用、最大DD、平均gross、gate別no-trade回数"
+    - "全期間とOOSの予測Funding差、実現Funding差、β差"
+    - "費用2倍stressのOOS net PnL"
+  expected_value_formula: "funding_cash_flow + realized_price_pnl + unrealized_price_pnl - fees - spread - slippage"
+  rejection_criteria:
+    - "OOS completed round tripsが30未満で仮説を評価する証拠量が不足する。"
+    - "OOS net PnLが0以下、またはcash controlを下回る。"
+    - "OOS最大DDが-10%以下。"
+    - "基本費用と費用2倍stressのいずれかでOOS net PnLが正でない。"
+    - "未来参照、β計算、Funding適用、会計再構築を検証できない。"
+  reserved_out_of_sample: "EXP-2026-0048で既に観測済みの2025-07-01〜2025-12-31を再利用するため、厳密な未観測OOSではなく診断後の追試と明記する。採用候補になっても新しいforward evidenceなしに昇格しない。"
+  maximum_variants: 1
+  random_seed: 0
+  research_status: "REJECTED"
+  result_artifact: "artifacts/EXP-2026-0049/summary.json"
+  result_summary: "全期間715回、OOS 92回の更新すべてでentry gateが不成立となり取引0。OOSは70回が正負候補不足、22回が費用edge不足。候補が揃ったOOSのprojected carry最大は0.00097404で、登録閾値0.0048の20.3%に留まった。base/stressともnet PnL 0で、最低30往復と正のOOS損益を満たさずREJECTED。"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.0002 (参考値、約定はtaker想定)"
+  taker_fee: "0.0006"
+  fee_asset: "USDT"
+  fee_sensitivity_cases:
+    - "base: fee 0.0006, round-trip spread 0.001, slippage per fill 0.0005"
+    - "stress: fee、spread、slippageをすべて2倍"
+  spread_assumption: "round-trip 0.001を各fillの不利側へ半分ずつ反映。"
+  slippage_assumption: "各fillへ0.0005を不利側へ反映。"
+  liquidity_constraints: "各50 USDT、最大2 long + 2 short、シグナルgross 200、total hard cap 400、reserve cash 200。"
+
+money_management:
+  sizing_method: "固定50 USDT notional per selected side and symbol。"
+  risk_budget_basis: "初期1000 USDT、reserve 200、最大シグナルgross 200、追加レバレッジなし。"
+  loss_response: "損失時に増額しない。gate不成立、資金不足、データ不明ではcashを保持する。"
+  increase_conditions: []
+  decrease_conditions:
+    - "固定上限超過または安全検査不能では新規entryを拒否する。"
+  risk_of_ruin_method: "OOS最大DDとgross/equity比を報告する。清算未モデルのためlive riskとは解釈しない。"
+
+provenance:
+  parent_experiment_ids: ["EXP-2026-0048"]
+  references:
+    - title: "EXP-2026-0048 不採用原因診断"
+      path: "experiments/validation/EXP-2026-0048-diagnostic.md"
+      relevance: "Funding予測力、価格risk、費用の3主因を事後診断した。0049はこれらを事前固定gateとして検証する。"
+  preregistration_commit: "結果確認前にlookback 6、hold/rebalance 6 Funding、絶対符号、edge 0.0048、β窓30日、β差0.25、固定50 USDT、1 variantを固定する。"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  backtest_result_artifact: "artifacts/EXP-2026-0049/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
