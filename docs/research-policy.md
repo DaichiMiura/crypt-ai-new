@@ -56,15 +56,20 @@ Penfold本の原則を、特定手法の採用理由ではなく設計チェッ�
 
 ## Venue and proxy rules
 
-- 実際の運用対象はBinance Japan Spotとして登録し、Binance Global Spotの履歴データは研究用proxyとして明示する。
-- Global proxyの結果から、Binance Japanでの利益、流動性、約定率、spread、手数料を推定したことにしない。
+- 現在の標準研究・paper/shadow対象はZOOMEX linear USDT perpetualとして登録する。
+- ZOOMEX公開Kline/Fundingの結果から、実際の板、流動性、約定率、spread、口座固有feeを確認したことにしない。
 - 研究venue、実行venue、market type、symbol、quote asset、pair mapping、proxyの限界を仮説とmanifestに記録する。
 - `BTCUSDT`と`BTC/JPY`のような異なるpairは同一系列として扱わず、変換系列、変換時点、basis riskを記録する。
-- 板、短期microstructure、裁定、market makingなどvenue依存性の強い手法は、Global proxyだけで採用候補にしない。
-- Globalの候補は、Japanのリアルタイムデータを使うshadowで、注文なしのfill simulation、遅延、spread、流動性、拒否条件を検証する。
-- 代理データを使った実験の結論には、必ず「Global proxy上の結果であり、Binance Japanでの有効性は未検証」と書く。
+- Spotとperpetual、異なるcontract categoryを混在させず、Fundingとbasisの有無を記録する。
+- 板、短期microstructure、裁定、market makingなどvenue依存性の強い手法は、Kline履歴だけで採用候補にしない。
+- 履歴上の候補は、ZOOMEXリアルタイムデータを使うshadowで、注文なしのfill simulation、遅延、spread、流動性、拒否条件を検証する。
+- 履歴実験の結論には、必ず「ZOOMEX公開履歴上の結果であり、実約定での有効性は未検証」と書く。
+- 過去のBinance Global/Japan Spot実験は当時のvenue mappingとproxy制約を維持し、ZOOMEX実験へ読み替えない。
 
-手数料は実験の一部である。片道のmaker/taker fee、feeの支払通貨、割引・キャンペーン、spread、slippage、部分約定、注文拒否を記録する。Binance Japanのshadow開始前に、アカウントに適用される料金と実約定のcommissionを確認し、fee model versionとして固定する。詳細なvenue、データ階層、昇格条件は [venue-data-policy.md](venue-data-policy.md) に従う。
+手数料とFundingは実験の一部である。maker/taker fee、feeの支払通貨、割引・tier、spread、
+slippage、部分約定、注文拒否、Funding timestampとrateを記録する。shadow前に取得時点の
+料金・contract specificationをfee model versionとして固定する。詳細は
+[venue-data-policy.md](venue-data-policy.md)に従う。
 
 ## Research integrity
 

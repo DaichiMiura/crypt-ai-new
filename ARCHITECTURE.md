@@ -70,28 +70,32 @@ data -> strategy -> portfolio/allocation/accounting -> risk -> execution
 | shadow | 送信直前まで | 読み取り権限のみ | 本番相当のデータ・遅延検証 |
 | live | 人間が別途承認 | 最小権限 | 固定成果物の少額運用 |
 
-現在許可されているのは `research` と `paper` のみである。
+現在許可されているのは`research`、`paper`と、固定済みEXP-2026-0042の注文なし
+`shadow`だけである。shadowも実注文、取引権限、秘密情報を使用しない。
 
 ## Venue and data separation
 
 ```text
-Binance Global Spot historical data
+ZOOMEX linear USDT perpetual historical Kline / Funding
         |
         v
-Research proxy / backtest
+Research / backtest
         |
         +--> independent validation
         |
-Binance Japan live market data (no orders)
+ZOOMEX realtime public market data (no orders)
         |
         v
-Japan shadow / fill simulation
+Paper / shadow / fill simulation
         |
         v  人間の別承認が必要
-Binance Japan order API
+Live order path (currently disabled and unimplemented)
 ```
 
-Binance Globalの履歴データは研究用proxyであり、Binance Japanの価格、板、手数料、約定を表す正本ではない。研究venue、target venue、銘柄対応、費用モデル、proxyの限界は、実験ごとにmanifestと仮説へ記録する。詳細は [venue-data-policy.md](docs/venue-data-policy.md) を参照する。
+履歴とrealtimeで同じZOOMEX productを使っても、Kline/Funding履歴は板、遅延、部分約定、
+注文拒否、口座固有feeを表す正本ではない。venue、product、銘柄、費用・Fundingモデル、
+data endpointと限界を実験ごとに記録する。過去のBinance Spot実験は来歴として保持するが、
+現在の標準経路へ混在させない。詳細は[venue-data-policy.md](docs/venue-data-policy.md)を参照する。
 
 ## Artifact identity
 

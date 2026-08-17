@@ -18,10 +18,11 @@
 ### Venue transfer
 
 - 研究venue、実行venue、market type、symbol、quote assetの対応が固定されている
-- Binance Globalをproxyにした場合、Binance Japanとの差（価格basis、spread、出来高、流動性、注文制約）を記録している
-- pair変換、為替変換、fee model、slippage modelの前提が再現できる
-- 注文なしのJapan shadowを行った場合、遅延、想定約定、未約定、拒否条件をバックテストと比較している
-- Global proxyの結果をBinance Japanの利益やlive承認の証拠として扱っていない
+- Spotとperpetual、contract category、Funding、pair変換、fee・slippage modelの前提が再現できる
+- ZOOMEX履歴とrealtimeのendpoint、確定足、遅延、欠測、Fundingの対応を記録している
+- 注文なしのZOOMEX shadowで、想定約定、未約定、拒否条件をバックテストと比較している
+- 公開Kline/Fundingの結果を実際の板・約定やlive承認の証拠として扱っていない
+- 過去のBinance proxy実験は当時のvenue差を維持し、ZOOMEXの証拠へ読み替えていない
 
 ### バックテスト会計
 
@@ -88,8 +89,9 @@ idea -> registered -> implemented -> validated -> paper
      -> shadow -> live_candidate -> limited_live -> scaled
 ```
 
-現段階で昇格できる上限は `paper` とする。paperでは実資金、取引権限、秘密情報を使わない。
-`shadow` 以降を解禁するには、別PRで方針、実装、検証証拠、ロールバック手順、人間の
+現段階で昇格できる上限は、実注文を送らない`shadow`とする。paperとshadowでは実資金、
+取引権限、秘密情報を使わない。現在のshadow許可は固定済みEXP-2026-0042だけに適用する。
+`live`以降を解禁するには、別PRで方針、実装、検証証拠、ロールバック手順、人間の
 承認記録を追加する。
 
 ## Approval packet

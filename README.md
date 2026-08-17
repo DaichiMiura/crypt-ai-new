@@ -6,15 +6,16 @@ AIを活用して仮想通貨取引戦略を研究・検証・運用するため
 
 ## 現在の段階
 
-**Phase 0: ペーパー運用**
+**Phase 0: research・paper・注文なしshadow**
 
 - 本番取引は禁止
+- shadowは固定済みEXP-2026-0042だけを対象とし、実注文・取引権限・秘密情報を使用しない
 - APIキーや秘密情報をリポジトリに保存しない
 - 仮想注文は口座全体のハード上限と戦略別リスク予算の小さい方で制限する
 - 本番用のfail-closed設定は [risk-limits.yaml](config/risk-limits.yaml)、ペーパー用設定は [paper-risk-limits.yaml](config/paper-risk-limits.yaml) に分ける
 - 戦略別の例は [exp-0001-risk.yaml](config/strategies/exp-0001-risk.yaml) に置く
 - データ取得、バックテスト、取引所接続、監視は成熟したOSSを積極的に利用する
-- 履歴の短いBinance Japanを補うため、Binance Global Spotを研究用proxyとして使い、Binance Japanのshadowでvenue差を検証する
+- 現在はZOOMEX linear USDT perpetualの公開Kline/Fundingで研究し、同venueの注文なしpaper/shadowで履歴とリアルタイムの差を検証する
 - 研究・検証・運用の責任を分離する
 
 最初のpaper承認戦略は`EXP-2026-0012`である。実行範囲と手順は
@@ -53,14 +54,17 @@ AIを活用して仮想通貨取引戦略を研究・検証・運用するため
 単純な戦略を1つだけ選び、次をペーパー環境で一周させます。
 
 ```text
-仮説登録 → Global proxyデータ検査 → 実装 → バックテスト → 独立検証
-         → Japanデータ校正・注文なしshadow → ペーパー運用 → 日次照合 → 振り返り
+仮説登録 → ZOOMEX履歴データ検査 → 実装 → バックテスト → 独立検証
+         → ZOOMEX realtime校正・注文なしshadow → ペーパー運用 → 日次照合 → 振り返り
 ```
 
 実験は [仮説テンプレート](templates/hypothesis.yaml) から始め、検証は [検証報告テンプレート](templates/validation-report.md) に記録します。
 データ取得は [データmanifest](templates/data-manifest.yaml) に記録し、損益は [会計方針](docs/accounting-policy.md) に従います。
 
-最初の登録済み実験は [EXP-2026-0001](experiments/registry/EXP-2026-0001-hypothesis.yaml) です。結果を確認する前に仮説、費用条件、OOS期間、Binance GlobalからBinance Japanへのvenue移管上の限界を固定しています。対応するデータmanifestは [DATA-2026-0001](experiments/registry/DATA-2026-0001-manifest.yaml) です。
+最初の登録済み実験は[EXP-2026-0001](experiments/registry/EXP-2026-0001-hypothesis.yaml)で、
+当時のBinance GlobalからBinance Japanへのproxy条件を保持している。現在のZOOMEX標準経路は
+[EXP-2026-0015](experiments/registry/EXP-2026-0015-hypothesis.yaml)以降の関連実験と、
+[EXP-2026-0042 paper/shadow](docs/paper-shadow-exp-2026-0042.md)を参照する。
 
 ## 最小検証
 
