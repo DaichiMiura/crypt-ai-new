@@ -36,7 +36,7 @@ methodology:
   exit_rule: "entryから6時間後の15分Kline openで全量exit。途中resize、利確、損切り、signal反転決済なし。"
   no_trade_conditions:
     - "normalized rank margin<0.25、q40<=0、またはいずれかが非有限。"
-    - "必要な96本windowに欠測、重複、補間、非正価格、非有限値がある。"
+    - "24時間の96 return区間を作る97個のclose観測windowに欠測、重複、補間、非正価格、非有限値がある。"
     - "Funding、quantity step、minimum quantity、reserve cashを検査できない。"
     - "modelが固定30日期限を超過、またはsource train groupを構築できない。"
   simplicity_rationale: "単一26特徴量set、ranker1設定、quantile alpha1個、margin1個、long top1、固定100 USDTに限定する。feature・threshold・alpha・hyperparameter探索、short、neural network、RL、AutoMLを行わない。"

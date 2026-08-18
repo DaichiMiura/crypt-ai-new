@@ -76,7 +76,7 @@ transform:
   method: "observed_rows_only_no_interpolation"
   trade_columns: "15分trade OHLC、volume、turnoverを数値化し、UTC時刻昇順で保存した。"
   accounting_columns: "targetだけ1時間mark OHLCとFunding rateを値変更なしで保存した。"
-  alignment_policy: "featureは連続96本が全て実測で揃う判断時刻だけを使う。"
+  alignment_policy: "24時間の96 return区間を作る連続97個のclose観測が全て実測で揃う判断時刻だけを使う。"
   missing_policy: "補間しない。欠測windowを除外して件数を成果物へ残す。"
   synthetic_rows_are_venue_observations: false
 
