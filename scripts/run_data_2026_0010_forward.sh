@@ -30,6 +30,6 @@ if [[ "$actual_collector_sha256" != "$expected_collector_sha256" ]] || \
   exit 1
 fi
 
-exec uv run --frozen python scripts/collect_zoomex_realtime_microstructure.py \
+exec /home/miura/.local/bin/uv run --frozen python scripts/collect_zoomex_realtime_microstructure.py \
   --output-root data/raw/DATA-2026-0010 \
   --duration-seconds 86400
