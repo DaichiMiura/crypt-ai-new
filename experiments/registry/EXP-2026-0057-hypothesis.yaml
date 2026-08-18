@@ -27,7 +27,7 @@ methodology:
     ranker: "xgboost 3.4.1、objective=rank:pairwise、eval_metric=ndcg@1、max_depth=3、eta=0.05、min_child_weight=20、subsample=1、colsample_bytree=1、lambda=10、alpha=0、gamma=0、tree_method=hist、max_bin=256、seed=0、nthread=1、300 round。"
     residual: "同tree設定、objective=reg:pseudohubererror、eval_metric=mphe、huber_slope=0.01、300 round。residual_labelを推定する。"
     market: "同tree設定、objective=reg:pseudohubererror、eval_metric=mphe、huber_slope=0.01、300 round。各decision_timeを1行に一意化し、BTC context・regime・UTC時刻の9特徴量からBTC 6時間gross simple returnを推定する。"
-  temporal_calibration: "各outer cutoff直前730日を時間順で先頭80% fit、6時間purge後の末尾20% calibrationとする。calibration error=actual absolute net return-reconstructed predictionの30%分位点を固定し、評価lower_estimate=reconstructed prediction+error_q30とする。"
+  temporal_calibration: "各outer cutoff直前最大730日を時間順で先頭80% fit、6時間purge後の末尾20% calibrationとする。初回foldだけはDATA-2026-0008開始後の30日beta warmupにより利用可能な実測標本が約699日となり、不足分を補間しない。calibration error=actual absolute net return-reconstructed predictionの30%分位点を固定し、評価lower_estimate=reconstructed prediction+error_q30とする。"
   entry_rule: "held-out groupでrank score最大を選ぶ。normalized_margin=(top-second)/max(group score母標準偏差,1e-12)>=0.25かつlower_estimate>0の場合だけ100 USDT longする。同値はsymbol昇順。"
   exit_rule: "6時間後の15分Kline openで全量exit。途中resize、利確、損切り、signal反転決済なし。"
   no_trade_conditions:
@@ -57,7 +57,7 @@ source_validation:
     - {cutoff: "2024-07-01T00:00:00Z", end_exclusive: "2025-01-01T00:00:00Z"}
     - {cutoff: "2025-01-01T00:00:00Z", end_exclusive: "2025-07-01T00:00:00Z"}
     - {cutoff: "2025-07-01T00:00:00Z", end_exclusive: "2026-01-01T00:00:00Z"}
-  train_window: "各cutoff前730日。fit/calibration境界とouter cutoffで6時間labelをpurgeする。"
+  train_window: "各cutoff前最大730日。beta計算用履歴を含む最初の利用可能判断時刻は2022-02-01T06:00:00Zで、初回foldは約699日。fit/calibration境界とouter cutoffで6時間labelをpurgeする。"
   total_oos_folds: 12
   model_selection: "単一pipelineを一度評価し、全gate通過時だけtargetへ使用する。"
 
