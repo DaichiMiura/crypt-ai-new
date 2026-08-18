@@ -87,6 +87,15 @@ execution_status:
   passing_smoke_reconnects: 0
   passing_smoke_orders_sent: false
   passing_smoke_authentication_used: false
-  forward_collection_started: false
+  forward_collection_started: true
+  forward_started_at_utc: "2026-08-18T05:06:59Z"
+  forward_first_session: "20260818T050659Z-da24aa50694a"
+  forward_collector_commit: "034e2f89230cfd61ff7f39bf8250627d86948751"
+  forward_service: "crypt-ai-data-2026-0010-forward.service"
+  forward_service_enabled: true
+  forward_service_state_at_start_check: "active/running"
+  forward_first_session_complete: false
+  initial_service_attempt: "FAILED_EXIT_127: systemd PATH did not contain uv; no forward session created"
+  initial_service_fix_commit: "034e2f89230cfd61ff7f39bf8250627d86948751"
   target_values_displayed: false
   orders_sent: false
