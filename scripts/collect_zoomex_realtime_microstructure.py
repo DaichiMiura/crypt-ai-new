@@ -14,8 +14,10 @@ from importlib.metadata import version
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import time
+from types import FrameType
 from typing import BinaryIO
 from uuid import uuid4
 
@@ -41,6 +43,19 @@ ORDERBOOK_PAYLOAD_SYMBOLS = {
     "ETHUSDT": "ETH2USDT",
     "SOLUSDT": "SOL2USDT",
 }
+_SHUTDOWN_REQUESTED = False
+
+
+def _request_shutdown(_signal_number: int, _frame: FrameType | None) -> None:
+    """終了要求を記録し、受信中のgzipを安全に閉じられるようにする。
+
+    Args:
+        _signal_number: 受信したsignal番号。
+        _frame: signal受信時のframe。使用しない。
+    """
+
+    global _SHUTDOWN_REQUESTED
+    _SHUTDOWN_REQUESTED = True
 
 
 def subscription_topics() -> tuple[str, ...]:
@@ -357,6 +372,7 @@ def _safe_manifest_summary(manifest: dict[str, object]) -> dict[str, object]:
             "last_exchange_timestamp_ms", "parse_errors", "schema_errors",
             "duplicate_trade_ids", "orderbook_delta_before_snapshot",
             "orderbook_non_increasing_updates", "orderbook_sequence_gaps", "artifacts",
+            "shutdown_requested",
             "orders_sent", "authentication_used", "sealed_target_content_displayed",
         )
     }
@@ -431,7 +447,7 @@ async def collect_session(
     network_errors: list[str] = []
     completed = False
     try:
-        while time.monotonic() < deadline:
+        while time.monotonic() < deadline and not _SHUTDOWN_REQUESTED:
             connection_id = uuid4().hex
             state.reset_orderbooks()
             try:
@@ -456,7 +472,7 @@ async def collect_session(
                         "outgoing": {"op": "subscribe", "topic_count": len(subscribe["args"])},
                     })
                     last_heartbeat = time.monotonic()
-                    while time.monotonic() < deadline:
+                    while time.monotonic() < deadline and not _SHUTDOWN_REQUESTED:
                         now = time.monotonic()
                         timeout = min(deadline - now, HEARTBEAT_SECONDS - (now - last_heartbeat))
                         try:
@@ -489,7 +505,7 @@ async def collect_session(
                 remaining = deadline - time.monotonic()
                 if remaining > 0:
                     await asyncio.sleep(min(2.0, remaining))
-        completed = True
+        completed = time.monotonic() >= deadline and not _SHUTDOWN_REQUESTED
     finally:
         for writer in writers.values():
             writer.close()
@@ -544,6 +560,7 @@ async def collect_session(
         "orderbook_sequence_gaps": state.orderbook_sequence_gaps,
         "subscription_acknowledgements": state.subscription_acknowledgements,
         "pong_messages": state.pong_messages,
+        "shutdown_requested": _SHUTDOWN_REQUESTED,
         "artifacts": artifacts,
         "authentication_used": False,
         "orders_sent": False,
@@ -559,6 +576,11 @@ async def collect_session(
 
 def main() -> None:
     """CLI引数を検査し、公開market data収集sessionを実行する。"""
+
+    global _SHUTDOWN_REQUESTED
+    _SHUTDOWN_REQUESTED = False
+    signal.signal(signal.SIGINT, _request_shutdown)
+    signal.signal(signal.SIGTERM, _request_shutdown)
 
     parser = argparse.ArgumentParser()
     parser.add_argument(

@@ -49,6 +49,28 @@ DATA-2026-0010は最低90 calendar daysを収集し、次の全条件を満た�
 最初の短時間接続はschema・購読・書込み確認用`SMOKE_ONLY`で、研究結果や90日coverageへ含めない。
 parseまたはschema errorが1件でもあればsessionは`INCOMPLETE`とする。
 
+## Forward運用
+
+forward収集はユーザーsystemd service `crypt-ai-data-2026-0010-forward.service`で動かす。
+1 sessionは24時間で閉じ、gzipとmanifestのhashを確定した後、serviceの`Restart=always`で次の
+sessionへ進む。wrapperは`flock`で多重起動を拒否し、開始前に保存先filesystemの空き容量が
+20 GiB以上あることと、collector・lockfileのSHA-256が固定値に一致することを検査する。
+
+```bash
+systemctl --user status crypt-ai-data-2026-0010-forward.service
+journalctl --user -u crypt-ai-data-2026-0010-forward.service
+```
+
+停止時は次を実行する。SIGTERMは即時強制終了せず、collectorが現在のgzipを閉じてmanifestへ
+`shutdown_requested: true`と`INCOMPLETE`を記録する。停止sessionをcoverageへ含めない。
+
+```bash
+systemctl --user disable --now crypt-ai-data-2026-0010-forward.service
+```
+
+PC停止やnetwork断のeventは復元しない。再開後は別session・connectionとして記録し、日次監査で
+空き容量、process状態、最新manifest、gzip展開、hash、error、銘柄別heartbeat coverageを確認する。
+
 ## 将来の実験候補
 
 90日収集後に別IDで、premium crowding signalにspread、best-size imbalance、aggressive buy/sell

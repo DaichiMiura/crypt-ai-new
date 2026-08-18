@@ -9,6 +9,7 @@ from scripts.collect_zoomex_realtime_microstructure import (
     SEALED_TARGET_SYMBOLS,
     SOURCE_SYMBOLS,
     SecureGzipWriter,
+    _request_shutdown,
     _session_status,
     process_incoming,
     subscription_topics,
@@ -130,6 +131,18 @@ def test_session_without_market_data_is_incomplete():
         subscription_acknowledgements=1, market_records=10,
         parse_errors=0, schema_errors=1,
     ) == "INCOMPLETE"
+
+
+def test_shutdown_handler_only_sets_stop_flag():
+    """終了signalを例外化せず安全な停止要求へ変換する。"""
+
+    import scripts.collect_zoomex_realtime_microstructure as collector
+
+    collector._SHUTDOWN_REQUESTED = False
+    _request_shutdown(15, None)
+
+    assert collector._SHUTDOWN_REQUESTED is True
+    collector._SHUTDOWN_REQUESTED = False
 
 
 def test_zoomex_internal_orderbook_alias_is_explicitly_accepted():
