@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0056"
 created_at_utc: "2026-08-18T01:40:00Z"
 owner_role: "research"
-status: "preregistered"
+status: "completed"
 
 hypothesis:
   statement: "15分足のdimensionless特徴量から同時刻の銘柄順位をLambdaRankで学び、別のquantile modelで100 USDT longの費用・Funding込みnet return 40%分位点を推定すると、source9銘柄の12 asset×time OOS foldを通過し、学習に一度も使わないETC・FIL・TRX・XLMの2026-01-01〜2026-07-31でcashと6時間momentumを上回る可能性がある。"
@@ -111,8 +111,33 @@ evaluation:
   quantile_alpha_count: 1
   margin_count: 1
   random_seed: 0
-  research_status: "PREREGISTERED"
+  research_status: "REJECTED"
   promotion_status: "NOT_ELIGIBLE"
+  source_gate_result:
+    completed_at_utc: "2026-08-18T01:48:00Z"
+    target_opening_authorized: false
+    selected_pipeline: null
+    rejection_reasons:
+      - "source_completed_round_trips_below_240"
+      - "source_positive_folds_below_9"
+      - "source_rank_ic_not_positive"
+    net_pnl_usdt: "37.643238201229000773843720"
+    stress_2x_cost_net_pnl_usdt: "24.45587900813099926044945"
+    momentum_net_pnl_usdt: "-1895.499145213345409982618918"
+    completed_round_trips: 42
+    positive_folds: 8
+    positive_symbols: 6
+    rank_ic: -0.003313418244104314
+    momentum_rank_ic: -0.011339813378116641
+    q40_pinball_loss: 0.007944604375270942
+    constant_q40_pinball_loss: 0.00798499086156285
+    maximum_positive_profit_contribution: "0.3137556433254669897749290222"
+    sample_rows: 52542
+    excluded_decision_times: 0
+    result_artifact: "artifacts/EXP-2026-0056-source-gate/summary.json"
+    result_sha256: "2fceee5ff68302150bd60a1a3b6671ae3e3434c402db62d8b891af271526416f"
+    validation: "source入力から52,542 net labelを再構築し、全base・momentum取引のrealized net return、quantity×entry会計、fold合計、資金下限、target非混入を照合済み。"
+    interpretation: "q40は定数予測をわずかに上回り費用stress後もaggregate PnLは正だったが、取引42件で必要240件を大幅に下回り、rank ICも負だったため未知銘柄へ開く証拠として不足した。"
 
 cost_model:
   fee_model_version: "FEE-2026-0001-initial-assumption"
@@ -134,11 +159,12 @@ provenance:
 execution_status:
   preregistered: true
   data_integrity_completed: true
-  runner_exists: false
-  source_gate_completed: false
+  runner_exists: true
+  source_gate_completed: true
   sealed_target_opened: false
   sealed_target_completed: false
   paper_started: false
   shadow_started: false
   live_started: false
+  source_gate_runner_commit: "9a511bd"
   independent_validation_status: "PENDING"
