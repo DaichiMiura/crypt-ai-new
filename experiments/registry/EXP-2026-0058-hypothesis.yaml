@@ -60,6 +60,8 @@ source_validation:
 data:
   price_snapshot_id: "DATA-2026-0008"
   premium_snapshot_id: "DATA-2026-0009"
+  premium_metadata_path: "var/exp-2026-0058-premium-data.json"
+  premium_metadata_sha256: "98202678a17e510834314a9297614b0b4f168b42fd9c8137206e1694eb00af06"
   source: "ZOOMEX Global public V3 REST API"
   timezone: "UTC"
   sealed_holdout: "ETC・FIL・TRX・XLMの2026-01-01〜2026-08-01 exclusive。既存価格・Fundingと新premiumをともに封印する。"
@@ -112,7 +114,7 @@ provenance:
 
 execution_status:
   preregistered: true
-  premium_data_acquired: false
+  premium_data_acquired: true
   runner_exists: false
   source_gate_completed: false
   sealed_target_opened: false

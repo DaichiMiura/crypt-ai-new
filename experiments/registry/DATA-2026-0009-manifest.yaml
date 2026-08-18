@@ -1,13 +1,14 @@
 schema_version: 1
 snapshot_id: "DATA-2026-0009"
 created_at_utc: "2026-08-18T02:14:04Z"
-status: "planned"
+status: "sealed_data_acquired"
 
 source:
   provider: "ZOOMEX public V3 REST API"
   exchange: "ZOOMEX Global"
   dataset_name: "Linear USDT perpetual 15-minute premium index Kline"
   retrieval_uri: "https://openapi.zoomex.com/cloud/trade/v3/market/premium-index-price-kline"
+  retrieved_at_utc: "2026-08-18T02:36:06.484651+00:00"
   authentication_used: false
 
 venue:
@@ -27,12 +28,22 @@ coverage:
 
 integrity:
   metadata_path: "var/exp-2026-0058-premium-data.json"
+  metadata_sha256: "sha256:98202678a17e510834314a9297614b0b4f168b42fd9c8137206e1694eb00af06"
+  retrieval_script_commit: "8d3dce4"
+  per_symbol_rows: 160608
+  local_artifact_count: 14
+  local_artifact_size: "約178 MiB"
+  common_start_utc: "2022-01-01T00:00:00Z"
+  common_end_utc: "2026-07-31T23:45:00Z"
+  duplicate_count: 0
+  missing_interval_count: 0
+  interpolated_row_count: 0
   duplicate_policy: "reject"
   missing_policy: "no interpolation; exclude incomplete feature windows"
   allowed_pre_gate_checks: ["API success code", "row count", "first and last timestamp", "duplicate count", "missing interval count", "SHA-256"]
 
 sealed_target:
-  status: "PLANNED"
+  status: "SEALED_DATA_ACQUIRED"
   content_opened: false
   opening_rule: "EXP-2026-0058の全source gate合格時だけ、固定済みpipelineで一度開く。"
   prohibited_until_source_gate:
