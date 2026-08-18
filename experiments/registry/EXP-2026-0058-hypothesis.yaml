@@ -18,7 +18,7 @@ hypothesis:
 methodology:
   setup: "ZOOMEX linear USDT perpetualの15分trade Kline、15分premium index Kline、FundingをUTC 6時間判断へ整列する。entryはt open、exitはt+6h open。t-15分までの確定Klineとevent_time<tのFundingだけを使う。"
   label: "100 USDT longのfee・spread・slippage・Funding・quantity丸め込みabsolute net_return。"
-  features: "価格control14、premium13、Funding4の固定31特徴量。定義はdocs/premium-crowding-ml-research.md。"
+  features: "価格control14、premium13、Funding4の固定31特徴量。30日premium標準偏差<=1e-12ではz-score=0。横断premiumは同値平均rank、全銘柄dispersion<=1e-12ではrank=0.5・median差=dispersion=0。定義はdocs/premium-crowding-ml-research.md。"
   rank_target: "各train query内でabsolute net_returnを昇順rankし0..N-1 relevanceへ変換する。同値はsymbol昇順。"
   models:
     ranker: "xgboost 3.4.1、rank:pairwise、ndcg@1、max_depth=3、eta=0.05、min_child_weight=20、subsample=1、colsample_bytree=1、lambda=10、alpha=0、gamma=0、hist、max_bin=256、seed=0、nthread=1、300 round。"

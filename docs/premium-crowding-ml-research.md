@@ -50,6 +50,9 @@ Funding 4個:
 - 直前確定rate、直前3回平均、直前9回平均、直前rateからの変化
 
 生price、symbol ID、判断時刻と同時刻のFunding、将来Funding、target固有parameterは使わない。
+30日premium標準偏差が`1e-12`以下の場合、z-scoreは0とし、その理由だけで期間を除外しない。
+横断premiumの同値は平均rankとし、全銘柄のdispersionが`1e-12`以下なら全rankを0.5、
+median差とdispersionを0として判断時刻を除外しない。
 
 ## 学習と検証
 
