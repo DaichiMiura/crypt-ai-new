@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0058"
 created_at_utc: "2026-08-18T02:14:04Z"
 owner_role: "research"
-status: "preregistered"
+status: "rejected"
 
 hypothesis:
   statement: "判断前のpremium index水準・変化・分散・横断順位と確定済みFundingを価格controlへ加えたML rankingは、価格control-only modelより6時間先の費用込みnet return順位を改善し、source9銘柄で正のOOS rank ICと費用耐性を示す可能性がある。"
@@ -94,8 +94,35 @@ evaluation:
   calibration_quantile_count: 1
   margin_count: 1
   random_seed: 0
-  research_status: "PREREGISTERED"
+  research_status: "REJECTED"
   promotion_status: "NOT_ELIGIBLE"
+  source_gate_result:
+    completed_at_utc: "2026-08-18T02:54:39Z"
+    target_opening_authorized: false
+    selected_pipeline: null
+    rejection_reasons:
+      - "source_completed_round_trips_below_240"
+      - "source_positive_folds_below_9"
+      - "source_positive_symbols_below_6"
+      - "source_net_pnl_not_positive_or_below_ablation"
+      - "source_stress_net_pnl_not_positive"
+    net_pnl_usdt: "-48.263031505088797979104568"
+    stress_2x_cost_net_pnl_usdt: "-98.103619918276800170404928"
+    price_control_ablation_net_pnl_usdt: "29.035234619122801505305544"
+    momentum_net_pnl_usdt: "-1895.499145213345409982618918"
+    completed_round_trips: 158
+    positive_folds: 5
+    positive_symbols: 5
+    rank_ic: 0.0064155088751708745
+    price_control_ablation_rank_ic: -0.0007707303833559393
+    lower_estimate_coverage: 0.6814687975646879
+    maximum_positive_profit_contribution: "0.3093353046760750936150410316"
+    sample_rows: 51462
+    excluded_decision_times: 0
+    result_artifact: "artifacts/EXP-2026-0058-source-gate/summary.json"
+    result_sha256: "6b1e4aa7d5e2f476b0a15701a13b7029a157a1ed562b1fca3758c79f7ad5c523"
+    validation: "12 foldのfull・stress・ablation・momentum取引和、PnL和、重複判断、held-out所属、aggregate再集計、target非混入を機械照合済み。独立した戦略承認は未実施。"
+    interpretation: "premium・Funding追加でrank ICは-0.00077から+0.00642へ改善したが、top1取引の平均PnLは-0.305 USDT、勝率46.8%で、価格control ablationの+0.195 USDT・51.7%を下回った。全候補の順位改善が費用控除後top1 edgeへ変換されなかった。"
 
 cost_model:
   fee_model_version: "FEE-2026-0001-initial-assumption"
@@ -115,11 +142,12 @@ provenance:
 execution_status:
   preregistered: true
   premium_data_acquired: true
-  runner_exists: false
-  source_gate_completed: false
+  runner_exists: true
+  source_gate_completed: true
   sealed_target_opened: false
   sealed_target_completed: false
   paper_started: false
   shadow_started: false
   live_started: false
+  source_gate_runner_commit: "6105ea1"
   independent_validation_status: "PENDING"
