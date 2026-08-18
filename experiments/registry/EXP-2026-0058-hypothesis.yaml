@@ -1,0 +1,123 @@
+schema_version: 1
+experiment_id: "EXP-2026-0058"
+created_at_utc: "2026-08-18T02:14:04Z"
+owner_role: "research"
+status: "preregistered"
+
+hypothesis:
+  statement: "判断前のpremium index水準・変化・分散・横断順位と確定済みFundingを価格controlへ加えたML rankingは、価格control-only modelより6時間先の費用込みnet return順位を改善し、source9銘柄で正のOOS rank ICと費用耐性を示す可能性がある。"
+  economic_rationale: "perpetualとindexの乖離圧力およびFunding履歴は、価格returnだけでは見えないlong/short混雑を表す可能性がある。混雑の継続と巻き戻しを横断比較すれば相対選択へ増分情報を与え得る。"
+  expected_failure_modes:
+    - "premiumが価格returnの遅行変換にすぎず、価格controlへ増分情報を与えない。"
+    - "混雑は継続と反転の両方を起こし、treeがregimeを安定して分離できない。"
+    - "Fundingは低頻度で同値が多く、6時間horizonの順位に弱い。"
+    - "30日premium z-score warmupや欠測により標本が減る。"
+    - "微弱なgross edgeがfee、spread、slippage、Fundingで消える。"
+    - "source foldの逐次再利用による多重試行で見かけの改善が生じる。"
+
+methodology:
+  setup: "ZOOMEX linear USDT perpetualの15分trade Kline、15分premium index Kline、FundingをUTC 6時間判断へ整列する。entryはt open、exitはt+6h open。t-15分までの確定Klineとevent_time<tのFundingだけを使う。"
+  label: "100 USDT longのfee・spread・slippage・Funding・quantity丸め込みabsolute net_return。"
+  features: "価格control14、premium13、Funding4の固定31特徴量。定義はdocs/premium-crowding-ml-research.md。"
+  rank_target: "各train query内でabsolute net_returnを昇順rankし0..N-1 relevanceへ変換する。同値はsymbol昇順。"
+  models:
+    ranker: "xgboost 3.4.1、rank:pairwise、ndcg@1、max_depth=3、eta=0.05、min_child_weight=20、subsample=1、colsample_bytree=1、lambda=10、alpha=0、gamma=0、hist、max_bin=256、seed=0、nthread=1、300 round。"
+    expected_return: "同tree設定、reg:pseudohubererror、mphe、huber_slope=0.02、300 round。absolute net_returnを推定する。"
+    ablation: "同じranker・回帰・calibration・entry ruleでpremium・Funding17特徴量だけを除いた価格control14特徴量model。候補選択には使わない。"
+  temporal_calibration: "各outer cutoff前最大730日を先頭80% fit、6時間purge後の末尾20% calibrationとする。30日warmupで初回foldは約699日。error=actual net_return-predictionのq30を固定し、lower_estimate=prediction+error_q30。"
+  entry_rule: "held-out groupでrank score最大を選び、normalized margin>=0.25かつlower_estimate>0の場合だけ100 USDT long。"
+  exit_rule: "6時間後の15分trade Kline openで全量exit。途中売買なし。"
+  no_trade_conditions:
+    - "margin<0.25、lower estimate<=0、入力・予測非有限。"
+    - "tradeまたはpremiumの必要window、直前9 Funding、会計系列が欠ける。"
+    - "model期限、quantity、minimum、reserveを検査できない。"
+  simplicity_rationale: "候補は固定31特徴量のranker1・Huber1・q30・margin0.25だけ。価格control-onlyは増分検証用の固定ablationで選択肢ではない。"
+
+scope:
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  market_type: "linear_usdt_perpetual"
+  source_symbols: ["LINKUSDT", "UNIUSDT", "AVAXUSDT", "AAVEUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "NEARUSDT"]
+  context_only_symbols: ["BTCUSDT"]
+  sealed_target_symbols: ["ETCUSDT", "FILUSDT", "TRXUSDT", "XLMUSDT"]
+  timeframe: "15m features; UTC 6h decisions; fixed 6h holding"
+  start_utc: "2022-01-01T00:00:00Z"
+  end_utc: "2026-08-01T00:00:00Z"
+
+source_validation:
+  asset_folds:
+    A: ["AAVEUSDT", "ETHUSDT", "SOLUSDT"]
+    B: ["ADAUSDT", "LINKUSDT", "UNIUSDT"]
+    C: ["AVAXUSDT", "NEARUSDT", "XRPUSDT"]
+  time_folds:
+    - {cutoff: "2024-01-01T00:00:00Z", end_exclusive: "2024-07-01T00:00:00Z"}
+    - {cutoff: "2024-07-01T00:00:00Z", end_exclusive: "2025-01-01T00:00:00Z"}
+    - {cutoff: "2025-01-01T00:00:00Z", end_exclusive: "2025-07-01T00:00:00Z"}
+    - {cutoff: "2025-07-01T00:00:00Z", end_exclusive: "2026-01-01T00:00:00Z"}
+  total_oos_folds: 12
+  model_selection: "full pipelineを一度評価し、全gate通過時だけtargetへ使用する。"
+
+data:
+  price_snapshot_id: "DATA-2026-0008"
+  premium_snapshot_id: "DATA-2026-0009"
+  source: "ZOOMEX Global public V3 REST API"
+  timezone: "UTC"
+  sealed_holdout: "ETC・FIL・TRX・XLMの2026-01-01〜2026-08-01 exclusive。既存価格・Fundingと新premiumをともに封印する。"
+  known_limitations:
+    - "premium Klineは板、建玉、清算、queue、時変spreadを表さない。"
+    - "取得時contract仕様であり履歴変更を完全には再現しない。"
+    - "同じsource12 foldを再利用するため、多重試行による楽観化リスクがある。"
+
+evaluation:
+  baselines:
+    price_control_ablation: "premium・Funding17特徴量を除いた同一pipeline。"
+    momentum: "同じgroup・判断・会計で直近6時間return最大かつ正の銘柄をlong。"
+  source_gate:
+    - "completed round trips>=240。"
+    - "正のfold>=9/12、正のsource銘柄>=6/9。"
+    - "aggregate net PnL>0かつprice-control ablationとmomentumを上回る。"
+    - "fee・spread・slippage 2倍stress net PnL>0。"
+    - "aggregate rank IC>0かつprice-control ablation rank ICを上回る。"
+    - "lower estimate coverageが60%以上80%以下。"
+    - "1銘柄の正利益寄与<=35%。"
+    - "未来参照、target混入、補間、期限切れmodel、allocation rejection、会計不一致が0。"
+  target_rejection_criteria:
+    - "base net PnL<=0または固定ablation・momentum以下。"
+    - "completed round trips<40、いずれかのtarget銘柄<5、正のtarget銘柄<3/4。"
+    - "2倍費用stress<=0、最大drawdown<=-10%、または整合性error>0。"
+  maximum_status_if_passed: "INCONCLUSIVE"
+  maximum_variants: 1
+  candidate_pipeline_count: 1
+  fixed_ablation_count: 1
+  calibration_quantile_count: 1
+  margin_count: 1
+  random_seed: 0
+  research_status: "PREREGISTERED"
+  promotion_status: "NOT_ELIGIBLE"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  taker_fee: "0.0006 per fill"
+  spread_assumption: "round-trip 0.001"
+  slippage_assumption: "片道0.0005"
+  funding_assumption: "entry < settlement < exitの実績rateをlong cash flowとして反映する。"
+  stress_case: "fee、spread、slippageをすべて2倍。"
+  liquidity_constraints: "初期1000 USDT、1 position 100 USDT、同時最大1、reserve 200 USDT、short・追加レバレッジなし。"
+
+provenance:
+  parent_experiment_ids: ["EXP-2026-0056", "EXP-2026-0057"]
+  references:
+    - {path: "docs/premium-crowding-ml-research.md", relevance: "データ選定、特徴量、時点整合性、ablationの根拠。"}
+  preregistration_commit: "source premium値と学習結果を見る前に31特徴量、2 model、q30、margin、ablation、12 fold、全gateをcommitで固定する。"
+
+execution_status:
+  preregistered: true
+  premium_data_acquired: false
+  runner_exists: false
+  source_gate_completed: false
+  sealed_target_opened: false
+  sealed_target_completed: false
+  paper_started: false
+  shadow_started: false
+  live_started: false
+  independent_validation_status: "PENDING"

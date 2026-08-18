@@ -1,0 +1,47 @@
+schema_version: 1
+snapshot_id: "DATA-2026-0009"
+created_at_utc: "2026-08-18T02:14:04Z"
+status: "planned"
+
+source:
+  provider: "ZOOMEX public V3 REST API"
+  exchange: "ZOOMEX Global"
+  dataset_name: "Linear USDT perpetual 15-minute premium index Kline"
+  retrieval_uri: "https://openapi.zoomex.com/cloud/trade/v3/market/premium-index-price-kline"
+  authentication_used: false
+
+venue:
+  role: "target_execution"
+  market_type: "linear_usdt_perpetual"
+  category: "linear"
+  source_symbols: ["BTCUSDT", "LINKUSDT", "UNIUSDT", "AVAXUSDT", "AAVEUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "NEARUSDT"]
+  sealed_target_symbols: ["ETCUSDT", "FILUSDT", "TRXUSDT", "XLMUSDT"]
+
+coverage:
+  requested_start_utc: "2022-01-01T00:00:00Z"
+  requested_end_utc_exclusive: "2026-08-01T00:00:00Z"
+  sealed_holdout_start_utc: "2026-01-01T00:00:00Z"
+  sealed_holdout_end_utc_exclusive: "2026-08-01T00:00:00Z"
+  interval: "15m"
+  timezone: "UTC"
+
+integrity:
+  metadata_path: "var/exp-2026-0058-premium-data.json"
+  duplicate_policy: "reject"
+  missing_policy: "no interpolation; exclude incomplete feature windows"
+  allowed_pre_gate_checks: ["API success code", "row count", "first and last timestamp", "duplicate count", "missing interval count", "SHA-256"]
+
+sealed_target:
+  status: "PLANNED"
+  content_opened: false
+  opening_rule: "EXP-2026-0058の全source gate合格時だけ、固定済みpipelineで一度開く。"
+  prohibited_until_source_gate:
+    - "target premium OHLC値の表示"
+    - "target feature、label、予測、損益の計算"
+    - "target結果に基づくfeature、model、threshold、symbol変更"
+
+limitations:
+  - "premium index Klineはorderbook、清算量、建玉、受信遅延を表さない。"
+  - "取得時点でAPIが返す履歴であり、過去の算定式・上限・contract仕様変更を完全には再現しない。"
+  - "価格CSVはcommitせず、取得コード、metadata、artifact hashで追跡する。"
+  - "本snapshotは研究データであり、paper、shadow、liveを承認しない。"
