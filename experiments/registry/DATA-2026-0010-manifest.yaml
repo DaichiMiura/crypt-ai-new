@@ -1,0 +1,76 @@
+schema_version: 1
+snapshot_id: "DATA-2026-0010"
+created_at_utc: "2026-08-18T03:04:54Z"
+status: "preregistered_collection"
+
+source:
+  provider: "ZOOMEX public V5 WebSocket"
+  exchange: "ZOOMEX Global"
+  dataset_name: "Forward top-of-book, public trade, and all-liquidation event stream"
+  retrieval_uri: "wss://stream.zoomex.com/v5/public/linear"
+  authentication_used: false
+  topics: ["orderbook.1.{symbol}", "publicTrade.{symbol}", "allLiquidation.{symbol}"]
+
+venue:
+  role: "target_execution"
+  market_type: "linear_usdt_perpetual"
+  category: "linear"
+  source_symbols: ["BTCUSDT", "LINKUSDT", "UNIUSDT", "AVAXUSDT", "AAVEUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "NEARUSDT"]
+  sealed_target_symbols: ["ETCUSDT", "FILUSDT", "TRXUSDT", "XLMUSDT"]
+
+coverage:
+  collection_start_utc: "set_by_first_non_smoke_session"
+  minimum_collection_days: 90
+  timezone: "UTC"
+  event_time_definition: "payload ts and topic-specific T from ZOOMEX match/system engine"
+  receive_time_definition: "collectorでJSON messageを受け取った直後のUTC wall clock"
+  monotonic_time_definition: "同じcollector process内のtime.monotonic_ns"
+  minimum_daily_heartbeat_coverage: "95% per source/context symbol"
+  smoke_sessions_count_toward_coverage: false
+
+integrity:
+  raw_format: "gzip compressed NDJSON; source, sealed target, control separated per session"
+  duplicate_policy: "preserve raw; count duplicate trade IDs and duplicate/non-increasing sequence"
+  missing_policy: "do not interpolate; record disconnects, reconnects, sequence gaps and stale intervals"
+  orderbook_reset_policy: "after connect/reconnect, ignore deltas for derived state until a snapshot arrives"
+  maximum_message_bytes: 1048576
+  heartbeat_seconds: 20
+  file_permissions: "0600"
+  session_manifest_fields: ["code commit", "dependency version", "topics", "start/end", "message counts", "hashes", "bytes", "reconnects", "errors"]
+
+sealed_target:
+  status: "FORWARD_COLLECTION_PLANNED"
+  content_opened: false
+  storage_file: "sealed-target-events.jsonl.gz"
+  allowed_display: ["message count", "first/last timestamps", "byte count", "SHA-256", "reconnect count", "parse error count"]
+  prohibited_until_new_experiment_preregistration:
+    - "target price、size、side、imbalance、liquidation valuesの表示"
+    - "target feature、label、予測、PnLの計算"
+    - "targetに基づくfeature、threshold、symbol、期間の変更"
+
+dependency:
+  package: "websockets"
+  version_constraint: ">=16.1.1,<17"
+  license: "BSD-3-Clause"
+  adoption_record: "docs/websockets-adoption.md"
+  environment: "research only"
+
+promotion:
+  research_status: "DATA_COLLECTION_ONLY"
+  promotion_status: "NOT_ELIGIBLE"
+  live_trading_enabled: false
+  orders_sent: false
+
+limitations:
+  - "orderbook.1は50段depth、queue position、market impactを表さない。"
+  - "collector停止、network経路、exchange側切断中のeventは復元できない。"
+  - "receive timestampはcollector host clockに依存し、hardware timestampではない。"
+  - "清算streamのpriceは公式仕様上bankruptcy priceであり、通常約定priceと同一ではない。"
+  - "90日到達は戦略の有効性やpaper・shadow・liveを承認しない。"
+
+execution_status:
+  collector_exists: false
+  smoke_completed: false
+  forward_collection_started: false
+  target_values_displayed: false
+  orders_sent: false
