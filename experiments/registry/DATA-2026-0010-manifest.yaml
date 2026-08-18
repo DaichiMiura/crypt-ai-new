@@ -37,6 +37,8 @@ integrity:
   heartbeat_seconds: 20
   file_permissions: "0600"
   session_manifest_fields: ["code commit", "dependency version", "topics", "start/end", "message counts", "hashes", "bytes", "reconnects", "errors"]
+  observed_orderbook_payload_aliases: {BTCUSDT: "BTC2USDT", ETHUSDT: "ETH2USDT", SOLUSDT: "SOL2USDT"}
+  alias_policy: "topic symbolをcanonicalとし、上記3組だけを許可する。raw payloadは変更しない。"
 
 sealed_target:
   status: "FORWARD_COLLECTION_PLANNED"
@@ -71,6 +73,8 @@ limitations:
 execution_status:
   collector_exists: false
   smoke_completed: false
+  first_smoke_session: "20260818T031053Z-65671c39b132"
+  first_smoke_result: "INCOMPLETE_SCHEMA_MISMATCH: orderbook payload internal aliases 84 messages"
   forward_collection_started: false
   target_values_displayed: false
   orders_sent: false

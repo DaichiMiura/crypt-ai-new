@@ -36,6 +36,11 @@ HEARTBEAT_SECONDS = 20
 MAXIMUM_MESSAGE_BYTES = 1_048_576
 MAXIMUM_SESSION_SECONDS = 86_400
 RECENT_TRADE_ID_LIMIT = 100_000
+ORDERBOOK_PAYLOAD_SYMBOLS = {
+    "BTCUSDT": "BTC2USDT",
+    "ETHUSDT": "ETH2USDT",
+    "SOLUSDT": "SOL2USDT",
+}
 
 
 def subscription_topics() -> tuple[str, ...]:
@@ -222,7 +227,8 @@ def _validate_market_payload(
     state.last_exchange_timestamp_ms[key] = exchange_timestamp
     data = payload.get("data")
     if topic_type == "orderbook.1":
-        if not isinstance(data, dict) or data.get("s") != symbol:
+        expected_payload_symbol = ORDERBOOK_PAYLOAD_SYMBOLS.get(symbol, symbol)
+        if not isinstance(data, dict) or data.get("s") != expected_payload_symbol:
             raise ValueError("invalid orderbook data")
         update_id = data.get("u")
         if not isinstance(update_id, int):
@@ -359,6 +365,7 @@ def _safe_manifest_summary(manifest: dict[str, object]) -> dict[str, object]:
 def _session_status(
     *, smoke_only: bool, elapsed: bool, connection_count: int,
     subscription_acknowledgements: int, market_records: int,
+    parse_errors: int, schema_errors: int,
 ) -> str:
     """接続とmarket受信を満たしたsession statusを返す。
 
@@ -368,6 +375,8 @@ def _session_status(
         connection_count: 成功した接続数。
         subscription_acknowledgements: 成功subscribe応答数。
         market_records: sourceとtargetの保存record数。
+        parse_errors: JSON parse error数。
+        schema_errors: payload schema error数。
 
     Returns:
         完了または不完全status。
@@ -376,6 +385,7 @@ def _session_status(
     complete = (
         elapsed and connection_count > 0
         and subscription_acknowledgements > 0 and market_records > 0
+        and parse_errors == 0 and schema_errors == 0
     )
     if not complete:
         return "INCOMPLETE"
@@ -504,6 +514,8 @@ async def collect_session(
             connection_count=connection_count,
             subscription_acknowledgements=state.subscription_acknowledgements,
             market_records=market_records,
+            parse_errors=state.parse_errors,
+            schema_errors=state.schema_errors,
         ),
         "smoke_only": smoke_only,
         "started_at_utc": started.isoformat(),
@@ -513,6 +525,7 @@ async def collect_session(
         "topics": subscription_topics(),
         "source_symbols": SOURCE_SYMBOLS,
         "sealed_target_symbols": SEALED_TARGET_SYMBOLS,
+        "orderbook_payload_symbol_aliases": ORDERBOOK_PAYLOAD_SYMBOLS,
         "code_commit": _git_commit(),
         "websockets_version": version("websockets"),
         "connection_count": connection_count,

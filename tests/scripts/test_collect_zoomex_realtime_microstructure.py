@@ -5,6 +5,7 @@ import stat
 from scripts.collect_zoomex_realtime_microstructure import (
     ALL_SYMBOLS,
     CollectorState,
+    ORDERBOOK_PAYLOAD_SYMBOLS,
     SEALED_TARGET_SYMBOLS,
     SOURCE_SYMBOLS,
     SecureGzipWriter,
@@ -59,13 +60,14 @@ def test_source_orderbook_requires_snapshot_after_reset():
 
     state = CollectorState()
     symbol = SOURCE_SYMBOLS[0]
+    payload_symbol = ORDERBOOK_PAYLOAD_SYMBOLS.get(symbol, symbol)
     delta = {
         "topic": f"orderbook.1.{symbol}", "type": "delta", "ts": 1,
-        "data": {"s": symbol, "b": [["1", "2"]], "a": [["2", "3"]], "u": 10},
+        "data": {"s": payload_symbol, "b": [["1", "2"]], "a": [["2", "3"]], "u": 10},
     }
     snapshot = {
         "topic": f"orderbook.1.{symbol}", "type": "snapshot", "ts": 2,
-        "data": {"s": symbol, "b": [["1", "2"]], "a": [["2", "3"]], "u": 11},
+        "data": {"s": payload_symbol, "b": [["1", "2"]], "a": [["2", "3"]], "u": 11},
     }
 
     assert _process(delta, state)[0] == "source"
@@ -116,11 +118,32 @@ def test_session_without_market_data_is_incomplete():
     assert _session_status(
         smoke_only=True, elapsed=True, connection_count=1,
         subscription_acknowledgements=1, market_records=0,
+        parse_errors=0, schema_errors=0,
     ) == "INCOMPLETE"
     assert _session_status(
         smoke_only=True, elapsed=True, connection_count=1,
         subscription_acknowledgements=1, market_records=10,
+        parse_errors=0, schema_errors=0,
     ) == "SMOKE_ONLY_COMPLETE"
+    assert _session_status(
+        smoke_only=True, elapsed=True, connection_count=1,
+        subscription_acknowledgements=1, market_records=10,
+        parse_errors=0, schema_errors=1,
+    ) == "INCOMPLETE"
+
+
+def test_zoomex_internal_orderbook_alias_is_explicitly_accepted():
+    """BTC板payloadの観測済み内部aliasだけを許可する。"""
+
+    state = CollectorState()
+    destination, envelope = _process({
+        "topic": "orderbook.1.BTCUSDT", "type": "snapshot", "ts": 1,
+        "data": {"s": "BTC2USDT", "b": [["1", "2"]], "a": [["2", "3"]], "u": 1},
+    }, state)
+
+    assert destination == "source"
+    assert "validation_error" not in envelope
+    assert state.message_counts["BTCUSDT"]["orderbook.1"] == 1
 
 
 def test_secure_writer_uses_private_permissions_and_valid_gzip(tmp_path):

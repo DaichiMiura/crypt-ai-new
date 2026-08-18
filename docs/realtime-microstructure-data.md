@@ -26,6 +26,10 @@ ZOOMEX公式WebSocketはUSDT perpetual用の公開endpointを持ち、認証な�
 - gzip書込みでbackpressureを掛け、メモリ上でmarket eventを捨てない。切断・再接続・sequenceの
   逆行またはgapはmanifestへ残し、欠測を補間しない。
 
+2026-08-18の最初のsmokeで、orderbook topicの`BTCUSDT`、`ETHUSDT`、`SOLUSDT`だけはpayload
+field `s`がそれぞれ`BTC2USDT`、`ETH2USDT`、`SOL2USDT`となることを観測した。topicをcanonical
+symbolとし、この3組だけを固定aliasとして許可する。raw payloadは変更せず、他の不一致はerrorにする。
+
 板50段は14銘柄の長期保存量が大きいため使わず、`orderbook.1`へ固定する。これはspreadと
 best-size imbalanceを観測できるが、50段のmarket impactやqueue positionは表さない。
 
@@ -43,6 +47,7 @@ DATA-2026-0010は最低90 calendar daysを収集し、次の全条件を満た�
 - 収集コードcommit、session manifest、raw hash、websockets版を固定する。
 
 最初の短時間接続はschema・購読・書込み確認用`SMOKE_ONLY`で、研究結果や90日coverageへ含めない。
+parseまたはschema errorが1件でもあればsessionは`INCOMPLETE`とする。
 
 ## 将来の実験候補
 
