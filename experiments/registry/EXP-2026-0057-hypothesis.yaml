@@ -1,0 +1,132 @@
+schema_version: 1
+experiment_id: "EXP-2026-0057"
+created_at_utc: "2026-08-18T01:58:38Z"
+owner_role: "research"
+status: "preregistered"
+
+hypothesis:
+  statement: "判断時点までの30日betaでBTC市場共通成分を除いた6時間net return残差をranking・robust回帰し、BTC市場return予測と再合成して時間分離calibration下限で取引すると、source9銘柄の12 asset×time OOS foldで正のrank ICと十分な取引数を持ち、封印したETC・FIL・TRX・XLMへ移転する可能性がある。"
+  economic_rationale: "短期暗号資産returnの大部分はBTC共通因子で、raw銘柄順位labelはregime変化により不安定になり得る。point-in-time betaで共通因子を除けば、相対強弱modelは通貨固有の継続性へ集中できる。市場returnと残差returnを別々のrobust modelで推定すれば、順位選択と絶対費用gateを分離できる。"
+  expected_failure_modes:
+    - "過去30日betaが6時間先のBTC感応度を表さず、残差labelへnoiseを増やす。"
+    - "BTC market modelと残差modelの誤差が加算され、再合成net returnが不安定になる。"
+    - "calibration q30下限が0以下へ縮み、取引数が240未満になる。"
+    - "regime 4状態の標本が不足し、treeが不安定なinteractionへ適合する。"
+    - "source内で成立しても未観測4銘柄のbeta・残差構造へ移転しない。"
+    - "15分Klineは板、queue、時変spreadを表さず、固定費用が実約定を過小評価する。"
+
+methodology:
+  setup: "EXP-2026-0056と同じZOOMEX 15分足、UTC 6時間判断、t open entry、t+6h open exit、100 USDT long、費用・Funding会計を使う。tより前に終了した足だけをfeatureとbetaへ使う。"
+  absolute_label: "100 USDT longのfee・spread・slippage・Funding・quantity丸め込みnet_return。"
+  beta: "判断直前30日の非重複6時間log return 120個からcov(asset,BTC)/var(BTC)を計算する。BTC母分散<=1e-12なら除外する。"
+  residual_label: "absolute_net_return - beta_30d * BTCのt openからt+6h openまでのgross simple return。"
+  rank_target: "各train query内でresidual_labelを昇順rankし0..N-1 relevanceへ変換する。同値はsymbol昇順。"
+  features: "EXP-2026-0056の26特徴量にbeta_30d、BTC 24h return>0、BTC 24h volatility>BTC 30d volatilityの3個を追加する。"
+  feature_count: 29
+  models:
+    ranker: "xgboost 3.4.1、objective=rank:pairwise、eval_metric=ndcg@1、max_depth=3、eta=0.05、min_child_weight=20、subsample=1、colsample_bytree=1、lambda=10、alpha=0、gamma=0、tree_method=hist、max_bin=256、seed=0、nthread=1、300 round。"
+    residual: "同tree設定、objective=reg:pseudohubererror、eval_metric=mphe、huber_slope=0.01、300 round。residual_labelを推定する。"
+    market: "同tree設定、objective=reg:pseudohubererror、eval_metric=mphe、huber_slope=0.01、300 round。各decision_timeを1行に一意化し、BTC context・regime・UTC時刻の9特徴量からBTC 6時間gross simple returnを推定する。"
+  temporal_calibration: "各outer cutoff直前730日を時間順で先頭80% fit、6時間purge後の末尾20% calibrationとする。calibration error=actual absolute net return-reconstructed predictionの30%分位点を固定し、評価lower_estimate=reconstructed prediction+error_q30とする。"
+  entry_rule: "held-out groupでrank score最大を選ぶ。normalized_margin=(top-second)/max(group score母標準偏差,1e-12)>=0.25かつlower_estimate>0の場合だけ100 USDT longする。同値はsymbol昇順。"
+  exit_rule: "6時間後の15分Kline openで全量exit。途中resize、利確、損切り、signal反転決済なし。"
+  no_trade_conditions:
+    - "normalized margin<0.25、lower estimate<=0、または入力・予測が非有限。"
+    - "30日betaまたは97 close feature windowに欠測、重複、補間がある。"
+    - "model期限、Funding、quantity、minimum quantity、reserve cashを検査できない。"
+  simplicity_rationale: "29特徴量、ranker1、residual Huber1、market Huber1、calibration q30 1個、margin1個の単一pipeline。探索、short、neural network、RL、target別調整なし。"
+
+scope:
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  market_type: "linear_usdt_perpetual"
+  source_symbols: ["LINKUSDT", "UNIUSDT", "AVAXUSDT", "AAVEUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "NEARUSDT"]
+  context_only_symbols: ["BTCUSDT"]
+  sealed_target_symbols: ["ETCUSDT", "FILUSDT", "TRXUSDT", "XLMUSDT"]
+  timeframe: "15m features; UTC 6h decisions; fixed 6h holding"
+  start_utc: "2022-01-01T00:00:00Z"
+  end_utc: "2026-08-01T00:00:00Z"
+
+source_validation:
+  asset_folds:
+    A: ["AAVEUSDT", "ETHUSDT", "SOLUSDT"]
+    B: ["ADAUSDT", "LINKUSDT", "UNIUSDT"]
+    C: ["AVAXUSDT", "NEARUSDT", "XRPUSDT"]
+  time_folds:
+    - {cutoff: "2024-01-01T00:00:00Z", end_exclusive: "2024-07-01T00:00:00Z"}
+    - {cutoff: "2024-07-01T00:00:00Z", end_exclusive: "2025-01-01T00:00:00Z"}
+    - {cutoff: "2025-01-01T00:00:00Z", end_exclusive: "2025-07-01T00:00:00Z"}
+    - {cutoff: "2025-07-01T00:00:00Z", end_exclusive: "2026-01-01T00:00:00Z"}
+  train_window: "各cutoff前730日。fit/calibration境界とouter cutoffで6時間labelをpurgeする。"
+  total_oos_folds: 12
+  model_selection: "単一pipelineを一度評価し、全gate通過時だけtargetへ使用する。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  snapshot_id: "DATA-2026-0008"
+  metadata_path: "var/exp-2026-0056-data.json"
+  metadata_sha256: "82a3c6439120277d016975f4bc6b9ab10f226d8dd376e1caf3a02c0aa816eaaa"
+  timezone: "UTC"
+  sealed_holdout: "ETC・FIL・TRX・XLMの2026-01-01T00:00:00Z〜2026-08-01T00:00:00Z exclusive。EXP-2026-0056不合格後も内容未開封。"
+  known_limitations:
+    - "Kline/Fundingは板、受信遅延、部分約定、注文拒否、時変spreadを表さない。"
+    - "取得時contract specificationであり、履歴上の変更を完全には再現しない。"
+    - "同じsource foldを逐次仮説で再利用しており、多重試行による楽観化リスクが残る。"
+    - "ZOOMEX公開履歴上の結果であり、実約定での有効性は未検証。"
+
+evaluation:
+  baselines:
+    cash: "初期1000 USDTを保持しPnL 0、取引0。"
+    momentum: "同じgroup・判断・会計で直近6時間return最大かつ0より大きい銘柄をlongする。"
+    residual_momentum: "beta調整済み直近6時間残差順位。rank IC比較専用。"
+  source_gate:
+    - "12 fold合計completed round trips>=240。"
+    - "12 fold中base net PnL正が9以上。"
+    - "9 source銘柄中aggregate base net PnL正が6以上。"
+    - "aggregate base net PnL>0かつmomentum aggregateを上回る。"
+    - "fee・spread・slippage 2倍aggregate stress net PnL>0。"
+    - "aggregate residual Spearman rank IC>0かつresidual momentum rank ICを上回る。"
+    - "評価行に対するone-sided lower estimate coverageが60%以上80%以下。"
+    - "1銘柄の正利益寄与<=aggregate positive profitの35%。"
+    - "未来参照、held-out label混入、補間、期限切れmodel、allocation rejection、会計不一致が0。"
+  target_rejection_criteria:
+    - "base net PnL<=0またはmomentum以下。"
+    - "completed round trips<40、またはいずれかのtarget銘柄が5未満。"
+    - "base net PnL正のtarget銘柄が4中3未満。"
+    - "fee・spread・slippage 2倍stress net PnL<=0。"
+    - "最大drawdown<=-10%、またはデータ・model・会計不整合が1件以上。"
+  inconclusive_cap: "24・72・168時間circular block bootstrap各10,000回seed 0でpipeline-minus-momentum日次return差95% CIを求め、いずれかが0を含めれば最大INCONCLUSIVE。"
+  maximum_variants: 1
+  model_pipeline_count: 1
+  calibration_quantile_count: 1
+  margin_count: 1
+  random_seed: 0
+  research_status: "PREREGISTERED"
+  promotion_status: "NOT_ELIGIBLE"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  taker_fee: "0.0006 per fill"
+  spread_assumption: "round-trip 0.001"
+  slippage_assumption: "片道0.0005"
+  funding_assumption: "entry < settlement < exitの実績rateをlong cash flowとして反映する。"
+  stress_case: "fee、spread、slippageをすべて2倍。"
+  liquidity_constraints: "初期1000 USDT、1 position 100 USDT、同時最大1、reserve 200 USDT、short・追加レバレッジなし。"
+
+provenance:
+  parent_experiment_ids: ["EXP-2026-0055", "EXP-2026-0056"]
+  references:
+    - path: "docs/residualized-ranking-ml-research.md"
+      relevance: "残差target、point-in-time beta、regime、robust回帰、時間calibrationの根拠。"
+  preregistration_commit: "source再学習前に29特徴量、3 model固定設定、fit/calibration、q30 error、margin、12 fold、全gateをcommitで固定する。"
+
+execution_status:
+  preregistered: true
+  runner_exists: false
+  source_gate_completed: false
+  sealed_target_opened: false
+  sealed_target_completed: false
+  paper_started: false
+  shadow_started: false
+  live_started: false
+  independent_validation_status: "PENDING"
