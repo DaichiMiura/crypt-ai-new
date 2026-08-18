@@ -2,7 +2,7 @@ schema_version: 1
 experiment_id: "EXP-2026-0057"
 created_at_utc: "2026-08-18T01:58:38Z"
 owner_role: "research"
-status: "preregistered"
+status: "rejected"
 
 hypothesis:
   statement: "判断時点までの30日betaでBTC市場共通成分を除いた6時間net return残差をranking・robust回帰し、BTC市場return予測と再合成して時間分離calibration下限で取引すると、source9銘柄の12 asset×time OOS foldで正のrank ICと十分な取引数を持ち、封印したETC・FIL・TRX・XLMへ移転する可能性がある。"
@@ -101,8 +101,36 @@ evaluation:
   calibration_quantile_count: 1
   margin_count: 1
   random_seed: 0
-  research_status: "PREREGISTERED"
+  research_status: "REJECTED"
   promotion_status: "NOT_ELIGIBLE"
+  source_gate_result:
+    completed_at_utc: "2026-08-18T02:10:01Z"
+    target_opening_authorized: false
+    selected_pipeline: null
+    rejection_reasons:
+      - "source_completed_round_trips_below_240"
+      - "source_positive_folds_below_9"
+      - "source_positive_symbols_below_6"
+      - "source_net_pnl_not_positive"
+      - "source_stress_net_pnl_not_positive"
+      - "source_residual_rank_ic_not_positive"
+      - "source_profit_concentration_above_35pct"
+    net_pnl_usdt: "-2.093143430437497739710250"
+    stress_2x_cost_net_pnl_usdt: "-55.801966996439504696165703"
+    momentum_net_pnl_usdt: "-1895.499145213345409982618918"
+    completed_round_trips: 171
+    positive_folds: 6
+    positive_symbols: 3
+    residual_rank_ic: -0.0037632314983635754
+    residual_momentum_rank_ic: -0.009991480178153248
+    lower_estimate_coverage: 0.6776636225266363
+    maximum_positive_profit_contribution: "0.8385420686243146225671028261"
+    sample_rows: 51462
+    excluded_decision_times: 0
+    result_artifact: "artifacts/EXP-2026-0057-source-gate/summary.json"
+    result_sha256: "6fc58da0e5de85da16412cced41ebca6e2aa124156368489b9f983bbfeb530d6"
+    validation: "12 foldの取引和・PnL和・重複判断・held-out所属・aggregate再集計・gate再判定・target非混入を機械照合済み。戦略承認を行う独立検証は未実施。"
+    interpretation: "q30 calibrationは67.8% coverageで機能し取引数はEXP-2026-0056の42から171へ増えたが、残差rank ICは負、baseと2倍費用PnLも負で、正利益の83.85%がADAへ集中した。市場共通成分除去は移転可能な相対signalを作れなかった。"
 
 cost_model:
   fee_model_version: "FEE-2026-0001-initial-assumption"
@@ -122,11 +150,12 @@ provenance:
 
 execution_status:
   preregistered: true
-  runner_exists: false
-  source_gate_completed: false
+  runner_exists: true
+  source_gate_completed: true
   sealed_target_opened: false
   sealed_target_completed: false
   paper_started: false
   shadow_started: false
   live_started: false
+  source_gate_runner_commit: "efc50aa"
   independent_validation_status: "PENDING"
