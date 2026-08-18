@@ -71,10 +71,22 @@ limitations:
   - "90日到達は戦略の有効性やpaper・shadow・liveを承認しない。"
 
 execution_status:
-  collector_exists: false
-  smoke_completed: false
+  collector_exists: true
+  collector_commit: "671ab2a0b52a0e4ba01c878a584a1dc4982cbcb6"
+  smoke_completed: true
   first_smoke_session: "20260818T031053Z-65671c39b132"
   first_smoke_result: "INCOMPLETE_SCHEMA_MISMATCH: orderbook payload internal aliases 84 messages"
+  passing_smoke_session: "20260818T031347Z-3e2447410873"
+  passing_smoke_result: "SMOKE_ONLY_COMPLETE"
+  passing_smoke_manifest_sha256: "5f37d8f0545fd5a7c7859582a4c8b00a2bb28265845c97b34d7a20603988e4c8"
+  passing_smoke_source_records: 1035
+  passing_smoke_sealed_target_records: 671
+  passing_smoke_control_records: 4
+  passing_smoke_parse_errors: 0
+  passing_smoke_schema_errors: 0
+  passing_smoke_reconnects: 0
+  passing_smoke_orders_sent: false
+  passing_smoke_authentication_used: false
   forward_collection_started: false
   target_values_displayed: false
   orders_sent: false
