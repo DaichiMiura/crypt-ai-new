@@ -93,6 +93,7 @@ execution_status:
   forward_collector_commit: "034e2f89230cfd61ff7f39bf8250627d86948751"
   forward_service: "crypt-ai-data-2026-0010-forward.service"
   forward_service_enabled: true
+  forward_user_linger_enabled: true
   forward_service_state_at_start_check: "active/running"
   forward_first_session_complete: false
   initial_service_attempt: "FAILED_EXIT_127: systemd PATH did not contain uv; no forward session created"

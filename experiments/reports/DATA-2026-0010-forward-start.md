@@ -5,6 +5,8 @@
 2026-08-18T05:06:59Zに、ZOOMEX公開WebSocketの90日forward収集を開始した。
 ユーザーsystemd serviceはenabledかつactive/runningで、最初のsessionは
 `20260818T050659Z-da24aa50694a`である。認証情報と注文endpointは使用していない。
+開始確認時にuser lingerが無効だったため、ログアウト後の継続に必要な`miura`のlingerを有効化し、
+`yes`を確認した。
 
 ## 固定版と安全境界
 
