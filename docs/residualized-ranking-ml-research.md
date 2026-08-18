@@ -28,7 +28,9 @@ BTC regimeは次の2 bit、4状態とする。
 ## Robust expected return
 
 XGBoost `reg:pseudohubererror`を固定設定で使う。残差return modelとBTC market modelは同じ
-tree設定、`huber_slope=0.01`、300 round、seed 0とする。rankingは従来どおり
+tree設定、`huber_slope=0.02`、300 round、seed 0とする。0.02はsource結果を見る前の
+synthetic preflightで、`min_child_weight=20`のまま定数予測を避けられた最小候補として固定した。
+rankingは従来どおり
 `rank:pairwise`を使う。
 
 各outer foldの730日train windowを時間順80/20へ分ける。先頭80%だけで3 modelをfitし、
