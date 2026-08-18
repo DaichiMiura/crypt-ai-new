@@ -1,0 +1,127 @@
+schema_version: 1
+snapshot_id: "DATA-2026-0006"
+created_at_utc: "2026-08-17T14:43:32.298452Z"
+
+source:
+  provider: "ZOOMEX public V3 REST API"
+  exchange: "ZOOMEX Global"
+  dataset_name: "Linear USDT perpetual 1-hour trade/mark/index/premium prices and funding history"
+  retrieval_uri: "https://openapi.zoomex.com"
+  retrieved_at_utc: "2026-08-17T14:43:32.298452Z"
+  authentication_used: false
+  endpoints:
+    trade_kline: "/cloud/trade/v3/market/kline"
+    mark_price_kline: "/cloud/trade/v3/market/mark-price-kline"
+    index_price_kline: "/cloud/trade/v3/market/index-price-kline"
+    premium_index_kline: "/cloud/trade/v3/market/premium-index-price-kline"
+    funding_history: "/cloud/trade/v3/market/funding/history"
+    instruments_info: "/cloud/trade/v3/market/instruments-info"
+
+venue:
+  role: "target_execution"
+  market_type: "linear_usdt_perpetual"
+  exchange: "ZOOMEX Global"
+  category: "linear"
+  traded_symbols:
+    - "LINKUSDT"
+    - "UNIUSDT"
+    - "AVAXUSDT"
+    - "AAVEUSDT"
+  context_only_symbols:
+    - "BTCUSDT"
+  selection_snapshot: "EXP-2026-0042と同じ固定4銘柄を取引対象とし、BTCUSDTは市場context特徴量専用で売買しない。結果確認後の銘柄選択は行わない。"
+
+coverage:
+  requested_start_utc: "2021-01-01T00:00:00Z"
+  requested_end_utc_exclusive: "2026-08-01T00:00:00Z"
+  common_feature_start_utc: "2021-11-30T00:00:00Z"
+  planned_evaluation_start_utc: "2022-02-01T00:00:00Z"
+  development_end_utc_exclusive: "2026-01-01T00:00:00Z"
+  sealed_holdout_start_utc: "2026-01-01T00:00:00Z"
+  sealed_holdout_end_utc_exclusive: "2026-08-01T00:00:00Z"
+  interval: "1h"
+  timezone: "UTC"
+  event_time_definition: "ZOOMEX Klineの開始時刻をUTCへ正規化した。"
+  per_symbol_price_rows:
+    BTCUSDT: 47496
+    LINKUSDT: 48912
+    UNIUSDT: 40920
+    AVAXUSDT:
+      trade: 42736
+      mark_price: 42739
+      index_price: 42739
+      premium_index: 42736
+    AAVEUSDT:
+      trade: 45735
+      mark_price: 45738
+      index_price: 45740
+      premium_index: 45734
+  per_symbol_price_start_utc:
+    BTCUSDT: "2021-03-01T00:00:00Z"
+    LINKUSDT: "2021-01-01T00:00:00Z"
+    UNIUSDT: "2021-11-30T00:00:00Z"
+    AVAXUSDT: "trade/premium 2021-09-15T08:00:00Z; mark/index 2021-09-15T05:00:00Z"
+    AAVEUSDT: "index 2021-05-13T04:00:00Z; mark 06:00; trade 09:00; premium 10:00"
+  funding_rows:
+    BTCUSDT: 5936
+    LINKUSDT: 6114
+    UNIUSDT: 5885
+    AVAXUSDT: 5341
+    AAVEUSDT: 5716
+
+sealed_holdout:
+  status: "SEALED_DATA_ACQUIRED"
+  content_opened: false
+  allowed_pre_preregistration_checks:
+    - "API success code"
+    - "行数"
+    - "先頭・末尾時刻"
+    - "重複数"
+    - "欠測数"
+    - "補間数"
+    - "SHA-256"
+  prohibited_until_hypothesis_registration:
+    - "2026年OHLC、volume、turnover、premium、Fundingの値表示"
+    - "2026年feature、label、予測、損益、銘柄別成績の計算または表示"
+    - "holdoutに基づくmodel、threshold、feature、symbolの変更"
+  opening_rule: "EXP-2026-0054の仮説、model選択規則、費用、採否条件をcommitで固定し、2025 development gateを満たした1 modelだけを選んだ後に一度だけ開封する。"
+
+integrity:
+  retrieval_script_commit: "bb59a5a"
+  metadata_path: "var/exp-2026-0054-data.json"
+  metadata_sha256: "sha256:cbf2f7b2076e96c30def5eac89c3037220bbf3d18b41568f5abd46415a77c34e"
+  transform: "API取得値をUTC・時刻昇順・数値型へ正規化し、値を変更せず系列別CSVへ保存した。系列の先頭差はtrimせず保持する。"
+  duplicate_count: 0
+  internal_price_gap_count: 0
+  interpolated_price_rows: 0
+  reaches_sealed_end: true
+  artifact_hashes: "各CSVのSHA-256、行数、端点、欠測segmentはmetadata_pathのsymbols[].artifactsに記録した。"
+  local_artifact_count: 25
+  local_artifact_size: "約61 MiB"
+
+transform:
+  method: "observed_rows_only_no_interpolation"
+  price_columns: "tradeはOHLC・volume・turnover、mark/index/premiumはOHLCを数値化した。"
+  funding_columns: "Funding rateを数値化し、settlement timestampを移動せず保存した。"
+  alignment_policy: "取得時は系列別の観測開始差を保持する。実験dataset構築時にfeature windowの全系列が実測で揃う判断時刻だけを採用する。"
+  missing_policy: "補間しない。欠測を含むfeature windowまたはlabel windowを除外し、除外件数を実験成果物へ残す。"
+  synthetic_rows_are_venue_observations: false
+
+cost_assumptions:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_rate: "0.0002 (参考値、約定はtaker想定)"
+  taker_rate: "0.0006"
+  fee_asset: "USDT"
+  discount_or_promotion: "未確認。口座固有tierや割引を仮定しない。"
+  spread_model: "round-trip 0.001"
+  slippage_model: "片道0.0005"
+  stress_model: "fee、spread、slippageをすべて2倍"
+
+limitations:
+  - "取得時のinstruments-infoはmetadataへ保存したが、過去のtick size、quantity step、Funding interval変更を完全には再現しない。"
+  - "Klineは板、受信遅延、部分約定、注文拒否、時変spreadを表さない。"
+  - "orderbook snapshotとrecent public tradeを本snapshotへ混在させていない。過去板を再構築できないためmicrostructure特徴量は対象外である。"
+  - "銘柄・系列ごとの開始時刻差があり、共通feature期間は最も遅いUNIUSDT 2021-11-30以降となる。"
+  - "2026-01-01〜2026-07-31は取得済みだが内容未開封のsealed holdoutであり、仮説登録前に価格や成績を確認しない。"
+  - "価格CSVとFunding CSVはサイズのためリポジトリへcommitせず、取得コード、metadata hash、artifact hashで追跡する。"
+  - "本snapshotはデータ取得と封印を示すだけで、戦略の有効性、paper、shadow、live運用を承認しない。"

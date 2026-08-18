@@ -25,6 +25,7 @@ required_files=(
   docs/paper-shadow-exp-2026-0042.md
   deploy/systemd/crypt-ai-exp-0042-paper-shadow.service
   deploy/systemd/crypt-ai-exp-0042-paper-shadow.timer
+  deploy/systemd/crypt-ai-data-2026-0010-forward.service
   docs/research-policy.md
   docs/risk-policy.md
   docs/allocation-policy.md
@@ -158,6 +159,8 @@ required_files=(
   scripts/run_exp_2026_0051.py
   scripts/capture_exp_2026_0042_paper_shadow.py
   scripts/run_exp_2026_0042_paper_shadow_cycle.sh
+  scripts/run_data_2026_0010_forward.sh
+  scripts/collect_zoomex_realtime_microstructure.py
   scripts/diagnose_exp_2026_0035_drawdown.py
   scripts/download_zoomex_exp_2026_0032_spot_data.py
   scripts/run_exp_2026_0030.py

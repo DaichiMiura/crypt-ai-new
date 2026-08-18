@@ -1,0 +1,170 @@
+schema_version: 1
+experiment_id: "EXP-2026-0056"
+created_at_utc: "2026-08-18T01:40:00Z"
+owner_role: "research"
+status: "completed"
+
+hypothesis:
+  statement: "15分足のdimensionless特徴量から同時刻の銘柄順位をLambdaRankで学び、別のquantile modelで100 USDT longの費用・Funding込みnet return 40%分位点を推定すると、source9銘柄の12 asset×time OOS foldを通過し、学習に一度も使わないETC・FIL・TRX・XLMの2026-01-01〜2026-07-31でcashと6時間momentumを上回る可能性がある。"
+  economic_rationale: "EXP-2026-0055には弱い横断順位情報があったが、絶対確率とclass条件付き平均が費用gateへ届かなかった。順位lossで相対選択を直接最適化し、値幅は費用控除後net returnの下側分位点として別に推定すれば、順位能力と経済的取引可否を混同せず未知銘柄へ転移できる可能性がある。"
+  expected_failure_modes:
+    - "15分足の追加情報がnoiseで、rank ICやtop1選択がmomentumを上回らない。"
+    - "q40 modelが0付近へ縮み、entryが不足する。"
+    - "下側分位点が過度に楽観的で、実現net returnとcalibrationしない。"
+    - "source9銘柄内の順位関係が未観測4銘柄へ移転しない。"
+    - "15分Klineは板、queue、時変spreadを表さず、固定費用が実約定を過小評価する。"
+    - "Funding、quantity丸め、銘柄別volatilityの差でnet labelが不安定になる。"
+
+methodology:
+  setup: "UTC 00:00、06:00、12:00、18:00に判断する。tより前に終了した15分足だけでfeatureを作り、t openでentry、t+6h openでexitする。source train銘柄だけの同時刻groupでrank relevanceを作る。"
+  label: "各銘柄を100 USDT longした場合のnet_return=net_pnl/(quantity*raw_entry_open)。raw price PnL、entry<settlement<exitの実績Funding、taker fee、spread、slippage、quantity step、minimum quantityを固定会計で反映する。"
+  rank_target: "各train query内でnet returnを昇順rankし0..N-1の整数relevanceへ変換する。同値はsymbol昇順で決定論的に一意化する。"
+  features:
+    - "local trade close log return: 15分、30分、1、3、6、12、24時間。"
+    - "15分log returnの母標準偏差: 1、6、24時間。"
+    - "downside semivolatility: 6、24時間。"
+    - "直前15分足のbody=(close-open)/open、range=(high-low)/open。"
+    - "log1p(volume)とlog1p(turnover)の直近96実測足z-score。"
+    - "BTC context: 1、6、24時間returnと6、24時間volatility。"
+    - "同時刻groupの6時間return降順percentile rank、中央値差、母標準偏差。"
+    - "UTC hour sin/cos。"
+  feature_count: 26
+  models:
+    ranker: "xgboost 3.4.1 native API。objective=rank:pairwise、eval_metric=ndcg@1、max_depth=3、eta=0.05、min_child_weight=20、subsample=1、colsample_bytree=1、lambda=10、alpha=0、gamma=0、tree_method=hist、max_bin=256、seed=0、nthread=1、num_boost_round=300。queryはdecision_time、group行はsymbol昇順。"
+    quantile: "xgboost 3.4.1 native API。objective=reg:quantileerror、quantile_alpha=0.40、eval_metric=quantile、rankerと同じtree設定、num_boost_round=300。net returnを直接推定する。"
+  entry_rule: "評価groupでrank score最大の銘柄を選ぶ。normalized_margin=(top-second)/max(group score母標準偏差,1e-12)>=0.25、かつ当該銘柄の予測q40 net return>0の場合だけ100 USDT longする。同値はsymbol昇順。"
+  exit_rule: "entryから6時間後の15分Kline openで全量exit。途中resize、利確、損切り、signal反転決済なし。"
+  no_trade_conditions:
+    - "normalized rank margin<0.25、q40<=0、またはいずれかが非有限。"
+    - "24時間の96 return区間を作る97個のclose観測windowに欠測、重複、補間、非正価格、非有限値がある。"
+    - "Funding、quantity step、minimum quantity、reserve cashを検査できない。"
+    - "modelが固定30日期限を超過、またはsource train groupを構築できない。"
+  simplicity_rationale: "単一26特徴量set、ranker1設定、quantile alpha1個、margin1個、long top1、固定100 USDTに限定する。feature・threshold・alpha・hyperparameter探索、short、neural network、RL、AutoMLを行わない。"
+
+scope:
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  market_type: "linear_usdt_perpetual"
+  source_symbols: ["LINKUSDT", "UNIUSDT", "AVAXUSDT", "AAVEUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "NEARUSDT"]
+  context_only_symbols: ["BTCUSDT"]
+  sealed_target_symbols: ["ETCUSDT", "FILUSDT", "TRXUSDT", "XLMUSDT"]
+  timeframe: "15m features; UTC 6h decisions; fixed 6h holding"
+  start_utc: "2022-01-01T00:00:00Z"
+  end_utc: "2026-08-01T00:00:00Z"
+  pair_mapping: "研究・想定実行ともZOOMEX linear USDT perpetual。BTCUSDTはcontext専用。"
+
+source_validation:
+  asset_folds:
+    A: ["AAVEUSDT", "ETHUSDT", "SOLUSDT"]
+    B: ["ADAUSDT", "LINKUSDT", "UNIUSDT"]
+    C: ["AVAXUSDT", "NEARUSDT", "XRPUSDT"]
+  asset_fold_rule: "source symbol昇順を3 foldへround-robin配置した固定組。各foldでheld-out3銘柄の全期間labelをtrainへ使わない。"
+  time_folds:
+    - {cutoff: "2024-01-01T00:00:00Z", end_exclusive: "2024-07-01T00:00:00Z"}
+    - {cutoff: "2024-07-01T00:00:00Z", end_exclusive: "2025-01-01T00:00:00Z"}
+    - {cutoff: "2025-01-01T00:00:00Z", end_exclusive: "2025-07-01T00:00:00Z"}
+    - {cutoff: "2025-07-01T00:00:00Z", end_exclusive: "2026-01-01T00:00:00Z"}
+  train_window: "各cutoffより前の直近730日。exitがcutoff以上の6時間labelをpurgeする。"
+  total_oos_folds: 12
+  model_selection: "単一pipelineなので選択しない。12 fold全条件通過時だけ同じpipelineをtargetへ使用する。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  snapshot_id: "DATA-2026-0008"
+  metadata_path: "var/exp-2026-0056-data.json"
+  metadata_sha256: "82a3c6439120277d016975f4bc6b9ab10f226d8dd376e1caf3a02c0aa816eaaa"
+  timezone: "UTC"
+  sealed_holdout: "ETC・FIL・TRX・XLMの2026-01-01T00:00:00Z〜2026-08-01T00:00:00Z exclusive。仮説登録時点で値、feature、label、損益は未開封。"
+  known_limitations:
+    - "Kline/Fundingは板、受信遅延、部分約定、注文拒否、時変spreadを表さない。"
+    - "取得時contract specificationであり、履歴上の仕様変更を完全には再現しない。"
+    - "Funding settlement markは1時間mark Kline openを代理値とする。"
+    - "ZOOMEX公開履歴上の結果であり、実約定での有効性は未検証。"
+
+evaluation:
+  baselines:
+    cash: "初期1000 USDTを保持しPnL 0、取引0。"
+    momentum: "同じgroup・判断・会計で、直近6時間return最大かつ0より大きい銘柄を100 USDT longする。"
+    rank_momentum: "同時刻groupの6時間return順位。rank IC比較専用。"
+    constant_q40: "各train foldのnet return 40%分位点を全評価行へ出す。pinball loss比較専用。"
+  source_gate:
+    - "12 fold合計completed round trips>=240。"
+    - "12 fold中base net PnL正が9以上。"
+    - "9 source銘柄中aggregate base net PnL正が6以上。"
+    - "aggregate base net PnL>0かつmomentum aggregateを上回る。"
+    - "fee・spread・slippage 2倍のaggregate stress net PnL>0。"
+    - "aggregate Spearman rank IC>0かつ6時間momentum rank ICを上回る。"
+    - "q40 pinball loss<constant q40 pinball loss。"
+    - "1銘柄の正利益寄与<=aggregate positive profitの35%。"
+    - "未来参照、held-out label混入、補間、期限切れmodel、allocation rejection、会計不一致が0。"
+  target_primary_metric: "base net PnL>0かつcash・momentumを上回る。"
+  target_rejection_criteria:
+    - "completed round trips<40、またはいずれかのtarget銘柄が5未満。"
+    - "base net PnL正のtarget銘柄が4中3未満。"
+    - "fee・spread・slippage 2倍のstress net PnL<=0。"
+    - "最大drawdown<=-10%。"
+    - "未来参照、target label利用、補間、期限切れmodel、allocation rejection、会計不一致が1件以上。"
+  inconclusive_cap: "24・72・168時間circular block bootstrap各10,000回seed 0でpipeline-minus-momentum日次return差95% CIを求め、いずれかが0を含めれば最大INCONCLUSIVE。全lower bound>0だけPASSED_FORWARD_TEST候補。"
+  maximum_variants: 1
+  rank_model_count: 1
+  quantile_model_count: 1
+  quantile_alpha_count: 1
+  margin_count: 1
+  random_seed: 0
+  research_status: "REJECTED"
+  promotion_status: "NOT_ELIGIBLE"
+  source_gate_result:
+    completed_at_utc: "2026-08-18T01:48:00Z"
+    target_opening_authorized: false
+    selected_pipeline: null
+    rejection_reasons:
+      - "source_completed_round_trips_below_240"
+      - "source_positive_folds_below_9"
+      - "source_rank_ic_not_positive"
+    net_pnl_usdt: "37.643238201229000773843720"
+    stress_2x_cost_net_pnl_usdt: "24.45587900813099926044945"
+    momentum_net_pnl_usdt: "-1895.499145213345409982618918"
+    completed_round_trips: 42
+    positive_folds: 8
+    positive_symbols: 6
+    rank_ic: -0.003313418244104314
+    momentum_rank_ic: -0.011339813378116641
+    q40_pinball_loss: 0.007944604375270942
+    constant_q40_pinball_loss: 0.00798499086156285
+    maximum_positive_profit_contribution: "0.3137556433254669897749290222"
+    sample_rows: 52542
+    excluded_decision_times: 0
+    result_artifact: "artifacts/EXP-2026-0056-source-gate/summary.json"
+    result_sha256: "2fceee5ff68302150bd60a1a3b6671ae3e3434c402db62d8b891af271526416f"
+    validation: "source入力から52,542 net labelを再構築し、全base・momentum取引のrealized net return、quantity×entry会計、fold合計、資金下限、target非混入を照合済み。"
+    interpretation: "q40は定数予測をわずかに上回り費用stress後もaggregate PnLは正だったが、取引42件で必要240件を大幅に下回り、rank ICも負だったため未知銘柄へ開く証拠として不足した。"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  taker_fee: "0.0006 per fill"
+  fee_asset: "USDT"
+  spread_assumption: "round-trip 0.001を各fillへ0.0005ずつ不利側に反映する。"
+  slippage_assumption: "各fillへ0.0005を不利側に反映する。"
+  funding_assumption: "entry < settlement < exitの実績rateをlong cash flow=-quantity*settlement_mark_proxy*rateで反映する。"
+  stress_case: "fee、spread、slippageをすべて2倍。Fundingは実績rateのまま。"
+  liquidity_constraints: "初期1000 USDT、1 position最大100 USDT、同時最大1 long、gross上限100 USDT、reserve cash 200 USDT、short・追加レバレッジなし。"
+
+provenance:
+  parent_experiment_ids: ["EXP-2026-0054", "EXP-2026-0055"]
+  references:
+    - path: "docs/ranking-quantile-ml-research.md"
+      relevance: "ranking、quantile、15分足、asset×time OOS、未観測target選定の根拠。"
+  preregistration_commit: "source学習結果を見る前に26特徴量、12 fold、ranker、q40、0.25 normalized margin、費用、全gateをcommitで固定する。"
+
+execution_status:
+  preregistered: true
+  data_integrity_completed: true
+  runner_exists: true
+  source_gate_completed: true
+  sealed_target_opened: false
+  sealed_target_completed: false
+  paper_started: false
+  shadow_started: false
+  live_started: false
+  source_gate_runner_commit: "9a511bd"
+  independent_validation_status: "PENDING"

@@ -1,0 +1,107 @@
+schema_version: 1
+snapshot_id: "DATA-2026-0007"
+created_at_utc: "2026-08-17T15:49:23.874542Z"
+
+source:
+  provider: "ZOOMEX public V3 REST API"
+  exchange: "ZOOMEX Global"
+  dataset_name: "Linear USDT perpetual 1-hour trade/mark/index/premium prices and funding history"
+  retrieval_uri: "https://openapi.zoomex.com"
+  retrieved_at_utc: "2026-08-17T15:49:23.874542Z"
+  authentication_used: false
+  endpoints:
+    trade_kline: "/cloud/trade/v3/market/kline"
+    mark_price_kline: "/cloud/trade/v3/market/mark-price-kline"
+    index_price_kline: "/cloud/trade/v3/market/index-price-kline"
+    premium_index_kline: "/cloud/trade/v3/market/premium-index-price-kline"
+    funding_history: "/cloud/trade/v3/market/funding/history"
+    instruments_info: "/cloud/trade/v3/market/instruments-info"
+
+venue:
+  role: "target_execution"
+  market_type: "linear_usdt_perpetual"
+  exchange: "ZOOMEX Global"
+  category: "linear"
+  source_supplement_symbols: ["ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "NEARUSDT"]
+  sealed_target_symbols: ["BCHUSDT", "LTCUSDT", "DOTUSDT", "DOGEUSDT"]
+  context_only_symbols: ["BTCUSDT"]
+  selection_snapshot: "2026-08-18にinstruments-infoだけを確認し、既存実験未使用、Trading、USDT linear、2022年以前launchの候補をlaunchTime昇順・同値symbol昇順で4銘柄固定した。価格・return・volumeは選択に使っていない。"
+  reserves: ["ETCUSDT", "TRXUSDT", "ATOMUSDT"]
+
+coverage:
+  requested_start_utc: "2021-01-01T00:00:00Z"
+  requested_end_utc_exclusive: "2026-08-01T00:00:00Z"
+  planned_evaluation_start_utc: "2022-02-01T00:00:00Z"
+  sealed_holdout_start_utc: "2026-01-01T00:00:00Z"
+  sealed_holdout_end_utc_exclusive: "2026-08-01T00:00:00Z"
+  interval: "1h"
+  timezone: "UTC"
+  event_time_definition: "ZOOMEX Klineの開始時刻をUTCへ正規化した。"
+  per_symbol_trade_rows:
+    ETHUSDT: 47496
+    SOLUSDT: 42024
+    XRPUSDT: 45735
+    ADAUSDT: 47081
+    NEARUSDT: 42116
+    BCHUSDT: 48912
+    LTCUSDT: 48912
+    DOTUSDT: 47079
+    DOGEUSDT: 45254
+  per_symbol_trade_start_utc:
+    ETHUSDT: "2021-03-01T00:00:00Z"
+    SOLUSDT: "2021-10-15T00:00:00Z"
+    XRPUSDT: "2021-05-13T09:00:00Z"
+    ADAUSDT: "2021-03-18T07:00:00Z"
+    NEARUSDT: "2021-10-11T04:00:00Z"
+    BCHUSDT: "2021-01-01T00:00:00Z"
+    LTCUSDT: "2021-01-01T00:00:00Z"
+    DOTUSDT: "2021-03-18T09:00:00Z"
+    DOGEUSDT: "2021-06-02T10:00:00Z"
+
+sealed_target:
+  status: "SEALED_DATA_ACQUIRED"
+  content_opened: false
+  allowed_checks_performed: ["API success code", "行数", "先頭・末尾時刻", "重複数", "欠測数", "補間数", "SHA-256"]
+  prohibited_until_source_gate:
+    - "targetのOHLC、volume、turnover、premium、Fundingの値表示"
+    - "targetのfeature、label、予測、損益、銘柄別成績の計算または表示"
+    - "targetに基づくmodel、threshold、feature、symbolの変更"
+  opening_rule: "EXP-2026-0055の仮説とsource-only leave-one-asset-out gateをcommitで固定し、gate通過後に選択modelで一度だけ開く。"
+
+integrity:
+  retrieval_script_commit: "3452111"
+  metadata_path: "var/exp-2026-0055-data.json"
+  metadata_sha256: "sha256:99201014870994c824160f6e449e8c61820fa0a6730affefebb946b2c21fd90d"
+  transform: "API取得値をUTC・時刻昇順・数値型へ正規化し、値を変更せず系列別CSVへ保存した。"
+  duplicate_count: 0
+  internal_price_gap_count: 0
+  interpolated_price_rows: 0
+  reaches_sealed_end: true
+  artifact_hashes: "45 CSVそれぞれのSHA-256、行数、端点、欠測segmentをmetadata_pathに記録した。"
+  local_artifact_count: 45
+  local_artifact_size: "約111 MiB"
+
+transform:
+  method: "observed_rows_only_no_interpolation"
+  price_columns: "tradeはOHLC・volume・turnover、mark/index/premiumはOHLCを数値化した。"
+  funding_columns: "Funding rateを数値化し、settlement timestampを移動せず保存した。"
+  alignment_policy: "系列別の観測開始差を保持し、実験dataset構築時に必要windowが全て実測で揃う判断時刻だけを採用する。"
+  missing_policy: "補間しない。欠測を含むfeatureまたはlabel windowを除外し、除外件数を残す。"
+  synthetic_rows_are_venue_observations: false
+
+cost_assumptions:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_rate: "0.0002 (参考値、約定はtaker想定)"
+  taker_rate: "0.0006"
+  fee_asset: "USDT"
+  spread_model: "round-trip 0.001"
+  slippage_model: "片道0.0005"
+  stress_model: "fee、spread、slippageをすべて2倍"
+
+limitations:
+  - "取得時instruments-infoであり、過去のtick size、quantity step、minimum quantity、Funding interval変更を完全には再現しない。"
+  - "Klineは板、受信遅延、部分約定、注文拒否、時変spreadを表さない。"
+  - "銘柄・系列ごとの開始時刻差があり、共通評価は必要windowが揃う時刻に限定する。"
+  - "価格CSVとFunding CSVはcommitせず、取得コード、metadata hash、artifact hashで追跡する。"
+  - "本snapshotはデータ取得と封印だけを示し、戦略の有効性やpaper、shadow、liveを承認しない。"
+  - "ZOOMEX公開履歴上のデータであり、実約定の有効性を示さない。"

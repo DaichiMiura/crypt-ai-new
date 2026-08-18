@@ -1,0 +1,96 @@
+schema_version: 1
+snapshot_id: "DATA-2026-0008"
+created_at_utc: "2026-08-18T01:38:48.499850Z"
+
+source:
+  provider: "ZOOMEX public V3 REST API"
+  exchange: "ZOOMEX Global"
+  dataset_name: "Linear USDT perpetual 15-minute trade Kline plus sealed-target mark/funding accounting data"
+  retrieval_uri: "https://openapi.zoomex.com"
+  retrieved_at_utc: "2026-08-18T01:38:48.499850Z"
+  authentication_used: false
+  endpoints:
+    trade_15m: "/cloud/trade/v3/market/kline"
+    mark_price_1h: "/cloud/trade/v3/market/mark-price-kline"
+    funding: "/cloud/trade/v3/market/funding/history"
+    instruments_info: "/cloud/trade/v3/market/instruments-info"
+
+venue:
+  role: "target_execution"
+  market_type: "linear_usdt_perpetual"
+  category: "linear"
+  source_symbols: ["BTCUSDT", "LINKUSDT", "UNIUSDT", "AVAXUSDT", "AAVEUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "NEARUSDT"]
+  sealed_target_symbols: ["ETCUSDT", "FILUSDT", "TRXUSDT", "XLMUSDT"]
+  selection_snapshot: "2026-08-18にinstruments-infoだけを確認し、既存実験未使用、Trading、USDT linear、2022年以前launchをlaunchTime・symbol昇順で4銘柄固定した。"
+  reserves: ["ICPUSDT", "ALGOUSDT", "ATOMUSDT"]
+
+coverage:
+  requested_start_utc: "2022-01-01T00:00:00Z"
+  requested_end_utc_exclusive: "2026-08-01T00:00:00Z"
+  sealed_holdout_start_utc: "2026-01-01T00:00:00Z"
+  sealed_holdout_end_utc_exclusive: "2026-08-01T00:00:00Z"
+  trade_interval: "15m"
+  mark_interval: "1h"
+  timezone: "UTC"
+  per_symbol_trade_rows:
+    BTCUSDT: 160608
+    LINKUSDT: 160608
+    UNIUSDT: 160608
+    AVAXUSDT: 160608
+    AAVEUSDT: 160608
+    ETHUSDT: 160608
+    SOLUSDT: 160608
+    XRPUSDT: 160608
+    ADAUSDT: 160608
+    NEARUSDT: 160608
+    ETCUSDT: 160608
+    FILUSDT: 160608
+    TRXUSDT: 160608
+    XLMUSDT: 160608
+  common_trade_start_utc: "2022-01-01T00:00:00Z"
+  common_trade_end_utc: "2026-07-31T23:45:00Z"
+
+sealed_target:
+  status: "SEALED_DATA_ACQUIRED"
+  content_opened: false
+  allowed_checks_performed: ["API success code", "行数", "先頭・末尾時刻", "重複数", "欠測数", "補間数", "SHA-256"]
+  prohibited_until_source_gate:
+    - "targetのOHLC、volume、turnover、Funding値の表示"
+    - "targetのfeature、label、予測、損益の計算または表示"
+    - "targetに基づくmodel、quantile alpha、rank margin、feature、symbolの変更"
+  opening_rule: "EXP-2026-0056仮説と12-fold source gateをcommitで固定し、全gate通過時だけ同じpipelineで一度開く。"
+
+integrity:
+  retrieval_script_commit: "96dc65a"
+  metadata_path: "var/exp-2026-0056-data.json"
+  metadata_sha256: "sha256:82a3c6439120277d016975f4bc6b9ab10f226d8dd376e1caf3a02c0aa816eaaa"
+  duplicate_count: 0
+  internal_trade_gap_count: 0
+  interpolated_trade_rows: 0
+  reaches_sealed_end: true
+  artifact_hashes: "22 CSVそれぞれのSHA-256、行数、端点、欠測segmentをmetadata_pathへ記録した。"
+  local_artifact_count: 22
+  local_artifact_size: "約199 MiB"
+
+transform:
+  method: "observed_rows_only_no_interpolation"
+  trade_columns: "15分trade OHLC、volume、turnoverを数値化し、UTC時刻昇順で保存した。"
+  accounting_columns: "targetだけ1時間mark OHLCとFunding rateを値変更なしで保存した。"
+  alignment_policy: "24時間の96 return区間を作る連続97個のclose観測が全て実測で揃う判断時刻だけを使う。"
+  missing_policy: "補間しない。欠測windowを除外して件数を成果物へ残す。"
+  synthetic_rows_are_venue_observations: false
+
+cost_assumptions:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  taker_rate: "0.0006"
+  spread_model: "round-trip 0.001"
+  slippage_model: "片道0.0005"
+  stress_model: "fee、spread、slippageをすべて2倍"
+
+limitations:
+  - "Klineは板、受信遅延、部分約定、注文拒否、時変spreadを表さない。"
+  - "取得時instruments-infoであり、過去のcontract specification変更を完全には再現しない。"
+  - "source会計用mark/Fundingは既存DATA-2026-0006/0007を再利用し、15分tradeだけを本snapshotで更新した。"
+  - "価格CSVとFunding CSVはcommitせず、取得コード、metadata hash、artifact hashで追跡する。"
+  - "本snapshotは取得と封印だけを示し、戦略、paper、shadow、liveを承認しない。"
+  - "ZOOMEX公開履歴上のデータであり、実約定の有効性を示さない。"

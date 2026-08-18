@@ -14,6 +14,7 @@
 | exchange API adapter | [CCXT](https://github.com/ccxt/ccxt) | MIT。リスク管理や会計を提供しない接続部品 |
 | research / parameter comparison | [VectorBT](https://github.com/polakowo/vectorbt) | Apache-2.0 with Commons Clause。大量探索による過学習に注意 |
 | execution semantics reference | [ml4t/backtest](https://github.com/ml4t/backtest) | MIT。費用・スリッページが既定で無効になり得るため明示設定が必要 |
+| tabular ML research | [XGBoost](https://github.com/dmlc/xgboost) | Apache-2.0。研究専用とし、未信頼のモデルファイルを読み込まない |
 
 候補は固定的な推奨ではない。採用時点のライセンス、対応venue、リリース、issue、テスト、既知の制約を再確認する。
 
@@ -55,3 +56,9 @@ OSSに任せてよいものは、データ取得、計算、シミュレーシ�
 - Python標準ライブラリ: Binance Public DataのHTTPS取得、ZIP展開、SHA-256検証、JSON出力に使う。
 - EXP-2026-0001の注文・約定・手数料・現金・ポジション計算は、このリポジトリが所有する決定論的コードで行う。pandasや他のOSSの内部損益を正本にしない。
 - 初期コードはresearch環境だけで実行し、APIキー、注文権限、資金移動権限を要求しない。
+
+## EXP-2026-0054 research stack
+
+XGBoostの採用判断、権限境界、既知の制約、停止方法は
+[`docs/xgboost-adoption.md`](xgboost-adoption.md)を正本とする。依存は`research`グループだけに置き、
+paper・liveの実行環境へ推移させない。

@@ -1,0 +1,119 @@
+schema_version: 1
+experiment_id: "EXP-2026-0053"
+created_at_utc: "2026-08-17T19:30:00Z"
+owner_role: "research"
+status: "completed"
+
+hypothesis:
+  statement: "EXP-2026-0042の新規entry時に、過去だけで学習したridge回帰が次週実現volatilityを高リスクと予測した場合のみ固定元本を200 USDTから100 USDTへ半減すると、取引候補を削除せず、2025 retrospective evaluationでbaseline損益の90%以上を維持しながら最大drawdownを3 percentage points以上改善できる可能性がある。"
+  economic_rationale: "価格方向よりvolatilityの方が持続性を持つ可能性があり、高volatility局面の元本だけを機械的に抑えれば、元のmomentum entryを残したまま損失振幅を制限できる可能性がある。MLは方向、entry採否、リスク上限緩和には使わない。"
+  expected_failure_modes:
+    - "volatility予測が不正確で、利益の大きい高volatility局面だけを縮小する。"
+    - "entry時の予測だけでは保有中の急激なvolatility上昇へ対応できない。"
+    - "固定4銘柄・週次標本では係数がregime変化へ追随しない。"
+    - "元本半減によるdrawdown改善が利益減少を上回らない。"
+
+methodology:
+  setup: "EXP-2026-0042と同じZOOMEX 4銘柄、確定2時間足、30日相対momentum、週次top2、最下位転落退出をbaselineとする。各週次判断で全4銘柄の標本を作り、判断時点までにtarget期間が終了した標本だけでridge回帰を再学習する。"
+  features:
+    - "時刻tの確定closeまでの30日momentum_return"
+    - "時刻tの4銘柄market_median_momentum"
+    - "時刻tのcross_sectional_rankを1〜4へ固定した数値"
+    - "時刻tまでの84本close-to-close returnの母標準偏差"
+  target: "時刻tのcloseから84本後のcloseまでに得られる84本close-to-close returnの母標準偏差。"
+  model: "L2 ridge回帰。各再学習時にtrain標本だけで特徴量とtargetを標準化し、batch gradient descent 800回、learning rate 0.05、L2 0.01、seed 0（乱数不使用）で固定する。"
+  risk_threshold: "train targetのnearest-rank 75th percentile。予測volatilityが閾値以上ならhigh riskとする。"
+  entry_rule: "EXP-2026-0042のentry候補をすべて維持する。high risk予測または学習標本80未満なら100 USDT（1 lot）、それ以外は200 USDT（2 lots）で次足openにentryする。"
+  stop_rule: "EXP-2026-0042と同じ最下位転落退出をtriggerの次足openで適用する。"
+  exit_rule: "EXP-2026-0042と同じ週次top2離脱、market regime非正、または最下位転落退出で次足openに決済する。保有中はlot数を変更せず、次の新規entryでだけ最新予測を使う。"
+  no_trade_conditions:
+    - "元のEXP-2026-0042が候補を出さない。"
+    - "データの欠損、重複、補間、時刻不整合、非正価格を検出する。"
+    - "配分上限、reserve cash、銘柄上限を満たさない。"
+  simplicity_rationale: "単一線形回帰、4特徴量、75th percentile、100/200 USDTの2段階、1 variantだけを固定し、特徴選択、閾値、元本段階を探索しない。"
+
+scope:
+  exchanges: ["ZOOMEX Global"]
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  venue_role: "target_execution"
+  symbols: ["LINKUSDT", "UNIUSDT", "AVAXUSDT", "AAVEUSDT"]
+  quote_assets: ["USDT"]
+  pair_mapping: "研究・targetとも同じZOOMEX linear USDT perpetual。4銘柄は固定universeでpoint-in-time universeではない。"
+  venue_transfer_claim: "same_venue_signal_only"
+  timeframe: "2h; weekly rebalance"
+  start_utc: "2022-02-01T00:00:00Z"
+  end_utc: "2026-01-01T00:00:00Z"
+  decision_time_information:
+    - "特徴量は時刻tの確定closeまで、約定はt+1 open。"
+    - "trainへ含めるtargetは84本後のcloseが時刻t以前に確定したものだけとする。"
+    - "標準化、ridge係数、75th percentileは各時点のtrainだけから計算する。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  snapshot_id: "DATA-2026-0004"
+  timezone: "UTC"
+  known_limitations:
+    - "2025年期間を含むデータは既存実験で観測済みであり、未観測OOSではない。"
+    - "固定4銘柄かつ週次の少数標本で、他銘柄や他期間への一般化を示さない。"
+    - "公開Kline/Fundingは板、部分約定、証拠金、清算、注文拒否を表さない。"
+    - "targetは価格volatilityで、Funding、spread、slippage、途中退出を直接予測しない。"
+    - "ZOOMEX公開履歴上の研究結果であり、実約定の有効性は未検証。"
+
+evaluation:
+  baseline: "固定済みEXP-2026-0042 live_rank_last_exitを100 USDT lot x 2で再現する。"
+  primary_metric: "2025-01-01〜2025-12-31 retrospective evaluationの費用・Funding込み最大drawdown差。"
+  secondary_metrics:
+    - "net PnL retention、entry/exit、Funding、fee、平均gross、high-risk entry比率、volatility MAE"
+    - "2022-02-01〜2024-12-31 developmentと2025 evaluationの損益符号"
+    - "費用2倍stressの2025 net PnL"
+  expected_value_formula: "risk_sized_long_price_pnl + funding_cash_flow - fees - spread - slippage"
+  rejection_criteria:
+    - "2025 evaluationのcompleted leg round tripsがbaselineより少ない。"
+    - "2025 evaluationのnet PnLがbaselineの90%未満。"
+    - "2025 evaluationの最大drawdown改善が3 percentage points未満。"
+    - "費用2倍stressの2025 net PnLが0以下。"
+    - "未来参照、予測、lot数、Funding、配分、会計を再構築できない。"
+  reserved_out_of_sample: "なし。2025年は既観測retrospective evaluationであり、候補でも開始後に取得するforwardデータなしに昇格しない。"
+  maximum_variants: 1
+  random_seed: 0
+  research_status: "REJECTED"
+  result_artifact: "artifacts/EXP-2026-0053/summary.json"
+  result_summary: "2025 retrospective evaluationはbaseline +235.34 USDTに対し+238.44 USDT（101.32% retention）、費用2倍+226.05 USDT、取引数同一だった。しかし最大DDは-10.11%から-10.74%へ0.63 points悪化し、3 points改善条件を満たさずREJECTED。10月7日のAVAX/LINK entry前に次週volを約1.19%/1.17%と低risk予測したが実現値は約2.88%/2.79%となり、10月10日の最大DDを縮小できなかった。"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.0002 (参考値、約定はtaker想定)"
+  taker_fee: "0.0006"
+  fee_asset: "USDT"
+  fee_sensitivity_cases:
+    - "base: fee 0.0006, round-trip spread 0.001, slippage per fill 0.0005"
+    - "stress: fee、spread、slippageをすべて2倍"
+  spread_assumption: "round-trip 0.001を各fillの不利側へ半分ずつ反映。"
+  slippage_assumption: "各fillへ0.0005を不利側へ反映。"
+  liquidity_constraints: "100 USDT lot、1銘柄最大2 lots、最大2 long、gross 400、total hard cap 800、reserve cash 200。"
+
+money_management:
+  sizing_method: "通常2 lots、高riskまたは学習不足1 lot。確率や予測値に比例させず、損失後に増額しない。"
+  risk_budget_basis: "初期1000 USDT、最大gross 400、reserve 200、追加レバレッジなし。"
+  loss_response: "モデルまたはデータ検査不能時は安全側の1 lotとし、上限を緩和しない。"
+  increase_conditions: []
+  decrease_conditions: ["予測volatilityが過去targetの75th percentile以上、または学習標本80未満。"]
+  risk_of_ruin_method: "evaluation最大DD、worst period、gross/equity比、連敗をbaselineと比較する。"
+
+provenance:
+  parent_experiment_ids: ["EXP-2026-0042", "EXP-2026-0052"]
+  references:
+    - title: "EXP-2026-0052 negative result"
+      relevance: "方向分類が取引を過度に削減したため、entryを残して元本だけを縮小する仮説へ変更する。"
+  preregistration_commit: "結果確認前にridge設定、4特徴量、84本target、75th percentile、100/200 USDT、1 variantを固定する。"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  backtest_result_artifact: "artifacts/EXP-2026-0053/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false

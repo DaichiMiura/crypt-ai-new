@@ -1,0 +1,23 @@
+[Unit]
+Description=crypt-ai DATA-2026-0010 public microstructure forward collection
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/home/miura/src/crypt-ai-new
+ExecStart=/home/miura/src/crypt-ai-new/scripts/run_data_2026_0010_forward.sh
+Restart=always
+RestartSec=30
+KillSignal=SIGTERM
+TimeoutStopSec=60
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=1G
+
+[Install]
+WantedBy=default.target

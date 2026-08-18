@@ -1,0 +1,120 @@
+schema_version: 1
+experiment_id: "EXP-2026-0052"
+created_at_utc: "2026-08-17T18:30:00Z"
+owner_role: "research"
+status: "completed"
+
+hypothesis:
+  statement: "EXP-2026-0042の週次top2候補に対し、判断時点より前に損益が確定した週だけで学習するロジスティック回帰をtrade-quality filterとして適用すると、固定ルール単独より費用控除後損益または最大drawdownを改善できる可能性がある。"
+  economic_rationale: "同じ相対momentumシグナルでも、市場中央値momentum、候補のmomentum強度、順位、直近volatilityにより次週の費用控除後期待値が異なる可能性がある。単純な線形確率モデルで低品質候補だけを見送れば、元戦略の決定論的な順位規則を保ちながら不要な曝露を減らせる。"
+  expected_failure_modes:
+    - "暗号資産のregime変化により過去の係数が次期へ移転しない。"
+    - "4銘柄・週次標本では学習量が不足し、予測確率が不安定になる。"
+    - "0.50閾値が取引を過度に減らし、上昇局面の利益を逃す。"
+    - "特徴量が元のmomentum規則と重複し、追加情報を持たない。"
+
+methodology:
+  setup: "EXP-2026-0042と同じZOOMEX 4銘柄、確定2時間足、30日相対momentum、週次更新、top2、最下位転落退出をbaselineとする。各週次判断で全4銘柄の候補標本を作り、当該判断以前に84本先のopenが確定した標本だけを使ってモデルを再学習する。"
+  features:
+    - "時刻tの確定closeまでの30日momentum_return"
+    - "時刻tの4銘柄market_median_momentum"
+    - "時刻tのcross_sectional_rankを1〜4へ固定した数値"
+    - "時刻tまでの84本close-to-close returnの母標準偏差"
+  target: "時刻tの次足openから84本後のopenまでのlong returnが、固定round-trip cost 0.0032を上回ると1、それ以外を0とする。"
+  model: "L2正則化付きロジスティック回帰。各再学習時にtrain標本だけで特徴量を標準化し、batch gradient descent 800回、learning rate 0.05、L2 0.01、seed 0（乱数不使用）で固定する。"
+  entry_rule: "EXP-2026-0042が週次top2として選んだ候補のうち、学習済みモデルの予測確率が0.50以上の銘柄だけを次足openでlongする。学習標本が80未満またはtrain labelが単一classなら全候補を見送る。"
+  stop_rule: "採用した建玉にはEXP-2026-0042と同じ最下位転落退出を適用し、triggerの次足openで退出する。"
+  exit_rule: "週次更新でtop2から外れる、market regimeが非正、ML確率が0.50未満、または最下位転落退出で次足openに決済する。評価終了時は最終closeでmark-to-marketする。"
+  no_trade_conditions:
+    - "学習済み標本が80未満、labelが単一class、または特徴量が非有限。"
+    - "元のEXP-2026-0042が候補を出さない。"
+    - "データの欠損、重複、補間、時刻不整合、非正価格を検出する。"
+    - "配分上限、reserve cash、銘柄上限を満たさない。"
+  simplicity_rationale: "説明可能な単一線形モデル、4特徴量、閾値0.50、1 variantだけを固定し、ニューラルネット、木モデル、特徴選択、閾値探索を行わない。"
+
+scope:
+  exchanges: ["ZOOMEX Global"]
+  research_venue: "ZOOMEX Global"
+  execution_venue: "ZOOMEX Global"
+  venue_role: "target_execution"
+  symbols: ["LINKUSDT", "UNIUSDT", "AVAXUSDT", "AAVEUSDT"]
+  quote_assets: ["USDT"]
+  pair_mapping: "研究・targetとも同じZOOMEX linear USDT perpetual。4銘柄は固定universeでpoint-in-time universeではない。"
+  venue_transfer_claim: "same_venue_signal_only"
+  timeframe: "2h; weekly rebalance"
+  start_utc: "2022-02-01T00:00:00Z"
+  end_utc: "2026-01-01T00:00:00Z"
+  decision_time_information:
+    - "特徴量は時刻tの確定closeまで、約定はt+1 open。"
+    - "trainへ含めるlabelは84本後のopenが時刻t以前に到来済みのものだけとし、重複labelの未来参照を防ぐ。"
+    - "標準化平均・標準偏差とモデル係数は各時点のtrainだけから計算する。"
+
+data:
+  source: "ZOOMEX Global public V3 REST API"
+  snapshot_id: "DATA-2026-0004"
+  timezone: "UTC"
+  known_limitations:
+    - "2025年期間を含むデータは既存実験で観測済みであり、未観測OOSではない。"
+    - "固定4銘柄かつ週次の少数標本で、他銘柄や他期間への一般化を示さない。"
+    - "公開Kline/Fundingは板、部分約定、証拠金、清算、注文拒否を表さない。"
+    - "targetはopen-to-open価格returnの費用近似であり、portfolioのFundingや途中退出を直接学習しない。"
+    - "ZOOMEX公開履歴上の研究結果であり、実約定の有効性は未検証。"
+
+evaluation:
+  baseline: "固定済みEXP-2026-0042 live_rank_last_exit。"
+  primary_metric: "2025-01-01〜2025-12-31 retrospective evaluationの費用・Funding込みnet PnL差。"
+  secondary_metrics:
+    - "最大drawdown差、entry/exit、Funding、fee、採用率、予測log loss、class balance"
+    - "2022-02-01〜2024-12-31 developmentと2025 evaluationの損益符号"
+    - "費用2倍stressの2025 net PnL"
+  expected_value_formula: "filtered_long_price_pnl + funding_cash_flow - fees - spread - slippage"
+  rejection_criteria:
+    - "2025 evaluationのcompleted leg round tripsが10未満。"
+    - "2025 evaluationのnet PnLがbaseline以下。"
+    - "2025 evaluationの最大drawdownがbaselineより悪化する。"
+    - "費用2倍stressの2025 net PnLが0以下。"
+    - "未来参照、標準化、Funding、配分、会計を再構築できない。"
+  reserved_out_of_sample: "なし。2025年は既観測retrospective evaluationであり、候補でも開始後に取得するforwardデータなしに昇格しない。"
+  maximum_variants: 1
+  random_seed: 0
+  research_status: "REJECTED"
+  result_artifact: "artifacts/EXP-2026-0052/summary.json"
+  result_summary: "2025 retrospective evaluationでbaseline +235.34 USDTに対しML filter -32.69 USDT、費用2倍 -33.88 USDT。baseline候補42件中採用3件（7.14%）に絞り、その3候補の84本target labelはすべて負だった。最大DDは-10.11%から-5.87%へ縮小したが、取引2往復、baseline非改善、stress損失の棄却条件に該当してREJECTED。"
+
+cost_model:
+  fee_model_version: "FEE-2026-0001-initial-assumption"
+  maker_fee: "0.0002 (参考値、約定はtaker想定)"
+  taker_fee: "0.0006"
+  fee_asset: "USDT"
+  fee_sensitivity_cases:
+    - "base: fee 0.0006, round-trip spread 0.001, slippage per fill 0.0005"
+    - "stress: fee、spread、slippageをすべて2倍"
+  spread_assumption: "round-trip 0.001を各fillの不利側へ半分ずつ反映。"
+  slippage_assumption: "各fillへ0.0005を不利側へ反映。"
+  liquidity_constraints: "EXP-2026-0042と同じ各200 USDT、最大2 long、gross 400、total hard cap 800、reserve cash 200。"
+
+money_management:
+  sizing_method: "MLは採否だけを返し、採用候補はEXP-2026-0042と同じ固定200 USDT。確率で増額しない。"
+  risk_budget_basis: "初期1000 USDT、最大gross 400、reserve 200、追加レバレッジなし。"
+  loss_response: "損失時も増額・online閾値変更をしない。検査不能では新規entryを拒否する。"
+  increase_conditions: []
+  decrease_conditions: ["ML判定不能またはデータ検査不能なら新規entryを拒否する。"]
+  risk_of_ruin_method: "evaluation最大DD、worst period、gross/equity比、連敗をbaselineと比較する。"
+
+provenance:
+  parent_experiment_ids: ["EXP-2026-0042"]
+  references:
+    - title: "Microsoft Qlib"
+      url: "https://github.com/microsoft/qlib"
+      relevance: "予測scoreをportfolio strategyへ渡すresearch workflowの設計参考。Qlib自体は依存に追加しない。"
+  preregistration_commit: "結果確認前に4特徴量、logistic設定、閾値0.50、minimum 80、84本target、1 variantを固定する。"
+
+execution_status:
+  preregistered: true
+  runner_exists: true
+  backtest_started: true
+  backtest_completed: true
+  backtest_result_artifact: "artifacts/EXP-2026-0052/summary.json"
+  paper_started: false
+  shadow_started: false
+  live_started: false
